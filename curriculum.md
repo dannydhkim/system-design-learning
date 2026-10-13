@@ -49,7 +49,7 @@ The structure every system design answer should follow. Practice this on every c
 - [x] 1.3 Utilization vs headroom — why 70% is the target, not 100%
 - [x] 1.4 Little's Law — L = λ × W
 - [x] 1.5 Load balancers — routing strategies and the slow server problem
-- [~] 1.6 Retry storms — how retries amplify failure
+- [x] 1.6 Retry storms — how retries amplify failure
 - [ ] 1.7 Timeouts — how to choose them, cascading timeouts
 - [ ] 1.8 Circuit breakers — fail fast to protect recovery
 - [ ] 1.9 Rate limiting — token bucket, sliding window, distributed
