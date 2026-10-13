@@ -100,6 +100,20 @@
       "reps": 1
     },
     {
+      "id": "1.5b",
+      "topic": "1.5",
+      "type": "scenario",
+      "question": "You switched from round-robin to least-connections routing with one slow server. Does latency improve? Does the slow server still receive traffic? Why?",
+      "answer": "Latency improves because new requests are routed to the servers with the fewest in-flight requests. The slow server still receives SOME traffic — it does have free slots occasionally when it completes a request — but much less than healthy servers because its slots stay occupied longer. It's not zero traffic because least-connections picks the least loaded, and once a slot frees up the slow server briefly looks available. This is better than round-robin (which blindly sends 1/3 to the slow server) but doesn't fully solve the problem — you'd need health checks + ejection to stop sending traffic entirely.",
+      "key_concept": "Least-connections routing naturally steers away from slow servers but doesn't eliminate them. Health check ejection is needed for full isolation.",
+      "answered_correctly": true,
+      "last_reviewed": "2026-10-12",
+      "next_review": "2026-10-14",
+      "interval_days": 2,
+      "ease_factor": 2.5,
+      "reps": 1
+    },
+    {
       "id": "1.6a",
       "topic": "1.6",
       "type": "scenario",
@@ -140,6 +154,34 @@
       "interval_days": 1,
       "ease_factor": 2.5,
       "reps": 0
+    },
+    {
+      "id": "1.6d",
+      "topic": "1.6",
+      "type": "recall",
+      "question": "What is exponential backoff and why is it combined with jitter? Give concrete numbers for 4 retries.",
+      "answer": "Exponential backoff: each successive retry waits exponentially longer. Example: 1st retry 100ms, 2nd 200ms, 3rd 400ms, 4th 800ms. Instead of hammering 4 times in 400ms, spread over ~1.5s. Jitter adds randomness (e.g., ±50ms) so hundreds of clients don't retry at the exact same instant. Without jitter, synchronized retries create thundering herd — all clients back off to the same times and still hit together. Combined: retries are spread over time AND desynchronized across clients.",
+      "key_concept": "Exponential backoff spreads retries over time. Jitter desynchronizes them across clients. Both are needed.",
+      "answered_correctly": true,
+      "last_reviewed": "2026-10-12",
+      "next_review": "2026-10-14",
+      "interval_days": 2,
+      "ease_factor": 2.5,
+      "reps": 1
+    },
+    {
+      "id": "1.6e",
+      "topic": "1.6",
+      "type": "recall",
+      "question": "Name three fixes for retry storms and explain why each works.",
+      "answer": "(1) Exponential backoff + jitter — spreads retries over time and desynchronizes clients, reducing the load spike from coordinated retries. (2) Retry budgets — 'only retry if <20% of recent requests were retries' — caps the amplification factor so retries can never multiply load beyond a fixed ratio. (3) Circuit breaker — after N failures, stop sending traffic to the failing dependency entirely. Fails fast to callers, gives the broken service room to recover. Each attacks a different part of the problem: backoff reduces retry intensity, budgets cap retry volume, breakers eliminate retry traffic to broken services.",
+      "key_concept": "Three layers: backoff (slow retries down), budgets (cap retry volume), breakers (stop retrying entirely when it's pointless)",
+      "answered_correctly": true,
+      "last_reviewed": "2026-10-12",
+      "next_review": "2026-10-14",
+      "interval_days": 2,
+      "ease_factor": 2.5,
+      "reps": 1
     }
   ]
 }
