@@ -1,0 +1,61 @@
+{
+  "module": "5-ml-systems",
+  "cards": [
+    {
+      "id": "5.1a",
+      "topic": "5.1",
+      "type": "calculation",
+      "question": "You have 3 GPU inference servers, each with 4 slots (concurrent batch capacity) and 200ms service time. What is the theoretical max throughput? At what offered load does latency start spiking?",
+      "answer": "Max throughput = 3 × 4 × (1000/200) = 60 req/s. Latency starts spiking as you approach 60 req/s — in practice around 70-80% utilization (~42-48 req/s) because of variance in service time. At exactly 60 req/s you have zero headroom and queues grow indefinitely.",
+      "key_concept": "GPU inference throughput = replicas × slots × (1000/serviceMs). Same formula as any server — GPUs are just slow servers with few slots.",
+      "answered_correctly": false,
+      "last_reviewed": null,
+      "next_review": "2026-10-12",
+      "interval_days": 1,
+      "ease_factor": 2.5,
+      "reps": 0
+    },
+    {
+      "id": "5.1b",
+      "topic": "5.1",
+      "type": "reasoning",
+      "question": "In real ML serving, batching lets a GPU process 1 or 16 inputs in nearly the same wall-clock time. How would you simulate the effect of enabling batching in breakscale (which has no batch knob)?",
+      "answer": "Increase slots (batch size = more concurrent capacity) and slightly increase service time (batching adds small overhead). E.g., going from batch=1 to batch=8: change slots from 4 to 32 (4 original × 8 batch), increase service time from 200ms to ~240ms. Throughput jumps from 60 to 3×32×(1000/240) = 400 req/s. The tradeoff: at low traffic, requests wait for the batch to fill, adding latency.",
+      "key_concept": "Batching trades small latency increase for massive throughput gain. Simulate by multiplying slots and slightly increasing service time.",
+      "answered_correctly": false,
+      "last_reviewed": null,
+      "next_review": "2026-10-12",
+      "interval_days": 1,
+      "ease_factor": 2.5,
+      "reps": 0
+    },
+    {
+      "id": "5.1c",
+      "topic": "5.1",
+      "type": "comparison",
+      "question": "Compare ML inference servers to traditional web servers in terms of: slot count, service time, cost per slot, and scaling strategy.",
+      "answer": "ML inference: few slots (1-32, limited by GPU memory), high service time (50-2000ms), very high cost per slot ($1-30/hr per GPU), scale by adding GPU replicas or optimizing batch size. Web servers: many slots (100-10000), low service time (1-50ms), low cost per slot, scale horizontally with cheap CPU instances. Key implication: GPU scarcity means you MUST optimize utilization — batching, model optimization, and right-sizing are critical because you can't just throw more hardware at it cheaply.",
+      "key_concept": "GPU slots are scarce and expensive. Utilization optimization matters far more than with CPU servers.",
+      "answered_correctly": false,
+      "last_reviewed": null,
+      "next_review": "2026-10-12",
+      "interval_days": 1,
+      "ease_factor": 2.5,
+      "reps": 0
+    },
+    {
+      "id": "5.1d",
+      "topic": "5.1",
+      "type": "scenario",
+      "question": "Your ML inference service has 4 GPU replicas serving a transformer model. Average latency is 150ms. A new model version is 2x larger — inference time doubles to 300ms but accuracy improves. How do you maintain the same throughput without adding GPUs?",
+      "answer": "Options: (1) Increase batch size — if current batch=4, try batch=8. Throughput per GPU goes from 4×(1000/150)=26.7 to 8×(1000/300)=26.7 req/s. Same throughput, double latency per request but batching absorbs it. (2) Model optimization — quantization (FP16/INT8) reduces model size and inference time. (3) Speculative decoding or model distillation to get a smaller model with similar accuracy. (4) Caching — if many queries are repeated, cache predictions to avoid inference entirely.",
+      "key_concept": "When GPU capacity is fixed, optimize what runs on them: batching, quantization, caching, distillation.",
+      "answered_correctly": false,
+      "last_reviewed": null,
+      "next_review": "2026-10-12",
+      "interval_days": 1,
+      "ease_factor": 2.5,
+      "reps": 0
+    }
+  ]
+}
