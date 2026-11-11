@@ -30,7 +30,7 @@
     id: '2.2', mod: '2', title: 'DB internals', tag: 'B-tree vs LSM, OLTP vs OLAP',
     analogy: 'A B-tree is a filing cabinet kept perfectly sorted: finding is quick, but each new paper means opening the right drawer. An LSM tree is an in-tray: drop papers on top instantly, and sort the piles together later.',
     points: [
-      'B-tree: sorted pages updated in place. Fast, predictable point and range reads; writes cost random I/O. PostgreSQL and MySQL/InnoDB.',
+      'B-tree: sorted pages updated in place. Fast, predictable point and range reads; writes cost random I/O. The default index structure in PostgreSQL and MySQL/InnoDB.',
       'LSM tree: writes go to a log and an in-memory table, are flushed to immutable sorted files, and merged by background compaction. Very high write throughput. RocksDB, Cassandra.',
       'LSM reads may check several files; Bloom filters let them skip files that cannot contain the key.',
       'OLTP: many small transactions touching a few rows — row-oriented storage.',
@@ -44,7 +44,7 @@
       ['OLTP vs OLAP — workload and storage layout?', 'OLTP: many short transactions on a few rows, row-oriented. OLAP: large scans and aggregations over a few columns, column-oriented.']
     ],
     quiz: [
-      ['Which structure favours a workload of 200k writes/sec and rare reads?', ['LSM tree', 'B-tree', 'Hash index only', 'Bitmap index'], 'Sequential appends and deferred sorting give the highest write throughput.'],
+      ['Which structure favours a workload of 200k writes/sec and rare reads?', ['LSM tree', 'B-tree', 'A heavily indexed heap table', 'Bitmap index'], 'Sequential appends and deferred sorting give the highest write throughput.'],
       ['What is a Bloom filter used for in an LSM tree?', ['Skipping files that definitely do not contain the key', 'Compressing data', 'Sorting the memtable', 'Replicating writes'], 'It answers "definitely not here" cheaply, saving disk reads.'],
       ['"Total revenue per region for the last year" over 2 billion rows is best served by…', ['A column-oriented OLAP store', 'A row-oriented OLTP database', 'A key-value cache', 'A message queue'], 'It scans a few columns of many rows — exactly what columnar storage is built for.']
     ],
@@ -91,7 +91,7 @@
       'All writes go to the primary; changes stream to replicas, which serve reads.',
       'Asynchronous replication is fast but replicas lag — a user may not see their own write.',
       'Read-your-writes fixes: read from the primary for a short time after a write, pin the session, or wait until the replica has caught up to that write.',
-      'Synchronous replication removes lag, but every write waits for a replica — slower, and a replica outage can block writes.',
+      'Synchronous replication means an acknowledged write is already on a replica (no loss on failover), but every write waits for that replica — slower, and a replica outage can block writes. Replica reads are only guaranteed fresh if the commit also waits for the replica to apply the change (e.g. PostgreSQL remote_apply).',
       'Replicas scale reads only. They also provide failover: promote one if the primary dies (losing any un-replicated writes if async).',
       'Change Data Capture (CDC) streams the same change log to other systems: search indexes, caches, warehouses.'
     ],
@@ -100,7 +100,7 @@
     cards: [
       ['What is replication lag and what user-visible bug does it cause?', 'The delay before a write on the primary appears on a replica. A user writes, then reads from a lagging replica and does not see their own change.'],
       ['Give two ways to provide read-your-writes consistency with async replicas.', 'Any two: read from the primary for a short window after a write; pin the user\'s session to the primary; have the client pass the write position and wait for the replica to reach it.'],
-      ['Sync vs async replication — the trade-off?', 'Sync: no data loss on failover and no lag, but slower writes and dependence on replica availability. Async: fast writes, but lag and possible loss of recent writes on failover.']
+      ['Sync vs async replication — the trade-off?', 'Sync: no loss of acknowledged writes on failover, but slower writes and dependence on replica availability (replica reads can still trail unless commits wait for apply). Async: fast writes, but lag and possible loss of recent writes on failover.']
     ],
     quiz: [
       ['A user updates their profile, refreshes, and sees the old value. Most likely cause?', ['The read hit a replica that had not received the write yet', 'The write failed', 'The cache is too large', 'The primary is down'], 'Classic replication lag.'],
@@ -150,17 +150,17 @@
       'Partitions are not optional in a real network, so the practical choice is CP or AP during the partition.',
       '"Consistency" here means every read sees the latest write (linearizability) — not the C in ACID.',
       'PACELC extends it: if Partitioned, choose A or C; Else, choose Latency or Consistency. Even a healthy system trades speed for consistency.',
-      'Quorums make it tunable: with N replicas, W write acks and R read acks, R + W > N guarantees a read overlaps the latest write.'
+      'Quorums make it tunable: with N replicas, W write acks and R read acks, R + W > N means every read set overlaps every acknowledged write set, so a read normally sees the latest acknowledged write. It is not full linearizability: sloppy quorums, concurrent writes and partially failed writes can still give stale or conflicting results.'
     ],
     pitfall: 'Saying "pick two of three" as though you could opt out of partitions, or labelling a whole database "CP" regardless of how it is configured.',
-    say: 'With N=3, W=2, R=2, reads overlap the latest write. If I drop to R=1 for speed, I\'m accepting possibly stale reads.',
+    say: 'With N=3, W=2, R=2, every read overlaps the latest acknowledged write. If I drop to R=1 for speed, I\'m accepting possibly stale reads.',
     cards: [
-      ['State the CAP theorem precisely.', 'During a network partition, a distributed system must choose between consistency (every read sees the latest write) and availability (every request gets a non-error response). It cannot guarantee both.'],
+      ['State the CAP theorem precisely.', 'During a network partition, a distributed system must choose between consistency (every read sees the latest write) and availability (every request to a non-failing node gets a non-error response). It cannot guarantee both.'],
       ['What does PACELC add to CAP?', 'Even without a partition there is a trade-off: if Partition → Availability vs Consistency; Else → Latency vs Consistency.'],
-      ['What is the quorum condition for strongly consistent reads?', 'R + W > N: the set of replicas read always overlaps the set that acknowledged the latest write.']
+      ['What quorum condition makes read and write sets overlap, and what does it not guarantee?', 'R + W > N: the replicas read always overlap the replicas that acknowledged the latest write. It does not by itself give linearizability — concurrent writes, sloppy quorums and partially failed writes can still surface stale or conflicting values.']
     ],
     quiz: [
-      ['N=3 replicas, W=2. Smallest R that guarantees reading the latest write?', ['2', '1', '3', '0'], 'R + W > N → R > 1 → R = 2.'],
+      ['N=3 replicas, W=2. Smallest R such that every read overlaps the last acknowledged write?', ['2', '1', '3', '0'], 'R + W > N → R > 1 → R = 2.'],
       ['The "C" in CAP refers to…', ['Linearizability — reads reflect the latest write', 'ACID constraints such as foreign keys', 'Compression', 'Cache coherence'], 'A frequent mix-up. ACID consistency is about invariants within a transaction.'],
       ['What does PACELC point out that CAP does not?', ['A latency vs consistency trade-off exists even with no partition', 'Partitions never happen', 'Availability is always best', 'Consistency is free'], 'Waiting for more replicas to agree costs latency in normal operation.']
     ],
@@ -205,7 +205,7 @@
     analogy: 'Numbering tickets at an event with many entrances. One shared counter causes a queue; giving each gate its own prefix lets every gate number tickets on its own without clashes.',
     points: [
       'Database auto-increment: simple and ordered, but one database is a bottleneck and single point of failure, and IDs leak your volume.',
-      'UUID v4: 128 random bits, no coordination at all. Not sortable, and random inserts are unkind to B-tree indexes.',
+      'UUID v4: 128 bits, 122 of them random, no coordination at all. Not sortable, and random inserts are unkind to B-tree indexes.',
       'Snowflake-style: 64 bits = timestamp + machine ID + per-machine sequence. Roughly time-sortable, fits a bigint, generated locally — but needs unique machine IDs and sane clocks.',
       'ULID / UUID v7: 128 bits with a timestamp prefix, so they sort by creation time without coordination.',
       'Decide by asking: must it be sortable by time? fit in 64 bits? be unguessable? be generated without a network call?'
@@ -219,7 +219,7 @@
     ],
     quiz: [
       ['You need IDs that sort by creation time, fit in 64 bits and are generated without a central service. Choose…', ['Snowflake-style IDs', 'UUID v4', 'A single DB auto-increment', 'Random 32-bit integers'], 'Timestamp prefix + machine ID + sequence gives all three.'],
-      ['What can break Snowflake-style generation?', ['A machine\'s clock moving backwards', 'Too many readers', 'Large payloads', 'Network partitions between clients'], 'IDs embed the timestamp; a clock step back can produce duplicates or disorder.'],
+      ['What can break Snowflake-style generation?', ['A machine\'s clock moving backwards', 'Too many readers', 'Large payloads', 'Network partitions between clients'], 'IDs embed the timestamp, so a clock stepping backwards would cause duplicates or disorder in a naive generator. Twitter\'s Snowflake instead refuses to issue IDs until the clock catches up, so the failure shows up as a stall.'],
       ['Why might sequential public IDs be a problem?', ['They reveal volume and let others enumerate resources', 'They are too long', 'They cannot be indexed', 'They are random'], 'Order #1042 tells everyone you have had about a thousand orders.']
     ],
     explain: ['Explain the main ways to generate unique IDs in a distributed system and how you would choose.', ['Auto-increment and its limits', 'UUID v4: no coordination, not sortable', 'Snowflake: timestamp + machine + sequence, 64-bit, sortable', 'Selection criteria: sortability, size, coordination, guessability']],

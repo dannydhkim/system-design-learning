@@ -48,7 +48,7 @@
     cards: [
       ['Roughly how much downtime per year do 99.9%, 99.99% and 99.999% availability allow?', '99.9% ≈ 8.8 hours · 99.99% ≈ 53 minutes · 99.999% ≈ 5 minutes.'],
       ['What is the difference between durability and availability?', 'Durability: once a write is acknowledged, the data is not lost. Availability: the system responds to requests. A system can be down (unavailable) without losing anything (durable).'],
-      ['Why state latency as a percentile (p99) instead of an average?', 'Averages hide the tail. A 50 ms average can coexist with 1% of requests taking 3 seconds — and a page that makes many calls is likely to hit that tail.']
+      ['Why state latency as a percentile (p99) instead of an average?', 'Averages hide the tail. A 50 ms average can coexist with 1% of requests taking 3 seconds — and a page that makes many calls becomes increasingly likely to hit that tail (with 100 calls, about 63% of page loads see at least one p99-slow call).']
     ],
     quiz: [
       ['Which statement is a well-formed non-functional requirement?', ['p99 read latency under 200 ms at 10k QPS', 'The system should be fast and scalable', 'Users can upload photos', 'We will use Cassandra for storage'], 'It is measurable and names the condition it holds under. "Fast" is not testable; the others are a feature and a solution.'],
@@ -67,7 +67,7 @@
     id: '0A.3', mod: '0A', title: 'Capacity estimation', tag: 'Back-of-envelope numbers',
     analogy: 'A caterer asking "how many guests?" before choosing between a home kitchen and an industrial one. You do not need the exact headcount — you need to know if it is 20 or 20,000.',
     points: [
-      'The goal is to find which dimension is hard (QPS? storage? bandwidth?), not to be arithmetically precise.',
+      'The goal is to find which dimension is hard (QPS? storage? bandwidth?), not to be arithmetically precise. Some interviewers treat this step as optional — do it when the numbers will change a decision.',
       'Anchors: a day ≈ 86,400 s ≈ 10⁵ s. So 1M requests/day ≈ 12 QPS, and 100M/day ≈ 1,200 QPS.',
       'Peak is typically 2–10× the average. Size for peak, not average.',
       'Storage = writes per day × bytes per write × retention. Bandwidth = QPS × payload size.',
@@ -163,7 +163,7 @@
     analogy: 'A library: books are the resources (nouns), and there are only a few standard things you can do to them — look up, add, replace, remove.',
     points: [
       'Model nouns as resources (/users/42/orders); let the HTTP verb carry the action. Avoid verbs in paths (/createOrder).',
-      'GET reads · POST creates · PUT replaces · PATCH partially updates · DELETE removes. GET, PUT and DELETE are idempotent; POST is not.',
+      'GET reads · POST creates (or triggers any other non-idempotent action) · PUT replaces · PATCH partially updates · DELETE removes. GET, PUT and DELETE are idempotent; POST is not, and PATCH is not guaranteed to be.',
       'Status codes worth knowing cold: 200, 201 Created, 204 No Content, 400, 401, 403, 404, 409 Conflict, 429 Too Many Requests, 5xx.',
       'Paginate lists. Cursor pagination is stable under inserts and cheap at depth; offset pagination is simple but slow and unstable for deep pages.',
       'Version from day one (/v1/…) so you can evolve without breaking clients.'
@@ -176,7 +176,7 @@
       ['What do 201, 204, 409 and 429 mean?', '201 Created · 204 success with no body · 409 Conflict with current state (e.g. duplicate) · 429 rate limited.']
     ],
     quiz: [
-      ['Which endpoint is the most RESTful way to cancel order 7?', ['DELETE /v1/orders/7', 'POST /v1/cancelOrder?id=7', 'GET /v1/orders/7/cancel', 'POST /v1/orders/delete/7'], 'The resource is the order; the verb says what to do. A GET must never change state.'],
+      ['Which endpoint is the most RESTful way to delete draft order 7?', ['DELETE /v1/orders/7', 'POST /v1/deleteOrder?id=7', 'GET /v1/orders/7/delete', 'POST /v1/orders/delete/7'], 'The resource is the order; the verb says what to do. A GET must never change state. (Cancelling a placed order is different: the order still exists, so that is a state change — e.g. a PATCH of its status — not a DELETE.)'],
       ['A feed gets new items constantly. Which pagination avoids duplicates and skips as the user scrolls?', ['Cursor-based', 'Offset-based', 'Page-number-based', 'No pagination'], 'Offsets shift when new items are inserted at the top; a cursor anchors to a specific item.'],
       ['A client tries to create a username that already exists. Best status code?', ['409 Conflict', '404 Not Found', '500 Internal Server Error', '200 OK with an error message'], 'The request conflicts with current state. It is a client-side issue, so not 5xx.']
     ],
@@ -187,7 +187,7 @@
       paths: ['/v1/links', '/v1/links/{code}', '/{code}', '/v1/links?cursor=…&limit=50', '/v1/createLink', '/v1/links/delete?code=…', '/v1/getLinks?page=3'],
       tasks: [
         { need: 'Create a short link', method: 'POST', path: '/v1/links', status: '201', note: 'POST to the collection creates; 201 signals a new resource.' },
-        { need: 'Browser follows a short link', method: 'GET', path: '/{code}', status: '302', note: '302 keeps every click hitting your servers (analytics). 301 lets browsers cache the redirect — less load, no click data.' },
+        { need: 'Browser follows a short link', method: 'GET', path: '/{code}', status: '302', note: '302 is not cached unless you add explicit cache headers, so every click reaches your servers (analytics). 301 is cacheable by default, so browsers may stop asking — less load, no click data.' },
         { need: 'Read a link\'s metadata', method: 'GET', path: '/v1/links/{code}', status: '200', note: 'GET on a single resource.' },
         { need: 'Delete a link', method: 'DELETE', path: '/v1/links/{code}', status: '204', note: 'DELETE is idempotent; 204 means success with nothing to return.' },
         { need: 'List my links, page by page', method: 'GET', path: '/v1/links?cursor=…&limit=50', status: '200', note: 'Cursor pagination stays stable as new links are created.' }
@@ -201,8 +201,8 @@
     points: [
       'gRPC = HTTP/2 transport + Protocol Buffers (compact binary) + a schema-first contract with generated client and server code.',
       'Four call types: unary, server streaming, client streaming, bidirectional streaming.',
-      'Strong fit for internal service-to-service calls: low overhead, strict types, deadlines that propagate down the call chain.',
-      'Weaker fit for public or browser APIs: needs a proxy (gRPC-Web), binary payloads are harder to debug, HTTP caching does not apply.',
+      'Strong fit for internal service-to-service calls: low overhead, strict types, and deadlines that can be propagated down the call chain (automatic in some languages such as Go and Java, opt-in in others).',
+      'Weaker fit for public or browser APIs: browsers need a gRPC-Web proxy (which supports only unary and server-streaming calls), binary payloads are harder to debug, HTTP caching does not apply.',
       'Schema evolution: add new optional fields, never reuse or renumber existing field numbers.'
     ],
     pitfall: 'Choosing gRPC for a public third-party API "because it\'s faster". Reach and debuggability usually matter more there.',
@@ -215,7 +215,7 @@
     quiz: [
       ['Best protocol for calls between 30 internal microservices with strict latency budgets?', ['gRPC', 'REST with JSON', 'GraphQL', 'SOAP'], 'Binary encoding, HTTP/2 multiplexing, generated clients and deadlines suit internal calls.'],
       ['Which is NOT a gRPC call type?', ['Publish–subscribe', 'Unary', 'Server streaming', 'Bidirectional streaming'], 'gRPC offers unary, server-streaming, client-streaming and bidirectional. Pub/sub is a messaging pattern.'],
-      ['You remove a protobuf field and give its number to a new field of a different type. What happens?', ['Old clients misinterpret the data', 'Nothing; numbers are just labels', 'The compiler fixes it automatically', 'Requests get faster'], 'The wire format identifies fields by number. Old binaries will decode the new field as the old one.']
+      ['You remove a protobuf field and give its number to a new field of a different type. What happens?', ['Old clients misinterpret the data', 'Nothing; numbers are just labels', 'The compiler fixes it automatically', 'Requests get faster'], 'The wire format identifies fields by number. Old binaries will try to decode the new field as the old one — at best a parse error, at worst silent data corruption.']
     ],
     explain: ['Explain what gRPC is and when you would pick it over REST.', ['HTTP/2 + protobuf + schema with code generation', 'Good for internal, low-latency, strongly-typed calls', 'Supports streaming', 'Poor fit for browsers/public APIs, with a reason']],
     duck: ['If gRPC is faster, why doesn\'t everyone use it everywhere?', 'What does "schema-first" buy you?']
@@ -241,7 +241,7 @@
     quiz: [
       ['A mobile screen needs data from six REST resources. What does GraphQL offer?', ['One round trip returning exactly the fields needed', 'Faster database queries', 'Automatic CDN caching', 'Binary encoding'], 'It moves the composition to the server in one request. It does not make the underlying queries faster.'],
       ['A query for 100 posts triggers 101 database queries. What is this?', ['The N+1 problem', 'A cache stampede', 'A retry storm', 'Head-of-line blocking'], 'One query for the list plus one per item. Batch the child lookups.'],
-      ['Why is caching harder with GraphQL than REST?', ['Every query hits the same URL, usually via POST', 'GraphQL responses cannot be stored', 'GraphQL forbids caching', 'Responses are always unique'], 'HTTP caches key on URL and method. One POST endpoint defeats that, so caching moves to the client or the resolver layer.']
+      ['Why is caching harder with GraphQL than REST?', ['Every query hits the same URL, usually via POST', 'GraphQL responses cannot be stored', 'GraphQL forbids caching', 'Responses are always unique'], 'HTTP caches key on method and URL. With every query POSTed to one URL there is nothing to key on, so caching usually moves to the client or resolver layer — unless queries are sent as GET to get CDN caching back.']
     ],
     explain: ['Explain what GraphQL is, the problem it solves, and one new problem it creates.', ['Client specifies the shape of the response', 'Solves over-/under-fetching', 'N+1 and its fix (batching)', 'A cost: caching or query complexity']],
     duck: ['If GraphQL is so flexible, why would anyone still use REST?', 'Where does the N+1 problem actually come from?']
@@ -254,7 +254,7 @@
       'WebSocket: starts as HTTP, upgrades to one long-lived, full-duplex TCP connection. Use for chat, collaboration, games.',
       'Server-Sent Events (SSE): one-way server → client over plain HTTP, with built-in reconnection and Last-Event-ID resume. Use for feeds, tickers, notifications.',
       'Connections are stateful: you need to know which server holds which user (a connection registry or pub/sub), and deploys must drain connections.',
-      'Reconnection: clients back off with jitter and resume from the last message ID they saw, so nothing is lost or duplicated.',
+      'Reconnection: clients back off with jitter and send the last message ID they saw; the server replays from there (so it must retain recent messages) and the client de-duplicates by ID. SSE sends Last-Event-ID for you; with WebSocket you build this yourself.',
       'Backpressure: a slow client must not grow an unbounded buffer. Bound it, then drop, coalesce or disconnect.'
     ],
     pitfall: 'Forgetting that a deploy or load balancer restart disconnects everyone at once — and they all reconnect at the same instant.',
@@ -284,7 +284,7 @@
       'A single entry point that handles cross-cutting concerns: TLS termination, authentication, rate limiting, routing, request/response transformation, logging.',
       'It lets backend services stay simple and lets you change internal topology without breaking clients.',
       'Keep business logic out. A gateway that knows your domain becomes a monolith everyone must deploy through.',
-      'It sits on every request path, so it must be stateless, horizontally scaled and redundant.',
+      'It sits on every request path, so run several redundant, horizontally scaled instances, with any shared state (such as rate-limit counters) kept in an external store.',
       'Backend-for-Frontend (BFF): a thin gateway per client type (web, mobile) that shapes responses for that client.'
     ],
     pitfall: 'Drawing one gateway box and never mentioning it is a single point of failure for the whole system.',
@@ -310,7 +310,7 @@
       'An operation is idempotent if doing it many times has the same effect as doing it once. Networks time out, so clients will retry.',
       'Idempotency key: the client generates a unique ID per logical operation and sends it with every retry. The server stores key → result and replays the result for duplicates.',
       'Store the key in the same transaction as the side effect (or behind a unique constraint). Check-then-act in two steps is a race.',
-      '"Exactly-once" in practice means at-least-once delivery plus idempotent processing.',
+      '"Exactly-once" effects are usually achieved with at-least-once delivery plus idempotent (or transactional) processing.',
       'Make updates naturally idempotent where you can: "set status = shipped" rather than "increment counter".'
     ],
     pitfall: 'Retrying a non-idempotent POST after a timeout. The first request may have succeeded — you just did not hear back.',

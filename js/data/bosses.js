@@ -25,20 +25,20 @@ SD.bosses = [
         paths: ['/v1/links', '/v1/links/{code}', '/{code}', '/v1/createLink', '/v1/links/delete?code=…'],
         tasks: [
           { need: 'Create a short link', method: 'POST', path: '/v1/links', status: '201', note: 'POST to the collection; 201 Created.' },
-          { need: 'Browser follows a short link', method: 'GET', path: '/{code}', status: '302', note: '302 keeps clicks visible for analytics; 301 would be cached by browsers.' },
+          { need: 'Browser follows a short link', method: 'GET', path: '/{code}', status: '302', note: '302 is not cached by default, so clicks stay visible for analytics; a 301 is cacheable by default.' },
           { need: 'Delete a link', method: 'DELETE', path: '/v1/links/{code}', status: '204', note: 'Idempotent delete, nothing to return.' }
         ] } },
       { name: 'High-level design', w: 25, lab: { type: 'diagram', brief: 'Draw the design for create + redirect at ~4k redirects/s.',
         required: ['client', 'lb', 'app', 'cache', 'db', 'idgen'],
         edges: [['client', 'lb'], ['lb', 'app'], ['app', 'cache'], ['app', 'db'], ['app', 'idgen']],
-        why: { cache: 'Read-heavy and the mapping never changes — ideal for caching.', idgen: 'Unique codes without collisions: a counter/ID service whose output is base-62 encoded.', lb: 'Spreads load across stateless app servers.' },
+        why: { cache: 'Read-heavy, and a code\'s target never changes once created — ideal for caching. Deletion or expiry needs an explicit cache delete, or a TTL no longer than the link\'s lifetime.', idgen: 'Unique codes without collisions: a counter/ID service whose output is base-62 encoded.', lb: 'Spreads load across stateless app servers.' },
         decoys: { queue: 'Create and redirect are simple synchronous lookups. A queue is only justified if analytics is in scope.', ws: 'Nothing here is real-time.', search: 'Nobody asked to search links.' } } },
       { name: 'Deep dive', w: 15, lab: { type: 'quiz', qs: [
-        ['Analytics is in scope. 301 or 302 for the redirect?', ['302 — browsers do not cache it, so every click reaches us', '301 — it is permanent, so it is more correct', 'Either; they behave identically', '200 with a JavaScript redirect'], '301 is cached by browsers: less load, but later clicks never reach your servers.'],
+        ['Analytics is in scope. 301 or 302 for the redirect?', ['302 — not cached by default, so every click reaches us', '301 — it is permanent, so it is more correct', 'Either; they behave identically', '200 with a JavaScript redirect'], 'A 301 is cacheable by default, so browsers may never ask again: less load, but later clicks are invisible. A 302 is only cached if you send explicit cache headers.'],
         ['Two servers must never issue the same short code. Most robust approach?', ['Hand each server a disjoint range from a counter and base-62 encode it', 'Hash the URL and hope there are no collisions', 'Check whether the code exists, then insert', 'Use longer codes'], 'Disjoint ranges are collision-free by construction. Check-then-insert is a race without a unique constraint.'],
-        ['One link goes viral: 50k requests/s for a single code. What absorbs it?', ['The cache — the mapping is immutable, so it can be cached aggressively', 'Sharding the database by code', 'A message queue', 'More ID generators'], 'A hot key is served from memory (or the edge); the database never sees it.']
+        ['One link goes viral: 50k requests/s for a single code. What absorbs it?', ['The cache — a code\'s target never changes, so it can be cached aggressively', 'Sharding the database by code', 'A message queue', 'More ID generators'], 'A hot key is served from memory (or the edge); the database never sees it.']
       ] } },
-      { name: 'Teach it back', w: 15, lab: { type: 'teach', prompt: 'Explain end to end what happens when someone clicks a short link, and where the first bottleneck appears at 10× traffic.', rubric: ['Path: load balancer → app → cache → database on a miss → 302 with Location', 'Read-heavy, so cache hit ratio is the main lever', 'The mapping is immutable, so long TTLs are safe', 'First bottleneck: database reads on misses / cold cache → replicas', 'How unique codes are generated'] } }
+      { name: 'Teach it back', w: 15, lab: { type: 'teach', prompt: 'Explain end to end what happens when someone clicks a short link, and where the first bottleneck appears at 10× traffic.', rubric: ['Path: load balancer → app → cache → database on a miss → 302 with Location', 'Read-heavy, so cache hit ratio is the main lever', 'A code\'s target never changes, so long TTLs are safe (invalidate on delete or expiry)', 'First bottleneck: database reads on misses / cold cache → replicas', 'How unique codes are generated'] } }
     ]
   },
   {
@@ -77,7 +77,7 @@ SD.bosses = [
         decoys: { blob: 'Media was not in the core scope.', search: 'Search was parked as out of scope.', idgen: 'Useful in practice, but not the point of this design.' } } },
       { name: 'Deep dive', w: 15, lab: { type: 'quiz', qs: [
         ['How do you handle an account with 100M followers?', ['Hybrid: do not fan out their posts; fetch them at read time and merge', 'Fan out anyway with more workers', 'Limit accounts to 10k followers', 'Shard the celebrity across databases'], 'Push for ordinary accounts, pull for the few huge ones. One merge at read time is far cheaper than 100M writes.'],
-        ['Why does fan-out on write suit this system at all?', ['Reads vastly outnumber writes, so precomputing makes the common operation cheap', 'Writes are more frequent than reads', 'It uses less storage', 'It is simpler to build'], 'You pay once per post so that billions of reads are a cache fetch.'],
+        ['Why does fan-out on write suit this system at all?', ['Timeline reads outnumber posts (about 10:1 here) and must be fast, so precomputing moves the work off the latency-sensitive read path', 'Writes are more frequent than reads', 'It uses less storage', 'It is simpler to build'], 'You pay per post, asynchronously, so that a billion reads a day are each one cache fetch.'],
         ['A timeline cache node dies and its timelines are lost. What now?', ['Rebuild on demand from the follow graph and the post store', 'The data is gone for good', 'Restore from last week\'s backup', 'Ask users to re-follow'], 'The cache is derived data. The source of truth is intact.'],
         ['Most accounts have not logged in for months. Fan-out optimisation?', ['Skip inactive users and build their timeline when they return', 'Fan out to everyone for consistency', 'Delete inactive users', 'Fan out twice to be sure'], 'No point precomputing timelines nobody reads.']
       ] } },
