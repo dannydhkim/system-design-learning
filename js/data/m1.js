@@ -50,7 +50,7 @@
     analogy: 'A motorway at 95% occupancy is not "efficient" — one car braking causes a jam that takes an hour to clear. Flow needs gaps.',
     points: [
       'Utilisation ρ = arrival rate ÷ capacity. Headroom is what is left.',
-      'Latency rises non-linearly with utilisation. In the simplest queueing model, time in system ≈ service time ÷ (1 − ρ): 2× at 50%, 10× at 90%, 100× at 99%.',
+      'Latency rises non-linearly with utilisation. For a single server, time in system ≈ service time ÷ (1 − ρ): 2× at 50%, 10× at 90%, 100× at 99%. A pool of many slots queues far less at the same ρ, but hits the same wall closer to 100%.',
       'Arrivals and service times vary, so queues form well before 100%.',
       'Headroom is also your recovery capacity (draining backlogs) and your failure capacity (losing a node shifts its load onto the rest).',
       'Hence the common target of roughly 60–70% at peak.'
@@ -59,8 +59,8 @@
     say: 'I\'ll size for about 70% utilisation at peak so there\'s headroom for bursts and for losing an instance.',
     cards: [],
     quiz: [
-      ['In the simple model latency ≈ service time ÷ (1 − ρ). At 90% utilisation latency is about…', ['10× the service time', '1.9× the service time', '90× the service time', 'Equal to the service time'], '1 ÷ (1 − 0.9) = 10.'],
-      ['Three servers run at 70% each. One dies. The remaining two are at…', ['105% — overloaded', '70%', '85%', '93%'], '3 × 70 = 210 units of load over 2 servers = 105%. To survive one loss, three servers must stay under ~66%.'],
+      ['For a single server, latency ≈ service time ÷ (1 − ρ). At 90% utilisation latency is about…', ['10× the service time', '1.9× the service time', '90× the service time', 'Equal to the service time'], '1 ÷ (1 − 0.9) = 10.'],
+      ['Three servers run at 70% each. One dies. The remaining two are at…', ['105% — overloaded', '70%', '85%', '93%'], '3 × 70 = 210 units of load over 2 servers = 105%. To survive one loss, three servers must stay under two-thirds (~67%).'],
       ['Why do queues form below 100% utilisation?', ['Arrivals and service times are variable, so bursts temporarily exceed capacity', 'Servers are lazy', 'Load balancers add delay', 'They do not'], 'Averages hide bursts. Randomness creates momentary overloads.']
     ],
     explain: ['Explain why you should not run a service at 100% utilisation.', ['Latency grows non-linearly as utilisation approaches 100%', 'Variability causes queueing before 100%', 'Headroom is needed to drain backlogs', 'Headroom is needed to survive node loss']],
@@ -74,7 +74,7 @@
     points: [
       'L = λ × W: average items in the system = arrival rate × average time each spends in it.',
       'It holds for any stable system, regardless of arrival pattern or service distribution.',
-      'Use it to size concurrency: 1,000 req/s × 0.2 s = 200 requests in flight → you need at least 200 slots or connections.',
+      'Use it to size concurrency: 1,000 req/s × 0.2 s = 200 requests in flight on average → you need comfortably more than 200 slots or connections (about 290 to sit at 70% utilisation).',
       'Use it backwards: if latency doubles at the same arrival rate, in-flight requests double — which is how slow dependencies exhaust thread pools.'
     ],
     pitfall: 'Sizing a connection pool from QPS alone. The pool size depends on QPS × time each connection is held.',
@@ -132,7 +132,7 @@
     quiz: [
       ['Three service layers each retry up to 3 times (4 attempts). Worst-case amplification at the bottom?', ['64×', '12×', '4×', '9×'], '4 × 4 × 4 = 64 attempts for one user request.'],
       ['What does jitter add to exponential backoff?', ['Randomness, so clients do not all retry at the same instant', 'Longer waits', 'Fewer retries', 'Encryption'], 'Without jitter, clients that failed together retry together.'],
-      ['Which request is safe to retry automatically?', ['An idempotent read that timed out', 'A payment POST with no idempotency key', 'A request that got 400 Bad Request', 'A request that got 403 Forbidden'], 'Retry only transient failures of idempotent operations. 4xx errors will fail again.']
+      ['Which request is safe to retry automatically?', ['An idempotent read that timed out', 'A payment POST with no idempotency key', 'A request that got 400 Bad Request', 'A request that got 403 Forbidden'], 'Retry only transient failures of idempotent operations. Most 4xx errors (400, 403, 404) mean the request itself is wrong and will fail again; the exceptions are 408 and 429, which can be retried after a delay.']
     ],
     explain: ['Explain what a retry storm is and how to prevent one.', ['Failure → retries → more load → more failure (feedback loop)', 'Amplification multiplies across layers', 'Backoff with jitter', 'Retry budgets / circuit breakers / retry only idempotent + transient']],
     duck: ['Retries make things more reliable — how can they make an outage worse?', 'Why add randomness to the wait time?'],
@@ -200,7 +200,7 @@
     analogy: 'A nightclub bouncer with a clicker. The club has a capacity; past it, people wait outside — unpleasant for them, but the people inside can still breathe.',
     points: [
       'Token bucket: tokens refill at a steady rate up to a cap; each request spends one. Allows bursts up to the bucket size.',
-      'Leaky bucket: requests drain at a constant rate — smooths output, no bursts.',
+      'Leaky bucket (as a queue): requests are queued and drained at a constant rate — output is smooth, and bursts are delayed or dropped rather than passed through.',
       'Fixed window: a counter per time window. Simple, but allows up to 2× the limit across a window boundary.',
       'Sliding window log: store each request timestamp — exact but memory-hungry. Sliding window counter: a weighted blend of two windows — a cheap approximation.',
       'Distributed limiting needs shared state (e.g. Redis with atomic operations) or accepts approximate per-node limits. Reject with 429 and a Retry-After header.'
@@ -213,7 +213,7 @@
       ['What makes distributed rate limiting hard, and the usual solution?', 'Counters must be shared across servers and updated without races. Use a central store such as Redis with atomic operations, or accept approximate local limits.']
     ],
     quiz: [
-      ['Which algorithm deliberately allows short bursts?', ['Token bucket', 'Leaky bucket', 'Sliding window log', 'None of them'], 'Saved-up tokens can be spent at once, up to the bucket size.'],
+      ['Which algorithm deliberately allows short bursts?', ['Token bucket', 'Leaky bucket used as a queue', 'Sliding window log', 'None of them'], 'Saved-up tokens can be spent at once, up to the bucket size.'],
       ['Limit is 100/min using fixed windows. Worst case in a 2-second span across a boundary?', ['200 requests', '100 requests', '50 requests', '400 requests'], '100 at the end of one window plus 100 at the start of the next.'],
       ['Correct response when a client exceeds its limit?', ['429 Too Many Requests with Retry-After', '500 Internal Server Error', '200 OK with an empty body', '404 Not Found'], 'It tells the client it is being limited and when to try again.']
     ],

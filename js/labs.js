@@ -473,17 +473,26 @@
   var SIMS = {
     queue: {
       title: 'Utilisation and latency',
-      note: 'Latency uses the simplest queueing model, service time ÷ (1 − utilisation). Real multi-slot servers queue somewhat less at the same utilisation, but the hockey-stick shape is the same.',
+      note: 'Latency uses the standard multi-server queueing model (M/M/c, Erlang C), which assumes random arrivals and service times. The single-slot line shows service time ÷ (1 − utilisation) for comparison: pooling many slots delays the queueing until much closer to 100%, then it climbs just as steeply.',
       params: [{ k: 'lam', label: 'Arrival rate', unit: 'req/s', min: 50, max: 1500, step: 10, val: 300 }, { k: 'slots', label: 'Slots', unit: '', min: 5, max: 120, step: 1, val: 40 }, { k: 'ms', label: 'Service time', unit: 'ms', min: 10, max: 200, step: 10, val: 100 }],
       calc: function (s) {
-        var cap = s.slots * 1000 / s.ms, rho = s.lam / cap, lat = rho < 1 ? s.ms / (1 - rho) : Infinity;
-        return { rho: rho, cap: cap, lat: lat, rows: [['Capacity', fmt(cap) + ' req/s'], ['Utilisation', fmt(rho * 100) + '%', rho > 1 ? 'bad' : rho > 0.8 ? 'warn' : 'good'], ['Latency (model)', rho < 1 ? fmt(lat) + ' ms  (' + fmt(lat / s.ms) + '× service time)' : 'unbounded — queue grows by ' + fmt(s.lam - cap) + ' req/s', rho < 0.8 ? 'good' : rho < 1 ? 'warn' : 'bad']],
+        var cap = s.slots * 1000 / s.ms, rho = s.lam / cap, lat = Infinity, x = Infinity;
+        if (rho < 1) {
+          // Erlang C: probability an arrival has to queue, via the Erlang B recurrence.
+          var a = s.lam * s.ms / 1000, b = 1;
+          for (var k = 1; k <= s.slots; k++) b = a * b / (k + a * b);
+          var pWait = b / (1 - rho * (1 - b));
+          lat = s.ms + pWait * s.ms / (s.slots * (1 - rho)); x = lat / s.ms;
+        }
+        return { rho: rho, cap: cap, lat: lat, x: x, rows: [['Capacity', fmt(cap) + ' req/s'], ['Utilisation', fmt(rho * 100) + '%', rho > 1 ? 'bad' : rho > 0.8 ? 'warn' : 'good'],
+          ['Latency with ' + s.slots + ' slots', rho < 1 ? fmt(lat) + ' ms  (' + fmt(x) + '× service time)' : 'unbounded — queue grows by ' + fmt(s.lam - cap) + ' req/s', x < 1.2 ? 'good' : rho < 1 ? 'warn' : 'bad'],
+          ['Same utilisation, one slot', rho < 1 ? fmt(1 / (1 - rho)) + '× service time' : 'unbounded']],
           bars: [['Load', s.lam, 'load'], ['Capacity', cap, 'cap']] };
       },
       missions: [
         { text: '900 req/s arrive and each takes 50 ms. Find the smallest number of slots that keeps utilisation at or below 70%.', fix: { lam: 900, ms: 50 }, start: { slots: 40 }, check: function (s) { return s.slots === 65; }, win: '900 × 0.05 s = 45 slots busy on average (Little\'s Law). 45 ÷ 0.7 = 64.3, so 65 slots. The other 20 are headroom, not waste.' },
-        { text: '50 slots at 100 ms gives 500 req/s of capacity. Raise the arrival rate until latency is 10× the service time.', fix: { slots: 50, ms: 100 }, start: { lam: 200 }, check: function (s, m) { return m.rho > 0.895 && m.rho < 0.905; }, win: 'That is 90% utilisation. From 50% to 90% latency went from 2× to 10×; the last few percent are the most expensive.' },
-        { text: 'Now push the arrival rate above capacity and read the latency line.', fix: { slots: 50, ms: 100 }, start: { lam: 450 }, check: function (s, m) { return m.rho > 1; }, win: 'Above 100% there is no steady state: the queue grows every second, and it only shrinks once arrivals fall back below capacity.' }
+        { text: '50 slots at 100 ms gives 500 req/s of capacity. Raise the arrival rate until latency reaches 1.5× the service time — and notice how far you have to go.', fix: { slots: 50, ms: 100 }, start: { lam: 200 }, check: function (s, m) { return m.rho < 1 && m.x >= 1.5; }, win: 'About 98% utilisation. A single slot would be at 1.5× by 33%; fifty pooled slots hide the queueing until the last few percent, then it explodes. That cliff is why you keep headroom: at 98%, a 3% burst, a retry wave or one lost node tips you over.' },
+        { text: 'Now push the arrival rate above capacity and read the latency line.', fix: { slots: 50, ms: 100 }, start: { lam: 490 }, check: function (s, m) { return m.rho > 1; }, win: 'Above 100% there is no steady state: the queue grows every second, and it only shrinks once arrivals fall back below capacity.' }
       ]
     },
     retry: {

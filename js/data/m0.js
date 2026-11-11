@@ -587,7 +587,7 @@
       ['Why alert on symptoms rather than causes?', 'Symptoms (errors, latency) mean users are hurt and someone must act. Causes (CPU, memory) often fire with no user impact and miss failures that have other causes.']
     ],
     quiz: [
-      ['Which should page a human at 3 a.m.?', ['Checkout error rate is burning the error budget 14× too fast', 'CPU on one node is at 85%', 'One of twelve replicas restarted', 'GC pauses rose 20%'], 'It is a user-facing symptom that needs action. The rest are diagnostic.'],
+      ['Which should page a human at 3 a.m.?', ['Checkout error rate is burning the error budget 14.4× too fast', 'CPU on one node is at 85%', 'One of twelve replicas restarted', 'GC pauses rose 20%'], 'It is a user-facing symptom that needs action. The rest are diagnostic.'],
       ['RED stands for…', ['Rate, Errors, Duration', 'Requests, Events, Disk', 'Resources, Errors, Delay', 'Replication, Eviction, Durability'], 'The standard trio for request-driven services.'],
       ['Mean latency is 80 ms but users complain. What do you check first?', ['Tail percentiles such as p99', 'The mean over a longer window', 'CPU average', 'Total request count'], 'Averages hide the slow tail that users actually feel.']
     ],
@@ -595,7 +595,7 @@
     duck: ['Why not alert on everything, just to be safe?', 'What is an error budget actually for?'],
     lab: {
       type: 'sort', brief: 'Page someone, or put it on a dashboard?', buckets: ['Page a human (symptom)', 'Dashboard / ticket (cause)'],
-      items: [['p99 checkout latency above SLO for 10 minutes', 0], ['Error budget burning 14× too fast', 0], ['CPU at 85% on one node', 1], ['One of twelve replicas restarted', 1], ['Login success rate dropped to 80%', 0], ['GC pause time up 20%', 1], ['Queue depth rising, latency still within SLO', 1]]
+      items: [['p99 checkout latency above SLO for 10 minutes', 0], ['Error budget burning 14.4× too fast', 0], ['CPU at 85% on one node', 1], ['One of twelve replicas restarted', 1], ['Login success rate dropped to 80%', 0], ['GC pause time up 20%', 1], ['Queue depth rising, latency still within SLO', 1]]
     }
   });
 
