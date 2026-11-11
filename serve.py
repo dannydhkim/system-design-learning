@@ -39,6 +39,15 @@ class Handler(SimpleHTTPRequestHandler):
         port = self.server.server_address[1]
         return self.headers.get("Origin", "") in {f"http://localhost:{port}", f"http://127.0.0.1:{port}"}
 
+    def hidden(self):
+        # Judge the file the request really resolves to, after the server has decoded it, so that
+        # an encoded name such as /%2egit/config is caught as well as /.git/config.
+        try:
+            rel = Path(self.translate_path(self.path)).resolve().relative_to(ROOT)
+        except ValueError:
+            return True  # resolves outside the repo, for example through a symlink
+        return any(part.startswith(".") for part in rel.parts)
+
     def end_headers(self):
         self.send_header("Cache-Control", "no-store")  # always serve fresh files while studying/editing
         super().end_headers()
@@ -46,7 +55,7 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         if not self.allowed_host():
             return self.send_error(403, "Open this app at http://localhost")
-        if any(part.startswith(".") for part in self.path.split("?")[0].split("/")):
+        if self.hidden():
             return self.send_error(404)
         # Before the first save there is no progress file; answer with an empty object rather than a 404.
         if self.path.split("?")[0] == "/progress/progress.json" and not PROGRESS.exists():
