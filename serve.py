@@ -6,7 +6,13 @@
 
 The app POSTs its state to /api/progress; this writes it to progress/progress.json
 so you can `git add progress && git commit && git push` to keep it on GitHub.
-Binds to localhost only.
+
+Binds to localhost only, and only answers a browser that is really on this page:
+  · the Host header must be localhost or 127.0.0.1 on our port (stops DNS rebinding, where another
+    site points its own name at 127.0.0.1 to read or write through this server);
+  · a save must be JSON sent from this page's own origin (stops any other site you have open from
+    overwriting your progress with a background request);
+  · dotfiles such as .git are never served.
 """
 import argparse
 import json
@@ -24,11 +30,24 @@ class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
+    def allowed_host(self):
+        port = self.server.server_address[1]
+        return self.headers.get("Host", "") in {f"localhost:{port}", f"127.0.0.1:{port}"}
+
+    def same_origin(self):
+        # Browsers attach Origin to every cross-site POST, and to same-origin ones too.
+        port = self.server.server_address[1]
+        return self.headers.get("Origin", "") in {f"http://localhost:{port}", f"http://127.0.0.1:{port}"}
+
     def end_headers(self):
         self.send_header("Cache-Control", "no-store")  # always serve fresh files while studying/editing
         super().end_headers()
 
     def do_GET(self):
+        if not self.allowed_host():
+            return self.send_error(403, "Open this app at http://localhost")
+        if any(part.startswith(".") for part in self.path.split("?")[0].split("/")):
+            return self.send_error(404)
         # Before the first save there is no progress file; answer with an empty object rather than a 404.
         if self.path.split("?")[0] == "/progress/progress.json" and not PROGRESS.exists():
             body = b"{}"
@@ -40,9 +59,16 @@ class Handler(SimpleHTTPRequestHandler):
             return
         super().do_GET()
 
+    do_HEAD = do_GET
+
     def do_POST(self):
         if self.path != "/api/progress":
             return self.send_error(404)
+        if not self.allowed_host() or not self.same_origin():
+            return self.send_error(403, "Progress can only be saved from this page")
+        # A cross-site form or no-cors fetch cannot send this content type without a preflight we never approve.
+        if self.headers.get("Content-Type", "").split(";")[0].strip().lower() != "application/json":
+            return self.send_error(415)
         try:
             length = int(self.headers.get("Content-Length", "0"))
         except ValueError:
