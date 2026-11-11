@@ -71,7 +71,7 @@ That bar comes from what interviewers publish about how levels are told apart, n
   of that kind are labelled "candidate reports" wherever they are cited.
 
 ```bash
-node tools/check-content.mjs           # every topic and question cites evidence; topics match the curriculum
+node tools/check-content.mjs           # evidence on every topic and question; topics match the curriculum; no answer-length giveaway
 node tools/check-content.mjs --links   # also request every source URL
 ```
 

@@ -44,6 +44,7 @@ function checkRefs(where, refs, min) {
 }
 
 /* ---------- quiz questions ---------- */
+let keyed = 0, keyLongest = 0;   // test-wiseness guard: the correct option must not usually be the longest
 function checkQuiz(where, qs, min) {
   if (!Array.isArray(qs) || qs.length < min) return err(where, 'needs at least ' + min + ' quiz questions');
   qs.forEach((q, i) => {
@@ -54,6 +55,7 @@ function checkQuiz(where, qs, min) {
     checkEvidence(w, q[3]);
     if (Array.isArray(q[1]) && q[1].length === 4) {
       const len = q[1].map((s) => s.length), longest = Math.max(len[1], len[2], len[3]);
+      keyed++; if (len[0] > longest) keyLongest++;
       if (len[0] > 60 && len[0] > 1.6 * longest) warn(w, 'correct option is much longer than every distractor (' + len.join('/') + ')');
     }
   });
@@ -115,6 +117,10 @@ for (const b of SD.bosses) {
 
 for (const key of Object.keys(SD.sources)) if (!used.has(key)) warn('source ' + key, 'is never cited');
 
+// With four options, chance is 25%. Well above that, "pick the longest" becomes a winning strategy.
+const longestShare = keyed ? keyLongest / keyed : 0;
+if (longestShare > 0.4) err('quiz options', 'the correct option is the longest in ' + Math.round(longestShare * 100) + '% of questions (limit 40%) — lengthen distractors');
+
 /* ---------- optional: do the URLs answer? ---------- */
 async function checkLinks() {
   const entries = Object.entries(SD.sources);
@@ -139,7 +145,7 @@ if (process.argv.includes('--links')) await checkLinks();
 const nq = SD.topics.reduce((n, t) => n + t.quiz.length, 0);
 const cited = SD.topics.reduce((n, t) => n + t.quiz.filter((q) => Array.isArray(q[3])).length, 0);
 console.log(SD.topics.length + ' topics · ' + nq + ' quiz questions (' + cited + ' cite sources, ' + (nq - cited) + ' are derived in the explanation) · ' +
-  SD.bosses.length + ' bosses · ' + Object.keys(SD.sources).length + ' sources');
+  SD.bosses.length + ' bosses · ' + Object.keys(SD.sources).length + ' sources · correct option longest in ' + Math.round(longestShare * 100) + '% of questions');
 if (warnings.length) console.log('\n' + warnings.length + ' warning(s):\n  ' + warnings.join('\n  '));
 if (errors.length) { console.error('\n' + errors.length + ' error(s):\n  ' + errors.join('\n  ')); process.exit(1); }
 console.log('\nAnswer key OK.');
