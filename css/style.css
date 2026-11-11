@@ -85,6 +85,12 @@ main:focus, main:focus-visible { outline: none; }
 .card.pitfall { border-left: 4px solid var(--bad); }
 .card.say { border-left: 4px solid var(--accent2); font-style: italic; }
 .card.say .label { font-style: normal; }
+.card.sources { border-left: 4px solid var(--gold); }
+.card.sources li { font-size: .92rem; color: var(--muted); overflow-wrap: anywhere; }
+.card.sources q { font-style: italic; }
+.evidence { margin-top: .6em; padding-top: .5em; border-top: 1px dashed var(--line); font-size: .86rem; color: var(--muted); overflow-wrap: anywhere; }
+.evidence .label { display: inline; margin-right: .5em; }
+.evidence a, .card.sources a { text-decoration: underline; text-underline-offset: 2px; }
 .points { margin: 0; padding-left: 1.2em; } .points li { margin: .45em 0; }
 .station { background: transparent; border: none; padding: 0; margin-top: 14px; }
 .stationfoot { margin-top: 18px; }

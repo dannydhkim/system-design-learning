@@ -5,7 +5,7 @@ SD.T = function (o) { SD.topics.push(o); };
 SD.worlds = [
   { id: 'w0', title: 'World 0 — The Interview Framework', blurb: 'The four-phase structure every answer follows.', mods: ['0A', '0B', '0C', '0D'] },
   { id: 'w1', title: 'World 1 — Foundations', blurb: 'Queues, capacity, and how systems fail under load.', mods: ['1'] },
-  { id: 'w2', title: 'World 2 — Data Layer', blurb: 'Where the state lives, and why it is always the bottleneck.', mods: ['2'] },
+  { id: 'w2', title: 'World 2 — Data Layer', blurb: 'Where the state lives, and why it is usually the bottleneck.', mods: ['2'] },
   { id: 'w3', title: 'Coming soon', blurb: 'On the map, not yet built.', mods: ['3', '4', '5', '7'] }
 ];
 SD.mods = {

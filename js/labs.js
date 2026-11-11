@@ -7,9 +7,24 @@
 
   function scoreLine(score) { return Math.round(score * 100) + '%'; }
   function feedback(ok, text) { return h('div', { class: 'fb ' + (ok ? 'good' : 'bad') }, h('b', {}, ok ? '✓ ' : '✗ '), text); }
+  function srcLink(key) { var s = SD.sources[key]; return s ? h('a', { href: s[1], target: '_blank', rel: 'noopener noreferrer' }, s[0]) : null; }
+
+  /* ================= Evidence (every answer cites its sources: js/data/sources.js) ================= */
+  // ev: array of source keys, or 'calc' when the explanation itself derives the answer.
+  L.evidence = function (ev) {
+    if (!ev) return null;
+    if (ev === 'calc') return h('div', { class: 'evidence' }, h('span', { class: 'label' }, 'Evidence'), 'Derived in the explanation above — check the working.');
+    var links = [];
+    ev.forEach(function (k) { var a = srcLink(k); if (a) { if (links.length) links.push(' · '); links.push(a); } });
+    return links.length ? h('div', { class: 'evidence' }, h('span', { class: 'label' }, 'Evidence'), links) : null;
+  };
+  // refs: [[sourceKey, what it supports — usually with the passage quoted]]
+  L.sourceList = function (refs) {
+    return h('ul', { class: 'points' }, refs.map(function (r) { var a = srcLink(r[0]); return a ? h('li', {}, a, ' — ' + r[1]) : null; }));
+  };
 
   /* ================= Quiz (multiple choice, immediate explanation) ================= */
-  // qs: [question, [correct, wrong...], why, topicId?]
+  // qs: [question, [correct, wrong...], why, evidence, topicId?]
   L.quiz = function (el, spec, ctx) {
     var qs = spec.qs, i = 0, right = 0;
     function show() {
@@ -24,9 +39,11 @@
         return h('button', { class: 'opt', onclick: function () {
           btns.forEach(function (b, j) { b.disabled = true; if (opts[j].ok) b.classList.add('right'); });
           if (!o.ok) this.classList.add('wrong'); else right++;
-          SD.hit(o.ok, q[3] || ctx.topicId);
+          SD.hit(o.ok, q[4] || ctx.topicId);
           if (o.ok) SD.award(6, { quest: 'quiz' }); else SD.save();
-          after.appendChild(feedback(o.ok, q[2]));
+          var fbEl = feedback(o.ok, q[2]), evEl = L.evidence(q[3]);
+          if (evEl) fbEl.appendChild(evEl);
+          after.appendChild(fbEl);
           var nx = h('button', { class: 'btn primary', onclick: function () { i++; show(); } }, i + 1 < qs.length ? 'Next →' : 'Finish');
           after.appendChild(nx); nx.focus();
         } }, o.text);
@@ -245,7 +262,7 @@
 
   /* ================= API builder ================= */
   var METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
-  var STATUSES = ['200', '201', '204', '302', '400', '404', '409', '429'];
+  var STATUSES = ['200', '201', '202', '204', '302', '400', '404', '409', '429'];
   L.api = function (el, spec, ctx) {
     var paths = shuffle(spec.paths), rows = [], graded = false;
     function sel(options, ph) { return h('select', { class: 'sel' }, [h('option', { value: '' }, ph)].concat(options.map(function (o) { return h('option', { value: o }, o); }))); }
@@ -260,11 +277,12 @@
       if (rows.some(function (r) { return !r.m.value || !r.p.value || !r.s.value; })) return SD.toast('Fill in every row first');
       var pts = 0, max = rows.length * 3;
       rows.forEach(function (r) {
-        var ok = [r.m.value === r.t.method, r.p.value === r.t.path, r.s.value === r.t.status];
+        var want = [].concat(r.t.status);   // a task may accept more than one success status
+        var ok = [r.m.value === r.t.method, r.p.value === r.t.path, want.indexOf(r.s.value) >= 0];
         [r.m, r.p, r.s].forEach(function (s, i) { s.classList.toggle('right', ok[i]); s.classList.toggle('wrong', !ok[i]); });
         pts += ok.filter(Boolean).length;
         var all = ok.every(Boolean);
-        clear(r.fb).appendChild(feedback(all, (all ? '' : r.t.method + ' ' + r.t.path + ' → ' + r.t.status + '. ') + r.t.note));
+        clear(r.fb).appendChild(feedback(all, (all ? '' : r.t.method + ' ' + r.t.path + ' → ' + want.join(' or ') + '. ') + r.t.note));
       });
       var score = pts / max;
       clear(out).appendChild(h('div', { class: 'result' }, h('div', { class: 'big' }, pts + ' / ' + max), h('p', { class: 'muted' }, 'Real APIs vary in style; what matters is being able to justify each choice.')));
@@ -491,7 +509,7 @@
       },
       missions: [
         { text: '900 req/s arrive and each takes 50 ms. Find the smallest number of slots that keeps utilisation at or below 70%.', fix: { lam: 900, ms: 50 }, start: { slots: 40 }, check: function (s) { return s.slots === 65; }, win: '900 × 0.05 s = 45 slots busy on average (Little\'s Law). 45 ÷ 0.7 = 64.3, so 65 slots. The other 20 are headroom, not waste.' },
-        { text: '50 slots at 100 ms gives 500 req/s of capacity. Raise the arrival rate until latency reaches 1.5× the service time — and notice how far you have to go.', fix: { slots: 50, ms: 100 }, start: { lam: 200 }, check: function (s, m) { return m.rho < 1 && m.x >= 1.5; }, win: 'About 98% utilisation. A single slot would be at 1.5× by 33%; fifty pooled slots hide the queueing until the last few percent, then it explodes. That cliff is why you keep headroom: at 98%, a 3% burst, a retry wave or one lost node tips you over.' },
+        { text: '50 slots at 100 ms gives 500 req/s of capacity. Raise the arrival rate until latency reaches 1.5× the service time — and notice how far you have to go.', fix: { slots: 50, ms: 100 }, start: { lam: 200 }, check: function (s, m) { return m.rho < 1 && m.x >= 1.5; }, win: 'It takes about 97% utilisation. A single slot would be at 1.5× by 33%; fifty pooled slots hide the queueing until the last few percent, then it explodes. That cliff is why you keep headroom: this close to the edge, a small burst, a retry wave or one lost node tips you over.' },
         { text: 'Now push the arrival rate above capacity and read the latency line.', fix: { slots: 50, ms: 100 }, start: { lam: 490 }, check: function (s, m) { return m.rho > 1; }, win: 'Above 100% there is no steady state: the queue grows every second, and it only shrinks once arrivals fall back below capacity.' }
       ]
     },
@@ -508,7 +526,7 @@
       },
       missions: [
         { text: 'The service is 20% over capacity (120 vs 100). Increase retries until the actual load is more than double the user traffic.', fix: { base: 120, cap: 100 }, start: { n: 0 }, check: function (s, m) { return m.amp > 2; }, win: 'A 20% overload became more than a 100% overload — created entirely by clients trying to be reliable.' },
-        { text: 'Keep 3 retries. Lower user traffic to the highest level that causes no amplification at all.', fix: { cap: 100, n: 3 }, start: { base: 150 }, check: function (s) { return s.base === 100; }, win: 'At or below capacity, retries cost nothing; one step above, they multiply. That cliff is why storms appear suddenly. Defences: backoff with jitter, retry budgets, circuit breakers.' }
+        { text: 'Keep 3 retries. Lower user traffic to the highest level that causes no amplification at all.', fix: { cap: 100, n: 3 }, start: { base: 150 }, check: function (s) { return s.base === 100; }, win: 'In this simplified model, at or below capacity retries cost nothing; one step above, they multiply. That cliff is why storms appear suddenly. Defences: backoff with jitter, retry budgets, circuit breakers.' }
       ]
     },
     cache: {

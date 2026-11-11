@@ -52,15 +52,15 @@
       paint(); next();
     },
 
-    /* ----- Survival: quiz questions from every topic. Three lives, 20 seconds each. ----- */
+    /* ----- Survival: quiz questions from every topic. Three lives, 30 seconds each. ----- */
     survival: function (el) {
       var pool = [];
-      SD.topics.forEach(function (t) { t.quiz.forEach(function (q) { pool.push([q[0], q[1], q[2], t.id]); }); });
+      SD.topics.forEach(function (t) { t.quiz.forEach(function (q) { pool.push([q[0], q[1], q[2], q[3], t.id]); }); });
       pool = shuffle(pool);
       var lives = 3, score = 0, streak = 0, bestStreak = 0, i = 0, left = 0, running = false, missed = [], onTimeout = null;
       var bar = timerBar(), hud = h('div', { class: 'gamehud' }), body = h('div', {});
       clear(el); el.appendChild(bar.el); el.appendChild(hud); el.appendChild(body);
-      function paint() { bar.set(left / 20000, Math.ceil(left / 1000) + 's'); clear(hud); hud.appendChild(h('span', {}, 'Score ', h('b', {}, SD.fmt(score)))); hud.appendChild(h('span', {}, 'Streak ', h('b', {}, '⚡' + streak))); hud.appendChild(h('span', {}, '❤️'.repeat(lives) + '🖤'.repeat(3 - lives))); }
+      function paint() { bar.set(left / 30000, Math.ceil(left / 1000) + 's'); clear(hud); hud.appendChild(h('span', {}, 'Score ', h('b', {}, SD.fmt(score)))); hud.appendChild(h('span', {}, 'Streak ', h('b', {}, '⚡' + streak))); hud.appendChild(h('span', {}, '❤️'.repeat(lives) + '🖤'.repeat(3 - lives))); }
       function finish() { SD.stopTimers(); endScreen(el, { key: 'survival', title: 'Survival', score: score, xp: Math.round(score / 20), detail: 'Best streak this run: ' + bestStreak, review: missed, again: function () { SD.arcade.survival(el); } }); }
       function next() {
         if (lives <= 0 || i >= pool.length) return finish();
@@ -70,21 +70,21 @@
           running = false;
           btns.forEach(function (b, j) { b.disabled = true; if (opts[j].ok) b.classList.add('right'); });
           if (btn && !ok) btn.classList.add('wrong');
-          SD.hit(ok, q[3]);
+          SD.hit(ok, q[4]);
           if (ok) { streak++; bestStreak = Math.max(bestStreak, streak); score += Math.round(100 * (1 + Math.min(streak - 1, 10) * 0.1)); }
           else { streak = 0; lives--; missed.push([q[0], q[2]]); }
           SD.save(); paint();
-          after.appendChild(h('div', { class: 'fb ' + (ok ? 'good' : 'bad') }, h('b', {}, ok ? '✓ ' : (btn ? '✗ ' : '⏱ Time. ')), q[2]));
+          after.appendChild(h('div', { class: 'fb ' + (ok ? 'good' : 'bad') }, h('b', {}, ok ? '✓ ' : (btn ? '✗ ' : '⏱ Time. ')), q[2], L.evidence(q[3])));
           var nx = h('button', { class: 'btn primary', onclick: next }, lives > 0 ? 'Next →' : 'See results');
           after.appendChild(nx); nx.focus();
         }
         var btns = opts.map(function (o) { return h('button', { class: 'opt', onclick: function () { answer(o.ok, this); } }, o.t); });
         onTimeout = function () { answer(false, null); };
         clear(body);
-        body.appendChild(h('div', { class: 'qcount' }, SD.topicById[q[3]].title));
+        body.appendChild(h('div', { class: 'qcount' }, SD.topicById[q[4]].title));
         body.appendChild(h('h3', { class: 'question' }, q[0]));
         body.appendChild(h('div', { class: 'opts' }, btns)); body.appendChild(after);
-        left = 20000; running = true; paint();
+        left = 30000; running = true; paint();
       }
       every(100, function () { if (!running) return; left -= 100; paint(); if (left <= 0) onTimeout(); });
       next();
@@ -128,7 +128,7 @@
 
   SD.ARCADE = [
     { id: 'sprint', icon: '🧮', title: 'Estimation Sprint', desc: '90 seconds of back-of-envelope maths. The clock pauses while you read the working.' },
-    { id: 'survival', icon: '❤️', title: 'Survival', desc: 'Questions from every topic. Three lives, 20 seconds each. How long is your streak?' },
+    { id: 'survival', icon: '❤️', title: 'Survival', desc: 'Questions from every topic. Three lives, 30 seconds each. How long is your streak?' },
     { id: 'rush', icon: '🗂️', title: 'Sort Rush', desc: '60 seconds of rapid classification. A miss costs three seconds.' }
   ];
 
@@ -172,6 +172,7 @@
         h('p', { class: 'muted' }, (isHigh ? '🏅 New best · ' : 'Best: ' + SD.state.hi['boss.' + boss.id] + ' · ') + mins + ' min · +' + xp + ' XP'),
         h('p', {}, 'Weakest phase: ', h('b', {}, weakest[0] + ' (' + Math.round(weakest[1] * 100) + '%)')),
         h('div', { class: 'row center' }, h('button', { class: 'btn primary', onclick: function () { SD.runBoss(el, boss); } }, 'Fight again'), h('a', { class: 'btn', href: '#/boss' }, 'All bosses'))));
+      if (boss.refs && boss.refs.length) body.appendChild(h('div', { class: 'card sources' }, h('div', { class: 'label' }, '📚 Evidence — where this answer key comes from'), L.sourceList(boss.refs)));
     }
     clear(el);
     el.appendChild(h('div', { class: 'bosshead' }, h('div', { class: 'bossicon' }, boss.icon), h('div', {}, h('h1', {}, boss.title + ' — ' + boss.sub), h('p', {}, boss.brief))));

@@ -120,6 +120,7 @@
       body.appendChild(h('div', { class: 'card' }, h('div', { class: 'label' }, 'Key ideas'), h('ul', { class: 'points' }, t.points.map(function (x) { return h('li', {}, x); }))));
       body.appendChild(h('div', { class: 'card pitfall' }, h('div', { class: 'label' }, '⚠️ Common mistake'), h('p', {}, t.pitfall)));
       body.appendChild(h('div', { class: 'card say' }, h('div', { class: 'label' }, '🎙️ Say it in the interview'), h('p', {}, '“' + t.say + '”')));
+      if (t.refs && t.refs.length) body.appendChild(h('div', { class: 'card sources' }, h('div', { class: 'label' }, '📚 Evidence — where these claims come from'), L.sourceList(t.refs)));
       foot.appendChild(h('button', { class: 'btn primary big', onclick: function () { if (!st.done.learn) SD.award(10); passed('Reading is the weakest way to learn. The next stations make it stick.'); } }, st.done.learn ? 'Read again ✓ — continue' : 'Got it — mark as read (+10 XP)'));
     }
     else if (station === 'recall') {
@@ -132,7 +133,7 @@
       var m2 = h('div', {}); body.appendChild(m2);
       L.quiz(m2, { qs: t.quiz }, { topicId: id, onDone: function (score) {
         st.quizBest = Math.max(st.quizBest || 0, score);
-        if (score >= 0.66) passed(score === 1 ? 'Perfect.' : 'Passed.'); else { SD.save(); retry('Pass mark is 2 of 3. The options are reshuffled each time.'); }
+        if (score >= 0.66) passed(score === 1 ? 'Perfect.' : 'Passed.'); else { SD.save(); retry('Pass mark is ' + Math.ceil(0.66 * t.quiz.length) + ' of ' + t.quiz.length + '. The options are reshuffled each time.'); }
       } });
     }
     else if (station === 'lab') {
