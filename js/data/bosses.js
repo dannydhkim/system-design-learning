@@ -39,7 +39,32 @@ SD.bosses = [
         required: ['client', 'lb', 'app', 'cache', 'db', 'idgen'],
         edges: [['client', 'lb'], ['lb', 'app'], ['app', 'cache'], ['app', 'db'], ['app', 'idgen']],
         why: { cache: 'Read-heavy, and a code\'s target never changes once created — ideal for caching. Deletion or expiry needs an explicit cache delete, or a TTL no longer than the link\'s lifetime.', idgen: 'Unique codes without collisions: a counter/ID service whose output is base-62 encoded.', lb: 'Spreads load across stateless app servers.' },
-        decoys: { queue: 'Create and redirect are simple synchronous lookups. A queue is only justified if analytics is in scope.', ws: 'Nothing here is real-time.', search: 'Nobody asked to search links.' } } },
+        decoys: { queue: 'Create and redirect are simple synchronous lookups. A queue is only justified if analytics is in scope.', ws: 'Nothing here is real-time.', search: 'Nobody asked to search links.' },
+        sim: {
+          load: '3,900 redirects a second and 39 new links a second: the averages you estimated in phase 2.',
+          goals: { errors: 1, p99: 200 },
+          flows: [
+            { label: 'Redirects', rps: 3900, aside: ['cache', 'db'], needs: ['db'],
+              hops: [['client', 'lb'], ['client', 'app', { instead: 'lb' }], ['lb', 'app'], ['app', 'cache'], ['app', 'db']] },
+            { label: 'New links', rps: 39, needs: ['idgen', 'db'],
+              hops: [['client', 'lb'], ['client', 'app', { instead: 'lb' }], ['lb', 'app'], ['app', 'idgen'], ['app', 'db']] }
+          ],
+          parts: {
+            app: { cfg: { instances: 6, capacity: 16, serviceMs: 4, serviceCv: 0.5, queueLimit: 64 }, solo: { instances: 1 }, soloWhy: 'Nothing spreads the traffic, so clients can only reach one server however many you run.' },
+            cache: { cfg: { capacity: 64, serviceMs: 1, hitRate: 0.9, queueLimit: 512 } },
+            db: { cfg: { capacity: 16, serviceMs: 20, serviceCv: 0.7, queueLimit: 64, lockMs: 0 }, fullWhy: 'It can do about 800 lookups a second (16 at once, 20 ms each). Something has to answer most redirects before they get this far.' },
+            idgen: { cfg: { capacity: 8, serviceMs: 1, queueLimit: 64 } }
+          },
+          needWhy: { db: 'The database is the only place a code\'s target is stored for good.', idgen: 'Without it two servers can hand out the same code.' },
+          bad: { 'client>db': 'Clients never talk to the database directly: there is nothing to check who they are or what they may do.', 'client>cache': 'Clients never talk to the cache directly.', 'lb>db': 'A load balancer forwards requests to servers. It does not query a database.', 'lb>cache': 'A load balancer forwards requests to servers. It does not read a cache.' },
+          ok: [['cache', 'db']],
+          traps: [
+            { name: 'no cache', drop: ['cache'] },
+            { name: 'no load balancer', drop: ['lb'], wire: [['client', 'app']] },
+            { name: 'cache drawn but the app never reads the database', cut: [['app', 'db']] },
+            { name: 'no ID generator', drop: ['idgen'] }
+          ]
+        } } },
       { name: 'Deep dive', w: 15, lab: { type: 'quiz', qs: [
         ['Analytics is in scope. 301 or 302 for the redirect?', ['302 — not cached by default, so every click reaches us', '301 — the mapping is permanent, so it is the more correct choice', 'Either — browsers treat the two identically', '200 with a JavaScript redirect in the page body'], 'A 301 is cacheable by default, so browsers may never ask again: less load, but later clicks are invisible. A 302 is only cached if you send explicit cache headers.', ['rfc9110']],
         ['Two servers must never issue the same short code. Most robust approach?', ['Hand each server a disjoint range from a counter and base-62 encode it', 'Hash the URL and truncate the result, accepting that collisions will be rare', 'Check whether the code exists, then insert it', 'Use longer random codes with no uniqueness check'], 'Disjoint ranges are collision-free by construction. Check-then-insert is a race without a unique constraint. Counter-based codes are sequential, though, which reveals your volume.', ['flickr-ticket-servers', 'vitess-sequences']],
@@ -90,7 +115,34 @@ SD.bosses = [
         required: ['client', 'lb', 'app', 'db', 'queue', 'worker', 'cache'],
         edges: [['client', 'lb'], ['lb', 'app'], ['app', 'db'], ['app', 'queue'], ['queue', 'worker'], ['worker', 'cache'], ['app', 'cache']],
         why: { queue: 'Fan-out is slow and bursty — acknowledge the post, then fan out asynchronously.', worker: 'Workers read the follower list and write the post into each follower\'s timeline.', cache: 'Each user\'s timeline is precomputed, so a read is one lookup.', db: 'The post store is the source of truth; the timeline cache is derived from it.' },
-        decoys: { blob: 'Media was not in the core scope.', search: 'Search was parked as out of scope.', idgen: 'Useful in practice, but not the point of this design.' } } },
+        decoys: { blob: 'Media was not in the core scope.', search: 'Search was parked as out of scope.', idgen: 'Useful in practice, but not the point of this design.' },
+        sim: {
+          load: '11,600 timeline reads a second and 1,160 posts a second: the averages you estimated in phase 2. Fanning one post out to 200 followers takes a worker about 150 ms.',
+          scale: 10,
+          goals: { errors: 1, p99: 300 },
+          flows: [
+            { label: 'Timeline reads', rps: 11600, needs: ['cache'],
+              hops: [['client', 'lb'], ['client', 'app', { instead: 'lb' }], ['lb', 'app'], ['app', 'cache'], ['app', 'db', { instead: 'cache' }]] },
+            { label: 'Posts', rps: 1160, needs: ['db', 'worker', 'cache'],
+              hops: [['client', 'lb'], ['client', 'app', { instead: 'lb' }], ['lb', 'app'], ['app', 'db'], ['app', 'queue'], ['app', 'worker', { instead: 'queue' }], ['queue', 'worker'], ['worker', 'cache']] }
+          ],
+          parts: {
+            app: { cfg: { instances: 4, capacity: 6, serviceMs: 6, serviceCv: 0.5, queueLimit: 48 }, solo: { instances: 1 }, soloWhy: 'Nothing spreads the traffic, so clients can only reach one server however many you run.', fullWhy: 'A request holds its slot until everything it called has answered. Is anything slow being done while the user waits?' },
+            cache: { cfg: { capacity: 64, serviceMs: 1, hitRate: 1, queueLimit: 512 } },
+            db: { cfg: { capacity: 8, serviceMs: 10, serviceCv: 0.7, queueLimit: 64, lockMs: 0 }, fullWhy: 'It is sized for posts, about a tenth of the traffic. Timeline reads need to be answered from something precomputed.' },
+            queue: { cfg: { queueLimit: 20000 } },
+            worker: { cfg: { instances: 4, capacity: 8, serviceMs: 150, serviceCv: 0.6, queueLimit: 16 } }
+          },
+          needWhy: { cache: 'A timeline that is not precomputed has to be assembled from 200 accounts on every read.', worker: 'Something has to copy each post into its followers\' timelines.', db: 'The post store is the source of truth; the timeline cache can be rebuilt from it.' },
+          bad: { 'client>db': 'Clients never talk to the database directly.', 'client>cache': 'Clients never talk to the cache directly.', 'client>queue': 'Clients do not publish to your internal queue; the API service does, after it has checked the request.' },
+          ok: [['worker', 'db']],
+          traps: [
+            { name: 'no queue: the API calls the fan-out workers and waits', drop: ['queue'], wire: [['app', 'worker']] },
+            { name: 'no load balancer', drop: ['lb'], wire: [['client', 'app']] },
+            { name: 'no timeline cache: reads hit the post store', drop: ['cache'] },
+            { name: 'workers never write the timelines', cut: [['worker', 'cache']] }
+          ]
+        } } },
       { name: 'Deep dive', w: 15, lab: { type: 'quiz', qs: [
         ['How do you handle an account with 100M followers?', ['Hybrid: do not fan out their posts; fetch them at read time and merge', 'Fan out anyway, with a larger pool of workers for big accounts', 'Cap follower counts so that fan-out always stays cheap', 'Shard the celebrity\'s followers across more databases'], 'Push for ordinary accounts, pull for the few huge ones. One merge at read time is far cheaper than 100M writes. Twitter described moving in this direction in 2013, when fan-out for its largest accounts could take minutes.', ['highscalability-twitter-timelines']],
         ['Why does fan-out on write suit this system at all?', ['Timeline reads outnumber posts about 10:1 and must be fast, so the work moves to the write path', 'Posts outnumber timeline reads by about 10:1, so it is the write path that needs the optimisation', 'It uses less storage than computing timelines at read time', 'It is simpler to build and to operate than fan-out on read'], 'You pay per post, asynchronously, so that a billion reads a day are each one cache fetch.', ['highscalability-twitter-timelines']],
@@ -142,7 +194,34 @@ SD.bosses = [
         required: ['client', 'gateway', 'app', 'db', 'ledger', 'psp', 'queue', 'worker'],
         edges: [['client', 'gateway'], ['gateway', 'app'], ['app', 'db'], ['app', 'psp'], ['app', 'ledger'], ['app', 'queue'], ['queue', 'worker']],
         why: { ledger: 'An append-only, double-entry record of every movement of money.', psp: 'The external processor is a slow, unreliable dependency — draw it so you can discuss its failures.', queue: 'Uncertain or follow-up work is queued rather than done inside the request.', worker: 'Resolves "unknown" payments by asking the processor and reconciling.', gateway: 'Authentication and rate limiting for merchant API keys.' },
-        decoys: { cache: 'Caching payment state invites stale decisions, and ~600 writes/s does not need it.', cdn: 'There is no static content in this flow.' } } },
+        decoys: { cache: 'Caching payment state invites stale decisions, and ~600 writes/s does not need it.', cdn: 'There is no static content in this flow.' },
+        sim: {
+          load: '580 payments a second, the peak you estimated in phase 2. The card processor takes about 300 ms to answer, and about 1 payment in 50 ends in a timeout that has to be resolved later.',
+          timeoutMs: 6000,
+          goals: { errors: 1, p99: 1500 },
+          flows: [
+            { label: 'Payments', rps: 568, needs: ['db', 'psp', 'ledger'],
+              hops: [['client', 'gateway'], ['client', 'app', { instead: 'gateway' }], ['gateway', 'app'], ['app', 'db'], ['app', 'psp'], ['app', 'ledger']] },
+            { label: 'Payments with an unknown outcome', rps: 12, needs: ['db', 'psp', 'worker'],
+              hops: [['client', 'gateway'], ['client', 'app', { instead: 'gateway' }], ['gateway', 'app'], ['app', 'db'], ['app', 'psp'], ['app', 'queue'], ['queue', 'worker'], ['worker', 'psp'], ['worker', 'db'], ['worker', 'ledger']] }
+          ],
+          parts: {
+            gateway: { cfg: { capacity: 512, serviceMs: 1, queueLimit: 1024, rateLimitRps: 2000, burst: 2000, authFailRate: 0 } },
+            app: { cfg: { instances: 20, capacity: 16, serviceMs: 6, serviceCv: 0.5, queueLimit: 128 }, solo: { instances: 1 }, soloWhy: 'Nothing in front of it spreads merchants over the fleet, so they can only reach one server.', fullWhy: 'Each payment holds a slot for as long as the processor takes to answer.' },
+            db: { cfg: { capacity: 32, serviceMs: 8, serviceCv: 0.6, queueLimit: 128, lockMs: 0 } },
+            ledger: { cfg: { capacity: 32, serviceMs: 8, serviceCv: 0.6, queueLimit: 128, lockMs: 0 } },
+            psp: { cfg: { capacity: 2000, serviceMs: 300, serviceCv: 0.6, queueLimit: 2000 } },
+            worker: { cfg: { instances: 2, capacity: 16, serviceMs: 20, serviceCv: 0.6 } }
+          },
+          needWhy: { worker: 'A timeout from the processor means "unknown", not "failed". Something has to ask again later and settle it.', psp: 'Only the processor can move the money.', ledger: 'Every movement of money has to be written to the ledger.', db: 'The idempotency key and the payment\'s state live here.' },
+          bad: { 'client>psp': 'Merchants call you, not the card processor: that is the product.', 'client>db': 'Clients never talk to the database directly.', 'gateway>db': 'The gateway checks API keys and limits; the payment service owns the data.', 'gateway>psp': 'The gateway forwards requests to your service. It does not charge cards.' },
+          traps: [
+            { name: 'no reconciliation path', drop: ['queue', 'worker'] },
+            { name: 'queue drawn but nothing reads from it', drop: ['worker'] },
+            { name: 'no gateway in front of the fleet', drop: ['gateway'], wire: [['client', 'app']] },
+            { name: 'no ledger', drop: ['ledger'] }
+          ]
+        } } },
       { name: 'Deep dive', w: 20, lab: { type: 'quiz', qs: [
         ['The client times out on create-payment and retries. What prevents a double charge?', ['The key was committed with a pending payment before the processor call', 'The retry is rejected with a 500, and the client gives up after a few attempts', 'A longer client timeout, so retries never happen', 'Per-merchant rate limiting on the create endpoint'], 'The key sits behind a unique constraint in the same transaction as the pending payment, committed before the external call. A retry returns the recorded result (or "still pending") instead of charging again, and the same key is forwarded to the processor.', ['brandur-idempotency-keys', 'stripe-idempotent-requests']],
         ['Your call to the processor times out. Was the card charged?', ['Unknown — mark it pending and resolve it from the processor or its webhook', 'No — a timeout always means the charge failed, so retry with a new key at once', 'Yes — a timeout means the request reached the processor', 'Possibly — issue a refund straight away to be safe'], 'A timeout tells you nothing about the outcome. Model "unknown" explicitly and reconcile.', ['stripe-error-handling', 'stripe-blog-idempotency']],

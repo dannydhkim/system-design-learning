@@ -300,51 +300,84 @@
   };
   var NS = 'http://www.w3.org/2000/svg';
   function svg(tag, attrs) { var e = document.createElementNS(NS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); return e; }
-  function ekey(a, b) { return a < b ? a + '|' + b : b + '|' + a; }
 
+  // Build a design, then load-test it. The picture borrows Breakscale's vocabulary: dashes moving along
+  // an arrow are requests (denser and faster means more of them), and the bar in each box is how many of
+  // its slots are taken. The numbers come from js/hld.js, which runs the design on Breakscale's engine.
   L.diagram = function (el, spec, ctx) {
     // Phones get a tall, narrow canvas so boxes stay finger-sized.
     var narrow = (el.clientWidth || window.innerWidth) < 560;
-    var W = narrow ? 360 : 680, H = narrow ? 520 : 420, BW = narrow ? 112 : 124, BH = 46;
-    var nodes = {}, edges = {}, selected = null, best = 0;
+    var W = narrow ? 360 : 760, H = narrow ? 560 : 440, BW = narrow ? 112 : 120, BH = 54;
+    var HLD = SD.hld, canSim = !!(spec.sim && window.BreakscaleSim && HLD);
+    var nodes = {}, edges = {}, selected = null, best = 0, awarded = false, revealed = false, fails = 0;
+    var running = null, shown = null, nodeEls = {}, edgeEls = {};
     var label = function (id) { return (spec.labels && spec.labels[id]) || COMP[id][1]; };
     var palette = shuffle(spec.required.concat(Object.keys(spec.decoys || {})));
     var canvas = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'diagram', role: 'img', 'aria-label': 'Architecture diagram canvas' });
     var gE = svg('g', {}), gN = svg('g', {});
     canvas.appendChild(gE); canvas.appendChild(gN);
-    var pal = h('div', { class: 'palette' }), out = h('div', {}), hint = h('p', { class: 'muted' }, 'Tap a component to add or remove it. Drag boxes to arrange. Tap one box, then another, to connect or disconnect them.');
+    var pal = h('div', { class: 'palette' }), out = h('div', {}), hud = h('div', { class: 'lt-hud' });
+    var hint = h('p', { class: 'muted' }, 'Tap a component to add or remove it, and drag boxes to arrange them. To draw an arrow, tap the caller and then the thing it calls. Tap the same pair again to remove it.');
+    var runBtn = h('button', { class: 'btn primary', onclick: function () { if (running) finish(true); else run(); } });
+    var revealBtn = h('button', { class: 'btn hidden', onclick: reveal }, 'Show reference design');
 
     function freeSpot() {
       var n = Object.keys(nodes).length;
       var cols = narrow ? 3 : 4, gap = (W - 16 - cols * BW) / (cols - 1);
-      return [8 + (n % cols) * (BW + gap), 16 + Math.floor(n / cols) * (narrow ? 76 : 100)];
+      return [8 + (n % cols) * (BW + gap), 16 + Math.floor(n / cols) * (narrow ? 84 : 104)];
     }
+    function edited() { if (shown) { shown = null; clear(out); paintHud(null); } }
     function drawPalette() {
       clear(pal);
       palette.forEach(function (id) {
-        pal.appendChild(h('button', { class: 'chip' + (nodes[id] ? ' on' : ''), onclick: function () {
-          if (nodes[id]) { delete nodes[id]; Object.keys(edges).forEach(function (k) { if (k.split('|').indexOf(id) >= 0) delete edges[k]; }); if (selected === id) selected = null; }
+        pal.appendChild(h('button', { class: 'chip' + (nodes[id] ? ' on' : ''), disabled: !!running, onclick: function () {
+          if (nodes[id]) { delete nodes[id]; Object.keys(edges).forEach(function (k) { if (k.split('>').indexOf(id) >= 0) delete edges[k]; }); if (selected === id) selected = null; }
           else { var p = freeSpot(); nodes[id] = { x: p[0], y: p[1] }; }
-          draw();
+          edited(); draw();
         } }, COMP[id][0] + ' ' + label(id)));
       });
     }
     function pt(evt) { var m = canvas.getScreenCTM().inverse(); var p = canvas.createSVGPoint(); p.x = evt.clientX; p.y = evt.clientY; return p.matrixTransform(m); }
+
+    // An arrow runs from the edge of one box to the edge of the other, so the head is never hidden.
+    function ends(a, b) {
+      var ax = a.x + BW / 2, ay = a.y + BH / 2, bx = b.x + BW / 2, by = b.y + BH / 2, dx = bx - ax, dy = by - ay;
+      var len = Math.sqrt(dx * dx + dy * dy) || 1, t = Math.min((BW / 2 + 3) / Math.abs(dx || 1e-9), (BH / 2 + 3) / Math.abs(dy || 1e-9));
+      if (t > 0.5) t = 0.5;
+      return { x1: ax + dx * t, y1: ay + dy * t, x2: bx - dx * t, y2: by - dy * t, ux: dx / len, uy: dy / len, len: len * (1 - 2 * t) };
+    }
+    function placeEdge(k) {
+      var p = k.split('>'), a = nodes[p[0]], b = nodes[p[1]], e = edgeEls[k];
+      if (!a || !b || !e) return;
+      var g = ends(a, b), hx = g.x2 - g.ux * 9, hy = g.y2 - g.uy * 9;
+      [e.wire, e.flow].forEach(function (ln) { ln.setAttribute('x1', g.x1); ln.setAttribute('y1', g.y1); ln.setAttribute('x2', hx); ln.setAttribute('y2', hy); });
+      e.head.setAttribute('points', [g.x2, g.y2, hx - g.uy * 5, hy + g.ux * 5, hx + g.uy * 5, hy - g.ux * 5].map(function (v) { return v.toFixed(1); }).join(' '));
+    }
     function draw() {
       drawPalette();
       while (gE.firstChild) gE.removeChild(gE.firstChild);
       while (gN.firstChild) gN.removeChild(gN.firstChild);
+      nodeEls = {}; edgeEls = {};
       Object.keys(edges).forEach(function (k) {
-        var p = k.split('|'), a = nodes[p[0]], b = nodes[p[1]];
-        if (!a || !b) return;
-        gE.appendChild(svg('line', { x1: a.x + BW / 2, y1: a.y + BH / 2, x2: b.x + BW / 2, y2: b.y + BH / 2, class: 'edge' }));
+        var p = k.split('>');
+        if (!nodes[p[0]] || !nodes[p[1]]) return;
+        var g = svg('g', { class: 'edge' }), e = edgeEls[k] = { g: g, wire: svg('line', { class: 'wire' }), flow: svg('line', { class: 'flow' }), head: svg('polygon', { class: 'head' }) };
+        g.appendChild(e.wire); g.appendChild(e.flow); g.appendChild(e.head); gE.appendChild(g);
+        placeEdge(k);
       });
       Object.keys(nodes).forEach(function (id) {
         var n = nodes[id], g = svg('g', { class: 'node' + (selected === id ? ' sel' : ''), transform: 'translate(' + n.x + ',' + n.y + ')', tabindex: 0 });
-        g.appendChild(svg('rect', { width: BW, height: BH, rx: 9 }));
-        var t = svg('text', { x: BW / 2, y: BH / 2 + 4, 'text-anchor': 'middle' }); t.textContent = COMP[id][0] + ' ' + label(id);
-        if (t.textContent.length > (narrow ? 14 : 17)) t.setAttribute('class', 'small');
-        g.appendChild(t);
+        g.appendChild(svg('rect', { class: 'box', width: BW, height: BH, rx: 9 }));
+        var t = svg('text', { class: 'name', x: BW / 2, y: 20, 'text-anchor': 'middle' }), full = label(id), fits = narrow ? 17 : 18;
+        // A long name is shortened to fit the box; the chip above the canvas and the tooltip keep it whole.
+        t.textContent = COMP[id][0] + ' ' + (full.length > fits ? full.slice(0, fits - 1).trim() + '…' : full);
+        if (full.length > (narrow ? 11 : 13)) t.setAttribute('class', 'name small');
+        var tip = svg('title', {}); tip.textContent = full; g.appendChild(tip);
+        var read = svg('text', { class: 'read', x: BW / 2, y: 36, 'text-anchor': 'middle' });
+        var track = svg('rect', { class: 'track', x: 8, y: 43, width: BW - 16, height: 5, rx: 2.5 }), fill = svg('rect', { class: 'meter', x: 8, y: 43, width: 0, height: 5, rx: 2.5 });
+        var shed = svg('text', { class: 'shed', x: BW - 2, y: -5, 'text-anchor': 'end' });
+        [t, read, track, fill, shed].forEach(function (c) { g.appendChild(c); });
+        nodeEls[id] = { g: g, read: read, fill: fill, shed: shed };
         var start = null, moved = false;
         g.addEventListener('pointerdown', function (e) { var p = pt(e); start = { dx: p.x - n.x, dy: p.y - n.y, x: p.x, y: p.y }; moved = false; g.setPointerCapture(e.pointerId); e.preventDefault(); });
         g.addEventListener('pointermove', function (e) {
@@ -352,70 +385,187 @@
           var p = pt(e);
           if (!moved && Math.abs(p.x - start.x) + Math.abs(p.y - start.y) < 6) return;
           moved = true;
-          n.x = Math.max(0, Math.min(W - BW, p.x - start.dx)); n.y = Math.max(0, Math.min(H - BH, p.y - start.dy));
+          n.x = Math.max(0, Math.min(W - BW, p.x - start.dx)); n.y = Math.max(12, Math.min(H - BH, p.y - start.dy));
           g.setAttribute('transform', 'translate(' + n.x + ',' + n.y + ')');
-          // redraw edges only, so the dragged element keeps its pointer capture
-          while (gE.firstChild) gE.removeChild(gE.firstChild);
-          Object.keys(edges).forEach(function (k) { var q = k.split('|'), a = nodes[q[0]], b = nodes[q[1]]; gE.appendChild(svg('line', { x1: a.x + BW / 2, y1: a.y + BH / 2, x2: b.x + BW / 2, y2: b.y + BH / 2, class: 'edge' })); });
+          // Move the arrows in place, so the dragged box keeps its pointer capture and a running test keeps its picture.
+          Object.keys(edgeEls).forEach(function (k) { if (k.split('>').indexOf(id) >= 0) placeEdge(k); });
         });
         g.addEventListener('pointerup', function () { var wasDrag = moved; start = null; if (!wasDrag) tap(id); });
+        g.addEventListener('pointercancel', function () { start = null; });
         g.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tap(id); } });
         gN.appendChild(g);
       });
+      if (shown) paint(shown);
     }
     function tap(id) {
+      if (running) return;
       if (selected === null) selected = id;
       else if (selected === id) selected = null;
-      else { var k = ekey(selected, id); if (edges[k]) delete edges[k]; else edges[k] = 1; selected = null; }
+      else {
+        var k = selected + '>' + id, back = id + '>' + selected;
+        if (edges[k]) delete edges[k]; else { delete edges[back]; edges[k] = 1; }   // drawing the opposite way turns the arrow round
+        selected = null; edited();
+      }
       draw();
     }
-    function check() {
-      var req = spec.required, need = spec.edges.map(function (e) { return ekey(e[0], e[1]); });
-      var haveN = req.filter(function (id) { return nodes[id]; }), haveE = need.filter(function (k) { return edges[k]; });
+    function design() {
+      var d = { nodes: {}, edges: {} };
+      Object.keys(nodes).forEach(function (id) { d.nodes[id] = true; });
+      Object.keys(edges).forEach(function (k) { var p = k.split('>'); if (nodes[p[0]] && nodes[p[1]]) d.edges[k] = true; });
+      return d;
+    }
+
+    /* ---------- the live picture ---------- */
+    function rate(n) { return n >= 10000 ? (n / 1000).toFixed(n >= 100000 ? 0 : 1) + 'k' : fmt(Math.round(n)); }
+    function tile(name, value, cls) { return h('div', { class: 'stat ' + (cls || '') }, h('span', {}, name), h('b', {}, value)); }
+    function paintHud(v, phase, progress) {
+      clear(hud);
+      if (!v) return;
+      var g = spec.sim.goals, lost = 100 * v.errorRate;
+      hud.appendChild(h('div', { class: 'lt-phase' }, h('span', {}, phase), h('div', { class: 'track' }, (function () { var f = h('div', { class: 'fill' }); f.style.width = Math.round(progress * 100) + '%'; return f; })())));
+      hud.appendChild(h('div', { class: 'readout lt-tiles' },
+        tile('Arriving', rate(v.offered) + ' /s'), tile('Answered', rate(v.good) + ' /s'),
+        tile('Lost (goal ≤ ' + g.errors + '%)', (lost < 10 ? lost.toFixed(1) : Math.round(lost)) + '%', lost > g.errors ? 'bad' : 'good'),
+        tile('p99 (goal ≤ ' + g.p99 + ' ms)', v.p99 ? Math.round(v.p99) + ' ms' : '—', v.p99 > g.p99 ? 'bad' : 'good')));
+      hud.appendChild(h('p', { class: 'muted lt-key' }, 'Moving dashes are requests: closer together means more of them. The bar in a box is how many of its slots are taken. Red means requests are being turned away, and a grey dashed arrow carries nothing. Simulated with the ',
+        h('a', { href: 'https://github.com/workersio/breakscale', target: '_blank', rel: 'noopener noreferrer' }, 'Breakscale'), ' engine; the capacities are illustrative.'));
+    }
+    function paint(v) {
+      var top = 1;
+      Object.keys(v.edges).forEach(function (k) { top = Math.max(top, v.edges[k].flow); });
+      Object.keys(edgeEls).forEach(function (k) {
+        var e = edgeEls[k], s = v.edges[k], to = v.nodes[k.split('>')[1]];
+        var live = s && s.flow > 0, share = live ? Math.log(1 + 30 * s.flow / top) / Math.log(31) : 0;   // 0..1, compressed so small flows still show
+        e.g.setAttribute('class', 'edge ' + (live ? (to && to.shed > 0.01 * Math.max(1, to.arriving) ? 'live hurt' : 'live') : 'idle'));
+        var cycle = 30 - 20 * share;                      // heavy flow packs the dashes together
+        e.flow.style.setProperty('--on', '3');
+        e.flow.style.setProperty('--off', (cycle - 3).toFixed(1));
+        e.flow.style.setProperty('--cycle', (-cycle).toFixed(1));
+        e.flow.style.setProperty('--dur', (1.1 - 0.75 * share).toFixed(2) + 's');
+      });
+      Object.keys(nodeEls).forEach(function (id) {
+        var e = nodeEls[id], n = v.nodes[id];
+        if (!n) { e.g.setAttribute('data-state', 'off'); e.read.textContent = 'no traffic'; e.fill.setAttribute('width', 0); e.shed.textContent = ''; return; }
+        var level = n.kind === 'queue' ? n.queueFill : n.busy, losing = n.shed > 0.01 * Math.max(1, n.arriving);
+        e.g.setAttribute('data-state', n.kind === 'client' ? 'src' : losing ? 'bad' : level > 0.8 ? 'warn' : 'ok');
+        e.read.textContent = n.kind === 'client' ? rate(n.arriving || v.offered) + ' /s sent' : n.kind === 'queue' ? rate(n.queued) + ' waiting' : rate(n.arriving) + ' /s · ' + Math.round(level * 100) + '%';
+        e.fill.setAttribute('width', Math.max(0, Math.min(1, level)) * (BW - 16));
+        e.shed.textContent = losing ? '−' + rate(n.shed) + ' /s' : '';
+      });
+    }
+
+    /* ---------- run ---------- */
+    function setBusy(on) { runBtn.textContent = on ? 'Skip to the result' : '▶ Run load test'; canvas.classList.toggle('running', on); drawPalette(); }
+    function run() {
+      if (!canSim) return checkStatic();
+      clear(out); selected = null; draw();
+      var compiled = HLD.compile(spec, design(), label);
+      if (!compiled.topology.edges.length) {
+        out.appendChild(feedback(false, 'No request can leave the client yet. Draw an arrow from the client to whatever it calls first.'));
+        return;
+      }
+      var r = HLD.start(spec, compiled, 1), speed = r.endMs / 8000, last = performance.now(), lastPaint = 0;
+      running = { r: r, compiled: compiled, raf: 0 };
+      setBusy(true);
+      function frame(now) {
+        if (!running) return;
+        if (!canvas.isConnected) { running = null; return; }      // the player left the page
+        var more = r.step(Math.min(100, now - last) * speed); last = now;
+        if (now - lastPaint > 100 || !more) {
+          lastPaint = now; shown = r.view(); paint(shown);
+          var t = r.timeMs();
+          paintHud(shown, t < r.warmMs ? 'Warming up' : 'Measuring', t / r.endMs);
+        }
+        if (more) running.raf = requestAnimationFrame(frame); else finish(false);
+      }
+      running.raf = requestAnimationFrame(frame);
+    }
+    function finish(skip) {
+      var run = running; if (!run) return;
+      cancelAnimationFrame(run.raf); running = null;
+      if (skip) { while (run.r.step(2000)) { /* run it out */ } }
+      shown = run.r.view(); paint(shown); paintHud(shown, 'Finished', 1);
+      setBusy(false);
+      verdict(HLD.judge(spec, run.compiled, run.r, label));
+    }
+    function row(cls, bold, text) { return h('div', { class: 'rv ' + cls }, h('b', {}, bold), text); }
+    function verdict(v) {
+      clear(out);
+      var score = v.score;
+      if (revealed) score = Math.min(score, 0.5);
+      var list = h('div', { class: 'reviewlist' });
+      v.checks.forEach(function (c) { list.appendChild(row(c.ok ? 'good' : 'bad', (c.ok ? '✓ ' : '✗ ') + c.label + ': ' + c.text, ' (' + c.limit + ')')); });
+      v.problems.forEach(function (p) { if (p.type === 'unserved') list.appendChild(row('bad', '✗ ', p.text)); });
+      v.findings.forEach(function (f) { list.appendChild(row('bad', f.root ? '✗ Where it breaks — ' : '· ', f.text)); });
+      v.problems.forEach(function (p) { if (p.type !== 'unserved') list.appendChild(row('warn', '△ ', p.text)); });
+      var missing = spec.required.filter(function (id) { return !nodes[id]; });
+      if (!v.passed && fails >= 1 && missing.length) list.appendChild(row('', '· Hint: ', 'the reference design uses ' + missing.length + ' component' + (missing.length > 1 ? 's' : '') + ' you have not placed' + (fails >= 2 ? ': ' + missing.map(label).join(', ') + '.' : '.')));
+      if (v.passed) spec.required.forEach(function (id) { if (nodes[id] && spec.why && spec.why[id]) list.appendChild(row('good', '✓ ' + label(id) + ': ', spec.why[id])); });
+      var head = v.passed ? (v.clean ? 'It holds.' : 'It holds, with loose ends.') : v.held ? 'It runs, but the design is incomplete.' : 'It falls over.';
+      var note = v.passed
+        ? (revealed ? 'Scored at 50% because the reference design was shown.' : v.clean ? 'Other valid designs exist. The test is whether yours carries the load and you can defend every arrow.' : 'Each box or arrow that carries nothing costs 10%. Be ready to justify everything you draw.')
+        : 'Change the design and run it again. Nothing is scored until it holds.';
+      out.appendChild(h('div', { class: 'result' }, h('div', { class: 'big' }, head + (v.passed ? ' ' + scoreLine(score) : '')), h('p', { class: 'muted' }, note)));
+      out.appendChild(list);
+      SD.hit(v.clean && !revealed, ctx.topicId);
+      if (!v.passed) { fails++; revealBtn.classList.remove('hidden'); SD.save(); return; }
+      if (score > best) best = score;
+      if (v.clean && !revealed) { SD.state.counts.perfectDiagram = 1; SD.confetti(); }
+      if (!awarded) { awarded = true; SD.award(Math.round(25 * score)); } else SD.save();
+      ctx.onDone(best);
+    }
+    // Without the engine (the script failed to load) fall back to comparing against the reference design.
+    function checkStatic() {
+      var need = spec.edges.map(function (e) { return e[0] + '>' + e[1]; });
+      var haveN = spec.required.filter(function (id) { return nodes[id]; }), haveE = need.filter(function (k) { return edges[k]; });
       var decoys = Object.keys(spec.decoys || {}).filter(function (id) { return nodes[id]; });
-      var extra = Object.keys(edges).filter(function (k) { return need.indexOf(k) < 0; });
-      var score = Math.max(0, (haveN.length + haveE.length) / (req.length + need.length) - 0.08 * decoys.length);
+      var score = Math.max(0, (haveN.length + haveE.length) / (spec.required.length + need.length) - 0.08 * decoys.length);
       clear(out);
       var list = h('div', { class: 'reviewlist' });
-      req.forEach(function (id) { if (!nodes[id]) list.appendChild(h('div', { class: 'rv bad' }, h('b', {}, '✗ Missing: ' + label(id) + '. '), (spec.why && spec.why[id]) || '')); });
-      spec.edges.forEach(function (e) { if (nodes[e[0]] && nodes[e[1]] && !edges[ekey(e[0], e[1])]) list.appendChild(h('div', { class: 'rv bad' }, h('b', {}, '✗ Not connected: '), label(e[0]) + ' ↔ ' + label(e[1]))); });
-      decoys.forEach(function (id) { list.appendChild(h('div', { class: 'rv bad' }, h('b', {}, '✗ Unjustified: ' + label(id) + '. '), spec.decoys[id])); });
-      if (extra.length) list.appendChild(h('div', { class: 'rv' }, h('b', {}, '· ' + extra.length + ' extra connection' + (extra.length > 1 ? 's' : '') + ' '), 'not in the reference design. Not penalised — but be ready to justify each arrow.'));
-      req.forEach(function (id) { if (nodes[id] && spec.why && spec.why[id]) list.appendChild(h('div', { class: 'rv good' }, h('b', {}, '✓ ' + label(id) + ': '), spec.why[id])); });
-      out.appendChild(h('div', { class: 'result' }, h('div', { class: 'big' }, scoreLine(score)), h('p', { class: 'muted' }, 'Compared with one reference design. Other valid designs exist — the test is whether you can defend yours.')));
+      spec.required.forEach(function (id) { if (!nodes[id]) list.appendChild(row('bad', '✗ Missing: ' + label(id) + '. ', (spec.why && spec.why[id]) || '')); });
+      spec.edges.forEach(function (e) { if (nodes[e[0]] && nodes[e[1]] && !edges[e[0] + '>' + e[1]]) list.appendChild(row('bad', '✗ No arrow: ', label(e[0]) + ' → ' + label(e[1]))); });
+      decoys.forEach(function (id) { list.appendChild(row('bad', '✗ Unjustified: ' + label(id) + '. ', spec.decoys[id])); });
+      out.appendChild(h('div', { class: 'result' }, h('div', { class: 'big' }, scoreLine(score)), h('p', { class: 'muted' }, 'The load test could not start, so this compares your design with the reference one.')));
       out.appendChild(list);
-      out.appendChild(h('button', { class: 'btn', onclick: reveal }, 'Show reference design'));
-      var first = best === 0;
+      revealBtn.classList.remove('hidden');
       if (score > best) best = score;
       SD.hit(score >= 0.999, ctx.topicId);
-      if (score >= 0.999) { SD.state.counts.perfectDiagram = 1; SD.confetti(); }
-      if (first) SD.award(Math.round(25 * score)); else SD.save();
+      if (!awarded) { awarded = true; SD.award(Math.round(25 * score)); } else SD.save();
       ctx.onDone(best);
     }
     function reveal() {
-      nodes = {}; edges = {}; selected = null;
+      if (running) return;
+      revealed = true; nodes = {}; edges = {}; selected = null; edited();
       // Simple layered layout: breadth-first from the client.
       var adj = {}; spec.edges.forEach(function (e) { (adj[e[0]] = adj[e[0]] || []).push(e[1]); (adj[e[1]] = adj[e[1]] || []).push(e[0]); });
       var depth = {}, q = [spec.required[0]]; depth[q[0]] = 0;
       while (q.length) { var c = q.shift(); (adj[c] || []).forEach(function (n) { if (depth[n] == null) { depth[n] = depth[c] + 1; q.push(n); } }); }
       var cols = {}; spec.required.forEach(function (id) { var d = depth[id] == null ? 0 : depth[id]; (cols[d] = cols[d] || []).push(id); });
-      var nc = Object.keys(cols).length;
-      Object.keys(cols).forEach(function (d) {
-        cols[d].forEach(function (id, i) {
-          var along = d / Math.max(1, nc - 1), across = i - (cols[d].length - 1) / 2;
-          nodes[id] = narrow ? { x: (W - BW) / 2 + across * (BW + 8), y: 10 + along * (H - BH - 20) }
-            : { x: 10 + along * (W - BW - 20), y: (H - BH) / 2 + across * 84 };
+      // One band per depth. A phone is three boxes wide, so a crowded depth wraps onto a second band.
+      var bands = [];
+      Object.keys(cols).sort(function (a, b) { return a - b; }).forEach(function (d) {
+        var ids = cols[d], rows = narrow ? Math.ceil(ids.length / 3) : 1, per = Math.ceil(ids.length / rows);
+        for (var r = 0; r < rows; r++) bands.push(ids.slice(r * per, (r + 1) * per));
+      });
+      bands.forEach(function (ids, bi) {
+        var along = bi / Math.max(1, bands.length - 1);
+        ids.forEach(function (id, i) {
+          var across = i - (ids.length - 1) / 2;
+          nodes[id] = narrow ? { x: (W - BW) / 2 + across * (BW + 8), y: 14 + along * (H - BH - 24) }
+            : { x: 10 + along * (W - BW - 20), y: (H - BH) / 2 + across * 92 };
         });
       });
-      spec.edges.forEach(function (e) { edges[ekey(e[0], e[1])] = 1; });
+      spec.edges.forEach(function (e) { edges[e[0] + '>' + e[1]] = 1; });
       draw();
+      out.appendChild(feedback(true, canSim ? 'This is one reference design. Run the load test to watch it carry the traffic.' : 'This is one reference design.'));
     }
     if (spec.brief) el.appendChild(h('p', { class: 'brief' }, spec.brief));
-    el.appendChild(pal); el.appendChild(h('div', { class: 'canvaswrap' }, canvas)); el.appendChild(hint);
-    el.appendChild(h('button', { class: 'btn primary', onclick: check }, 'Check design'));
-    el.appendChild(out);
+    if (canSim) el.appendChild(h('p', { class: 'lt-load' }, h('b', {}, 'The load test: '), spec.sim.load + ' It passes if no more than ' + spec.sim.goals.errors + ' in 100 requests are lost and the slowest 1 in 100 (p99) take no longer than ' + spec.sim.goals.p99 + ' ms.' + (spec.sim.scale ? ' Simulated at 1/' + spec.sim.scale + ' scale; the figures shown are scaled back up.' : '')));
+    el.appendChild(hint); el.appendChild(pal); el.appendChild(h('div', { class: 'canvaswrap' }, canvas));
+    el.appendChild(h('div', { class: 'row' }, runBtn, revealBtn));
+    el.appendChild(hud); el.appendChild(out);
     nodes[spec.required[0]] = { x: 8, y: 16 };
-    draw();
+    setBusy(false); draw();
   };
 
   /* ================= Estimation ================= */

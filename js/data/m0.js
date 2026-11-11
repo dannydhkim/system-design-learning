@@ -473,7 +473,33 @@
       required: ['client', 'cdn', 'lb', 'app', 'cache', 'db', 'blob'],
       edges: [['client', 'cdn'], ['client', 'lb'], ['lb', 'app'], ['app', 'cache'], ['app', 'db'], ['cdn', 'blob']],
       why: { cdn: 'Images are static and global — serve them from the edge.', cache: '100:1 reads: most reads should never reach the database.', blob: 'Images belong in object storage, not the database.', lb: 'Spreads traffic over stateless app servers.' },
-      decoys: { queue: 'Nothing in this brief is slow or asynchronous — a queue is unjustified here.', ws: 'Nothing here is real-time.', search: 'Search was not asked for.' }
+      decoys: { queue: 'Nothing in this brief is slow or asynchronous — a queue is unjustified here.', ws: 'Nothing here is real-time.', search: 'Search was not asked for.' },
+      sim: {
+        load: '500 page views a second, and each page pulls 8 images: 4,000 image requests a second.',
+        goals: { errors: 1, p99: 300 },
+        flows: [
+          { label: 'Page views', rps: 500, aside: ['cache', 'db'], needs: ['db'],
+            hops: [['client', 'lb'], ['client', 'app', { instead: 'lb' }], ['lb', 'app'], ['app', 'cache'], ['app', 'db']] },
+          { label: 'Image requests', rps: 4000, needs: ['blob'],
+            hops: [['client', 'cdn'], ['cdn', 'blob'], ['client', 'blob', { instead: 'cdn' }], ['client', 'lb', { instead: ['cdn', 'blob'] }], ['client', 'app', { instead: ['cdn', 'blob', 'lb'] }], ['lb', 'app'], ['app', 'blob']] }
+        ],
+        parts: {
+          cdn: { cfg: { capacity: 512, serviceMs: 2, hitRate: 0.95, queueLimit: 2048 } },
+          app: { cfg: { instances: 4, capacity: 6, serviceMs: 14, serviceCv: 0.5, queueLimit: 48 }, solo: { instances: 1 }, soloWhy: 'Nothing spreads the traffic, so clients can only reach one server however many you run.', fullWhy: 'It is sized for page views. Should it be handling anything else?' },
+          cache: { cfg: { capacity: 64, serviceMs: 1, hitRate: 0.9, queueLimit: 512 } },
+          db: { cfg: { capacity: 8, serviceMs: 25, serviceCv: 0.7, queueLimit: 64, lockMs: 0 }, fullWhy: 'It can do about 320 reads a second (8 at once, 25 ms each). With 100 reads to every write, most reads should be answered before they get here.' },
+          blob: { cfg: { capacity: 16, serviceMs: 15, serviceCv: 0.5, queueLimit: 128, prefixRps: 0 }, fullWhy: 'One bucket in one region is being asked for every image by every user. What could answer most of those closer to them?' }
+        },
+        needWhy: { db: 'The database is where the products are stored for good.', blob: 'The image files live in object storage.' },
+        bad: { 'client>db': 'Clients never talk to the database directly.', 'client>cache': 'Clients never talk to the cache directly.', 'cdn>db': 'A CDN fetches files from an origin. It does not query a database.', 'lb>db': 'A load balancer forwards requests to servers. It does not query a database.' },
+        ok: [['cache', 'db'], ['cdn', 'lb']],
+        traps: [
+          { name: 'no CDN: every image comes straight from the bucket', drop: ['cdn'], wire: [['client', 'blob']] },
+          { name: 'images served through the app servers', drop: ['cdn'], wire: [['app', 'blob']] },
+          { name: 'no cache', drop: ['cache'] },
+          { name: 'no load balancer', drop: ['lb'], wire: [['client', 'app']] }
+        ]
+      }
     }
   });
 
