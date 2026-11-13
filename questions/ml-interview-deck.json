@@ -1898,8 +1898,11 @@
    "type": "interview",
    "question": "Tell me about hard feedback you gave a peer or a manager, and hard feedback you received.",
    "answer": "• The situation and why the feedback was needed.\n• What you said, close to the actual words, and how you delivered it.\n• What happened afterwards.\n• For feedback received: what you changed, with a concrete before and after.",
-   "key_concept": "Probe — Netflix publishes a culture memo and interviews against it. Read the current version on its jobs site and prepare one story for each behaviour it names. This card does not quote it: the site was not reachable when the card was written.",
-   "added": "2026-11-13"
+   "key_concept": "Probe — Netflix's culture memo lists Candor as one of its values: “You willingly receive and give feedback; you are open about what’s working and what needs to improve; you admit mistakes openly and share learnings widely.” It asks for “extraordinary candor”, with constructive feedback part of everyday work, says this is especially hard when the feedback goes to someone more senior or from a different background, and asks people to say things about a colleague only if they are willing to say them to that colleague directly. Prepare one story of feedback given upward and one of feedback received that changed what you do. The memo's other values: Selflessness, Judgment, Creativity, Courage, Inclusion, Curiosity, Resilience.",
+   "added": "2026-11-13",
+   "refs": [
+    "nflx-culture"
+   ]
   },
   {
    "id": "DIVE-09",
@@ -1908,8 +1911,11 @@
    "type": "interview",
    "question": "Describe a decision you made without asking permission that carried real risk.",
    "answer": "• The context you had and how you got it.\n• Why you judged it yours to make, and who you informed.\n• The outcome, good or bad.\n• What you would do the same and differently.",
-   "key_concept": "Probe — How do you decide when to act and when to ask? Give your actual rule.",
-   "added": "2026-11-13"
+   "key_concept": "Probe — How do you decide when to act and when to ask? Give your actual rule. At Netflix, the culture memo's “People Over Process” section names an “informed captain” for every significant decision, who seeks out dissenting opinions (“farming for dissent”) and then makes the call; everyone else is expected to “disagree then commit”, and managers practise “context not control”.",
+   "added": "2026-11-13",
+   "refs": [
+    "nflx-culture"
+   ]
   },
   {
    "id": "DIVE-10",
@@ -2290,6 +2296,10 @@
   "nflx-artwork": [
    "Artwork Personalization at Netflix — Netflix Technology Blog (2017)",
    "https://netflixtechblog.com/artwork-personalization-c589f074ad76"
+  ],
+  "nflx-culture": [
+   "Netflix Culture Memo — Netflix (jobs.netflix.com, read 2026-11-13)",
+   "https://jobs.netflix.com/culture"
   ],
   "nflx-interleave": [
    "Innovating Faster on Personalization Algorithms at Netflix Using Interleaving — Netflix Technology Blog (2017)",

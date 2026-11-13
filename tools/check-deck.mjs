@@ -5,9 +5,14 @@
 //   · a card has no id, question or answer, repeats an id, or belongs to a section the deck does not define
 //   · a knowledge card (every section except DIVE, which holds prompts about your own work) cites no source,
 //     or cites one the deck does not list
+//   · a DIVE card (prompts about your own work, which need no source) cites a source the deck does not list
+//   · a card's "verified" field is not a date (YYYY-MM-DD), or is set on a card that cites no source
 //   · a source has no title or no https URL, or is cited by no card
-// --links also requests every source URL and reports the ones that do not answer.
-// Note what this does not check: that a card's claims match its sources. The deck's "verified" flag records that.
+// --links also requests every source URL and reports the ones that do not answer. An answer of 503 whose body is
+// "upstream connect error ..." comes from this machine's network proxy, not the site: it is reported as unreachable from
+// here, not as dead.
+// Note what this does not check: that a card's claims match its sources. A card's "verified" date records the day its
+// answer and probe were compared with the text of its cited sources; cards without it have not been checked.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,9 +26,10 @@ for (const c of d.cards) {
   seen.add(c.id);
   if (!c.question || !c.answer) errors.push(w + ': needs a question and an answer');
   if (!d.sections[c.topic]) errors.push(w + ': unknown section ' + c.topic);
+  for (const k of c.refs || []) { if (!d.sources[k]) errors.push(w + ': cites unknown source "' + k + '"'); else used.add(k); }
+  if (c.verified !== undefined && (!/^\d{4}-\d{2}-\d{2}$/.test(c.verified) || !(c.refs || []).length)) errors.push(w + ': "verified" must be a date and needs cited sources');
   if (c.topic === 'DIVE') continue;
   if (!Array.isArray(c.refs) || !c.refs.length) errors.push(w + ': cites no source');
-  for (const k of c.refs || []) { if (!d.sources[k]) errors.push(w + ': cites unknown source "' + k + '"'); else used.add(k); }
 }
 for (const [k, s] of Object.entries(d.sources)) {
   if (!s[0] || !/^https?:\/\/\S+$/.test(s[1] || '')) errors.push('source ' + k + ': needs a title and a URL');
@@ -32,14 +38,19 @@ for (const [k, s] of Object.entries(d.sources)) {
 for (const s of d.order || []) if (!d.sections[s]) errors.push('order names unknown section ' + s);
 
 if (process.argv.includes('--links')) {
-  let dead = 0;
+  let dead = 0; const unreachable = [];
   await Promise.all(Object.entries(d.sources).map(async ([k, s]) => {
     try {
       const r = await fetch(s[1], { redirect: 'follow', signal: AbortSignal.timeout(20000), headers: { 'user-agent': 'Mozilla/5.0 (link check)' } });
+      if (r.status === 503 && /^upstream connect error/.test(await r.text().catch(() => ''))) { unreachable.push(k + ': ' + s[1]); return; }
       if (!r.ok && ![401, 403, 429].includes(r.status)) { dead++; errors.push('source ' + k + ': URL answered ' + r.status + ': ' + s[1]); }
     } catch (e) { dead++; errors.push('source ' + k + ': URL did not answer (' + (e.cause && e.cause.code || e.name) + '): ' + s[1]); }
   }));
-  console.log(`links: ${Object.keys(d.sources).length - dead} of ${Object.keys(d.sources).length} answered`);
+  const n = Object.keys(d.sources).length;
+  console.log(`links: ${n - dead - unreachable.length} of ${n} answered` + (unreachable.length ? `; ${unreachable.length} could not be reached from this machine (its proxy could not connect), so they were not checked:\n  ` + unreachable.join('\n  ') : ''));
 }
 if (errors.length) { errors.forEach((e) => console.error('✗ ' + e)); console.error(`\n${errors.length} problem(s)`); process.exit(1); }
-console.log(`✓ deck: ${d.cards.length} cards in ${Object.keys(d.sections).length} sections; every knowledge card cites a listed source (${Object.keys(d.sources).length} sources)` + (d.verified ? '' : '\n  note: the deck is marked verified: false — its sources have not yet been compared with the cards'));
+const know = d.cards.filter((c) => c.topic !== 'DIVE'), checked = know.filter((c) => c.verified);
+console.log(`✓ deck: ${d.cards.length} cards in ${Object.keys(d.sections).length} sections; every knowledge card cites a listed source (${Object.keys(d.sources).length} sources)` +
+  `\n  ${checked.length} of ${know.length} knowledge cards have been checked against the text of their sources (field "verified")` +
+  (checked.length < know.length ? '; the rest have not: ' + know.filter((c) => !c.verified).map((c) => c.id).join(' ') : ''));

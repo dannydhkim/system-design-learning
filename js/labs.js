@@ -88,12 +88,13 @@
     function stop() { if (rec) try { rec.stop(); } catch (e) { /* already stopped */ } on = false; label(); }
     return { button: btn, stop: stop };
   };
-  function sourceLinks(refs) {
+  // verified: the date the card was compared with the text of these sources, if it has been (see tools/check-deck.mjs).
+  function sourceLinks(refs, verified) {
     var known = (refs || []).filter(function (k) { return SD.deckSources && SD.deckSources[k]; });
     if (!known.length) return null;
     return h('div', { class: 'cardrefs' }, h('span', { class: 'label' }, '📚 Sources'), h('ul', {}, known.map(function (k) {
       return h('li', {}, h('a', { href: SD.deckSources[k][1], target: '_blank', rel: 'noopener noreferrer' }, SD.deckSources[k][0]));
-    })));
+    })), h('div', { class: 'muted' }, verified ? '✓ Checked against the text of these sources on ' + verified + '.' : 'Not yet checked against these sources.'));
   }
   // What the judge said about an answer, and which grade it suggests.
   function showVerdict(box, out) {
@@ -144,7 +145,7 @@
           answerBox.appendChild(verdict);
           if (SD.judge.conf().auto) check(); else { verdict.appendChild(h('button', { class: 'btn mini', onclick: check }, '🤖 Check my answer')); }
         }
-        answerBox.appendChild(h('div', { class: 'answer' }, h('div', { class: 'label' }, 'Answer'), c.a, c.key ? h('div', { class: 'keyc' }, '💡 ' + c.key) : null, c.note ? h('div', { class: 'keyc' }, '📝 Your note from an earlier review: ' + c.note) : null, sourceLinks(c.refs)));
+        answerBox.appendChild(h('div', { class: 'answer' }, h('div', { class: 'label' }, 'Answer'), c.a, c.key ? h('div', { class: 'keyc' }, '💡 ' + c.key) : null, c.note ? h('div', { class: 'keyc' }, '📝 Your note from an earlier review: ' + c.note) : null, sourceLinks(c.refs, c.verified)));
         answerBox.appendChild(h('div', { class: 'label' }, 'How well did you recall it?'));
         answerBox.appendChild(h('div', { class: 'grades' }, ['Again', 'Hard', 'Good', 'Easy'].map(function (name, g) {
           return h('button', { class: 'btn grade g' + g, onclick: function () {

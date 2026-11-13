@@ -43,7 +43,7 @@
     var c = conf();
     if (!c.key) return Promise.reject(new Error('Add an API key in Settings first.'));
     var body = {
-      model: c.model, max_tokens: 2000,
+      model: c.model, max_tokens: 4000,   // Haiku 5.5 thinks by default and thinking counts toward max_tokens
       system: SYSTEM,
       output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
       messages: [{ role: 'user', content:
@@ -59,7 +59,11 @@
     }, function () { throw new Error('Could not reach the Claude API. Check the connection; the card can still be graded by hand.'); })
       .then(function (x) {
         var r = x.r, j = x.j || {};
-        if (r.status === 401) throw new Error('The API key was rejected. Check it in Settings. (Organisations with zero data retention cannot call the API from a browser.)');
+        // A browser request from an organisation with zero data retention, the Compliance API or similar settings gets a 401 whose
+        // message begins "CORS requests are not allowed for this Organization", although the key is valid (docs: Authentication →
+        // Browser-based applications). No change to the request fixes that.
+        if (r.status === 401 && j.error && /^CORS requests are not allowed/.test(j.error.message || '')) throw new Error('This API key\'s organisation does not allow calls from a browser (zero data retention, Compliance API or a similar setting). Use a key from an organisation without those settings.');
+        if (r.status === 401) throw new Error('The API key was rejected. Check it in Settings.');
         if (r.status === 429) throw new Error('Rate limited by the Claude API. Try again in a moment.');
         if (!r.ok) throw new Error('The Claude API answered ' + r.status + (j.error && j.error.message ? ': ' + j.error.message : '') + '.');
         if (j.usage) { var s = read(); s.inTok = (+s.inTok || 0) + (j.usage.input_tokens || 0); s.outTok = (+s.outTok || 0) + (j.usage.output_tokens || 0); s.calls = (+s.calls || 0) + 1; write(s); }
