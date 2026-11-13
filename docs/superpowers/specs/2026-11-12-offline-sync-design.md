@@ -1,6 +1,7 @@
 # Offline app with automatic GitHub sync: design
 
-Date: 2026-11-12. Status: ready for approval.
+Date: 2026-11-12. Status: built on 2026-11-13 (see "What was built" at the end); the owner's checks of the two
+"decisions made without the owner" and the real-device install are still open.
 
 ## Why
 
@@ -256,3 +257,30 @@ behaves on localhost.
 - Creating the private repo `system-design-progress` and the fine-grained token. Tokens must be created by the
   account holder.
 - Committing and pushing the current work so Pages can serve it.
+
+## What was built (2026-11-13)
+
+Everything in §1 to §5 except the steps under "Needs the owner". Choices the spec left to the builder:
+
+- **Totals:** `s.xp`, `s.days`, `s.counts` and each topic's `right`/`wrong` stay as fields, recomputed from the
+  tallies after every load and merge. All increments go through `gain`, `count` and `tallyHit` in `js/core.js`.
+- **Sync timing:** 45 seconds after the last save, and at most 3 minutes after the first unsynced one; every 5
+  minutes while open; on coming back to the app if the last sync is over 30 seconds old. Retries start at 15 seconds
+  and double up to 5 minutes.
+- **Web Locks** are used where the browser has them, so one tab syncs at a time.
+- **Reset question:** shown in Settings with the sync indicator turned to "needs a decision", not as a pop-up. A
+  device is asked when the copy about to be dropped has progress and either (a) this device's reset was never
+  confirmed with sync on, or (b) this device has progress it never synced. A device whose progress was all synced
+  accepts another device's reset without asking.
+- **Service worker version:** a fingerprint of the files, written by `node tools/check-sw.mjs --write`. On localhost
+  the service worker fetches from the network first.
+- **Added beyond the spec:** sync checks that the repository is private before the first write of a session and
+  refuses a public one; it also refuses to overwrite a file that is not a progress file.
+
+Not verified: sync against the real GitHub API (it needs the owner's token; the checks use a stand-in with the same
+status codes), installing on a real phone, and the hosted Pages copy.
+
+**Pages:** the last two builds from `main` (2026-11-11, runs 3 and 4) ended in `startup_failure`: GitHub never
+started a job, so the site's files are not the cause (the same commit built from another branch two hours earlier).
+The cause is not visible from the API. Things to check: Settings → Pages (source branch), Settings → Actions (that
+Actions are allowed), and the account's billing page for an Actions notice; then re-run the failed run.

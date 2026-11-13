@@ -5,19 +5,49 @@ original study notes and [Breakscale](../breakscale/) simulator references.
 
 ## Play
 
+Open the hosted copy at <https://dannydhkim.github.io/system-design-learning/>, or run it from a checkout:
+
 ```bash
 python serve.py          # → http://localhost:8000
 ```
 
-No install and no build step (Python 3 standard library only). `serve.py` also auto-saves your progress
-to `progress/progress.json`; commit and push that file to keep it on GitHub:
+No install and no build step (Python 3 standard library only).
 
-```bash
-git add progress && git commit -m "Study progress" && git push
-```
+### Install it, and use it offline
 
-Any static host (e.g. GitHub Pages) works too. There, progress lives in the browser, and
-Settings offers export/import and an optional direct push to GitHub through a personal access token.
+The app is installable, like a desktop or phone app, and works with no connection once installed.
+
+- **Laptop (Chrome or Edge):** open the hosted copy and choose "Install System Design Quest" in the address bar or
+  the browser menu.
+- **iPhone or iPad (Safari):** Share → "Add to Home Screen".
+- **Android (Chrome):** menu → "Install app" or "Add to Home screen".
+
+After that it opens from its own icon. Everything is stored on the device: questions, labs, load tests and boss
+fights all run offline. When a newer version has been published, the app downloads it in the background and shows
+"New version ready — Reload"; it never reloads on its own.
+
+### Progress, and syncing between devices
+
+Progress is saved on the device the moment you earn it. To have it on every device, turn on cloud sync once:
+
+1. On GitHub, create a new **private** repository named `system-design-progress`.
+2. Create a fine-grained personal access token (Settings → Developer settings → Fine-grained tokens) with access to
+   that one repository only, and the permission "Contents: read and write".
+3. In the app, open Settings → Cloud sync and paste the token. Do this on each device.
+
+From then on the app syncs by itself: at launch, shortly after you answer, when the connection comes back, and every
+few minutes while it is open. The online copy is one file, `progress.json`, in that private repository. Progress from
+two devices is merged, never overwritten: XP, daily totals and answer counts earned offline on each device add up. A
+small cloud in the top bar shows the state (synced, changes waiting, offline, or needs attention).
+
+Things to know:
+
+- The token is stored only in the browser of the device you paste it into. It is never written to the progress file.
+- Sync refuses a public repository, and never writes to this code repository.
+- A reset or an import applies to every synced device. If that would erase progress that was never synced, sync
+  pauses and asks which copy to keep.
+- Settings → Export gives you a `progress.json` backup at any time.
+- `serve.py` also writes `progress/progress.json` as a local backup. That folder is ignored by git.
 
 ## How it teaches
 
@@ -167,7 +197,13 @@ bosses and topic 0C.1.
 - `tools/check-hld.mjs` — load-test checks, run in Node on the same code the browser runs
 - `js/rig.js` — the load-test rigs: each rig's picture, controls, topology and missions, and the code that runs a
   mission on the engine. `js/riglab.js` draws them. `tools/check-rig.mjs` plays every mission in Node.
-- `serve.py` — local server that writes `progress/progress.json`
+- `serve.py` — local server that writes `progress/progress.json` (a local backup, ignored by git)
+- `js/sync.js` — cloud sync through the GitHub Contents API. `tools/check-sync.mjs` runs it for several simulated
+  devices against a stand-in for GitHub.
+- `sw.js`, `manifest.webmanifest`, `icons/` — the offline copy and the install metadata. `sw.js` lists every file
+  the app loads and a version fingerprint of their contents. **After changing any file the app loads, run
+  `node tools/check-sw.mjs --write`**; otherwise installed copies do not pick up the change.
+  `node tools/check-sw.mjs` fails when the list or the version is out of date.
 - `curriculum.md` — full learning path
 - `questions/` — flashcard decks (also loaded by the game)
 - `breakscale-reference.md`, `ml-system-design.md` — reference notes

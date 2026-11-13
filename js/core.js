@@ -116,6 +116,7 @@ window.SD = window.SD || {};
       topics: {}, cards: {}, hi: {}, badges: {}, counts: {},
       quests: { date: null, prog: {}, done: {} },
       runs: {},   // a boss fight left part-way: boss id -> { i: next phase, scores: [0..1 per phase done], ms: time spent }
+      tally: {},  // what each device has added to the running totals (see "Running totals" below)
       settings: { sound: true }
     };
   }
@@ -142,6 +143,96 @@ window.SD = window.SD || {};
     if (r.scores.some(function (x) { return num(x) == null || x < 0 || x > 1; })) return null;
     return { i: r.i, scores: r.scores.slice(), ms: Math.max(0, num(r.ms) || 0) };
   }
+  /* ---------- Running totals ----------
+     xp, days[date], counts[k] and each topic's right/wrong are sums that every answer adds to. Two devices used
+     offline from the same starting point must add up after a sync (100 XP on one and 50 on the other is 150), so the
+     state keeps a tally per device: tally[deviceId] = { xp, days, counts, topics: { id: { right, wrong } } }.
+     A device only ever adds to its own entry, so merging two copies takes the larger of each number per device and
+     nothing is lost or counted twice. The totals the rest of the app reads (s.xp and so on) are the sums across
+     entries, recomputed by derive(). Totals from before tallies existed sit in one shared entry, 'legacy', so two
+     devices that carry the same old history count it once. Nothing writes a total directly: use gain/count/tallyHit. */
+  var DEVKEY = 'sdq.device', device = null;   // kept out of the progress file: it names this browser, not the progress
+  function deviceId() {
+    if (device) return device;
+    try { device = localStorage.getItem(DEVKEY); } catch (e) { /* storage may be unavailable */ }
+    if (!device || !/^d[0-9a-z]{6,}$/.test(device)) {
+      device = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+      try { localStorage.setItem(DEVKEY, device); } catch (e) { /* this session only, then */ }
+    }
+    return device;
+  }
+  SD.deviceId = deviceId;
+  function pos(x) { var n = num(x); return n != null && n > 0 ? n : null; }
+  function tallyRec(t) {
+    if (!isObj(t)) return null;
+    return { xp: pos(t.xp) || 0, days: only(t.days, pos), counts: only(t.counts, pos),
+      topics: only(t.topics, function (x) { return isObj(x) ? { right: pos(x.right) || 0, wrong: pos(x.wrong) || 0 } : null; }) };
+  }
+  function sumTally(tally) {
+    var r = { xp: 0, days: {}, counts: {}, topics: {} };
+    Object.keys(tally).forEach(function (d) {
+      var e = tally[d], k;
+      r.xp += e.xp;
+      for (k in e.days) r.days[k] = (r.days[k] || 0) + e.days[k];
+      for (k in e.counts) r.counts[k] = (r.counts[k] || 0) + e.counts[k];
+      for (k in e.topics) { var x = r.topics[k] || (r.topics[k] = { right: 0, wrong: 0 }); x.right += e.topics[k].right; x.wrong += e.topics[k].wrong; }
+    });
+    return r;
+  }
+  // Set the totals the app reads from the tallies.
+  function derive(s) {
+    var sum = sumTally(s.tally), id;
+    s.xp = sum.xp; s.days = sum.days; s.counts = sum.counts;
+    for (id in sum.topics) if (!own(s.topics, id)) s.topics[id] = { done: {}, right: 0, wrong: 0, notes: {} };
+    for (id in s.topics) if (own(s.topics, id)) { s.topics[id].right = own(sum.topics, id) ? sum.topics[id].right : 0; s.topics[id].wrong = own(sum.topics, id) ? sum.topics[id].wrong : 0; }
+    return s;
+  }
+  // The totals of a state whose totals are already normalized, as one tally entry.
+  function totalsOf(s) {
+    var e = { xp: s.xp, days: only(s.days, pos), counts: only(s.counts, pos), topics: {} };
+    Object.keys(s.topics).forEach(function (id) { var t = s.topics[id]; if (t.right > 0 || t.wrong > 0) e.topics[id] = { right: Math.max(0, t.right), wrong: Math.max(0, t.wrong) }; });
+    return e;
+  }
+  // A copy written before tallies existed has totals and no tally: they become the shared 'legacy' entry. The same
+  // goes for whatever a copy's totals hold beyond its tallies (an older version of the app added to them directly).
+  function fixTally(s) {
+    var had = isObj(s.tally), t = had ? only(s.tally, tallyRec) : {}, tot = totalsOf(s), sum = sumTally(t), k;
+    var lg = t.legacy || { xp: 0, days: {}, counts: {}, topics: {} }, extra = false;
+    function top(map, sums, key, v) { var d = v - (sums[key] || 0); if (d > 0) { map[key] = (map[key] || 0) + d; extra = true; } }
+    if (tot.xp > sum.xp) { lg.xp += tot.xp - sum.xp; extra = true; }
+    for (k in tot.days) top(lg.days, sum.days, k, tot.days[k]);
+    for (k in tot.counts) top(lg.counts, sum.counts, k, tot.counts[k]);
+    for (k in tot.topics) {
+      var have = sum.topics[k] || { right: 0, wrong: 0 }, dr = tot.topics[k].right - have.right, dw = tot.topics[k].wrong - have.wrong;
+      if (dr > 0 || dw > 0) { var x = lg.topics[k] || (lg.topics[k] = { right: 0, wrong: 0 }); x.right += Math.max(0, dr); x.wrong += Math.max(0, dw); extra = true; }
+    }
+    if (extra) t.legacy = lg;
+    s.tally = t;
+    return derive(s);
+  }
+  function mine() {
+    var t = SD.state.tally, id = deviceId();
+    return own(t, id) ? t[id] : (t[id] = { xp: 0, days: {}, counts: {}, topics: {} });
+  }
+  // Add XP earned now: to the total and to today.
+  function gain(n) {
+    if (!(n > 0)) return;
+    var s = SD.state, e = mine(), d = today();
+    e.xp += n; e.days[d] = (e.days[d] || 0) + n;
+    s.xp += n; s.days[d] = (s.days[d] || 0) + n;
+  }
+  // Add to a named counter. once: a flag rather than a count, so it stops at 1.
+  function count(k, once) {
+    var s = SD.state, e = mine();
+    if (once && s.counts[k]) return;
+    e.counts[k] = (e.counts[k] || 0) + 1; s.counts[k] = (s.counts[k] || 0) + 1;
+  }
+  function tallyHit(topicId, correct) {
+    var t = SD.topicState(topicId), e = mine(), x = own(e.topics, topicId) ? e.topics[topicId] : (e.topics[topicId] = { right: 0, wrong: 0 }), k = correct ? 'right' : 'wrong';
+    x[k]++; t[k]++;
+  }
+  SD.count = count;
+
   function cardRec(c) {
     if (!isObj(c) || num(c.iv) == null || num(c.ef) == null || num(c.reps) == null || typeof c.due !== 'string') return null;
     var r = { iv: c.iv, ef: c.ef, reps: c.reps, due: c.due };
@@ -165,7 +256,7 @@ window.SD = window.SD || {};
     s.quests = { date: str(q.date), prog: only(q.prog, num), done: only(q.done, num) };
     if (!isObj(s.settings)) s.settings = b.settings;
     if (typeof s.settings.sound !== 'boolean') s.settings.sound = true;
-    return s;
+    return fixTally(s);
   }
   SD.normalize = normalize;
 
@@ -190,20 +281,27 @@ window.SD = window.SD || {};
   }
   // The copy of a card that was reviewed more recently; on a tie, the one further along.
   function newerCard(x, y) { return (cmp(x.last, y.last) || cmp(x.reps, y.reps) || cmp(x.due, y.due) || cmp(stable(x), stable(y))) >= 0 ? x : y; }
-  // Both copies must be normalized. Nothing earned in either is lost: the larger of every total and best, the union
-  // of days, badges and passed stations, the more recently reviewed copy of each card, the later streak and daily
-  // quests. What cannot be combined (the current answer streak, settings, a note both copies have) comes from the
-  // copy saved last.
+  function maxMap(x, y) { return eachKey(x, y, Math.max); }
+  function mergeTally(x, y) {
+    return { xp: Math.max(x.xp, y.xp), days: maxMap(x.days, y.days), counts: maxMap(x.counts, y.counts),
+      topics: eachKey(x.topics, y.topics, function (p, q) { return { right: Math.max(p.right, q.right), wrong: Math.max(p.wrong, q.wrong) }; }) };
+  }
+  // Both copies must be normalized. Nothing earned in either is lost: running totals add up across devices (each
+  // device's tally merges by its larger numbers, and the totals are their sum), every best keeps the larger value,
+  // badges and passed stations are unions, each card keeps its more recently reviewed copy, and the later streak and
+  // daily quests win. What cannot be combined (the current answer streak, settings, a note both copies have) comes
+  // from the copy saved last.
   function merge(a, b) {
     if (a.resetAt !== b.resetAt) return clone(a.resetAt > b.resetAt ? a : b);
     var n = (cmp(a.updatedAt, b.updatedAt) || cmp(stable(a), stable(b))) >= 0 ? a : b, o = n === a ? b : a, m = {}, k;
     for (k in o) m[k] = o[k];
     for (k in n) m[k] = n[k];
     m.updatedAt = Math.max(a.updatedAt, b.updatedAt);
-    m.xp = Math.max(a.xp, b.xp); m.bestCombo = Math.max(a.bestCombo, b.bestCombo);
+    m.bestCombo = Math.max(a.bestCombo, b.bestCombo);
     var s = (cmp(n.streak.last, o.streak.last) || cmp(n.streak.count, o.streak.count)) >= 0 ? n.streak : o.streak;
     m.streak = { count: s.count, best: Math.max(n.streak.best, o.streak.best), last: s.last };
-    m.days = eachKey(n.days, o.days, Math.max); m.hi = eachKey(n.hi, o.hi, Math.max); m.counts = eachKey(n.counts, o.counts, Math.max);
+    m.hi = maxMap(n.hi, o.hi);
+    m.tally = eachKey(n.tally, o.tally, mergeTally);
     m.badges = eachKey(n.badges, o.badges, earlier);
     m.cards = eachKey(n.cards, o.cards, newerCard);
     m.topics = eachKey(n.topics, o.topics, function (x, y) {
@@ -216,13 +314,14 @@ window.SD = window.SD || {};
     var qn = n.quests, qo = o.quests;
     m.quests = qn.date === qo.date ? { date: qn.date, prog: eachKey(qn.prog, qo.prog, Math.max), done: eachKey(qn.done, qo.done, Math.max) }
       : cmp(qn.date, qo.date) > 0 ? qn : qo;
-    return clone(m);
+    return derive(clone(m));
   }
-  SD.merge = merge;
+  SD.merge = merge; SD.stable = stable;
 
   var listeners = [];
   SD.on = function (fn) { listeners.push(fn); };
   function emit() { listeners.forEach(function (fn) { fn(); }); }
+  SD.notify = emit;
 
   // Cleanup for the current view, such as a live microphone or a stopwatch. route() runs and clears these on every navigation.
   var leaving = [];
@@ -241,7 +340,7 @@ window.SD = window.SD || {};
     if (server) { unsaved = true; schedulePush(1200); }
   }
   SD.save = function () {
-    SD.state.updatedAt = Date.now();
+    SD.state.updatedAt = Math.max(Date.now(), SD.state.updatedAt + 1);   // always moves on, even twice in one millisecond
     persist(true, true);
     emit();
   };
@@ -284,19 +383,25 @@ window.SD = window.SD || {};
   }
   // Fold another normalized copy into SD.state. Whichever side lacks something the merge produced is written back,
   // without changing updatedAt, so the copies converge instead of bouncing saves between tabs.
-  // fromStorage: the copy is what another tab just wrote to localStorage (so the server has it, or will).
-  function reconcile(other, fromStorage) {
-    var mine = stable(SD.state), m = merge(SD.state, other), sm = stable(m), changed = sm !== mine;
+  // from: 'storage' when the copy is what another tab just wrote to localStorage (so the server has it, or will),
+  // 'cloud' when it is the online copy (js/sync.js), otherwise the copy serve.py holds.
+  // Returns whether the result holds anything the other copy lacks.
+  function reconcile(other, from) {
+    var was = stable(SD.state), m = merge(SD.state, other), sm = stable(m), changed = sm !== was, ahead = sm !== stable(other);
     if (changed) adopt(m);
-    if (fromStorage) { if (sm !== stable(other)) persist(true, true); }
-    else persist(changed, sm !== stable(other));
+    if (from === 'storage') { if (ahead) persist(true, true); }
+    else if (from === 'cloud') persist(changed, changed);
+    else persist(changed, ahead);
     if (changed) emit();
+    return ahead;
   }
+  // Fold the online copy (already normalized) into this browser's progress.
+  SD.foldCloud = function (other) { return reconcile(other, 'cloud'); };
   window.addEventListener('storage', function (e) {
     if (e.key !== KEY || !e.newValue || !SD.state) return;
     var other = null;
     try { other = JSON.parse(e.newValue); } catch (err) { return; }
-    if (isObj(other) && other.v === 1) reconcile(normalize(other), true);
+    if (isObj(other) && other.v === 1) reconcile(normalize(other), 'storage');
   });
   SD.load = function () {
     var local = null;
@@ -306,16 +411,23 @@ window.SD = window.SD || {};
     return fetch('progress/progress.json', { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (remote) {
-        if (isObj(remote) && remote.v === 1) reconcile(normalize(remote), false);
+        if (isObj(remote) && remote.v === 1) reconcile(normalize(remote), 'file');
         else if (SD.state.updatedAt) persist(false, true);   // no file yet: give the server this browser's progress
       })
       .catch(function () { /* no saved file yet */ });
   };
+  // A reset time later than this device's last one and than `other`, so the copy it stamps wins every merge.
+  function newReset(other) { return Math.max(Date.now(), (SD.state ? SD.state.resetAt : 0) + 1, (other || 0) + 1); }
   SD.replaceState = function (obj) {
     if (!isObj(obj) || obj.v !== 1) throw new Error('this is not a System Design Quest progress file (it must be a JSON object with "v": 1)');
-    SD.state = normalize(obj); SD.state.resetAt = Date.now(); SD.save();
+    // The file's totals become the shared entry: whatever each device added before the import is part of them now.
+    var s = normalize(obj);
+    s.tally = { legacy: totalsOf(s) }; derive(s);
+    s.resetAt = newReset(s.resetAt); SD.state = s; SD.save();
   };
-  SD.resetState = function () { SD.state = blank(); SD.state.resetAt = Date.now(); SD.save(); };
+  SD.resetState = function () { var at = newReset(0); SD.state = blank(); SD.state.resetAt = at; SD.save(); };
+  // Keep this device's progress over a copy that was reset at `other`: stamp it as the later reset.
+  SD.keepOver = function (other) { SD.state.resetAt = newReset(other); SD.save(); };
 
   /* ---------- Levels ---------- */
   var TITLES = [[1, 'Intern'], [3, 'Junior Engineer'], [6, 'Engineer'], [10, 'Senior Engineer'], [15, 'Staff Engineer'], [21, 'Principal Engineer'], [28, 'Distinguished Engineer']];
@@ -360,7 +472,7 @@ window.SD = window.SD || {};
     q.prog[id] = (q.prog[id] || 0) + (n || 1);
     if (!q.done[id] && q.prog[id] >= def.goal) {
       q.done[id] = 1;
-      SD.state.xp += 40; SD.state.days[today()] = (SD.state.days[today()] || 0) + 40;
+      gain(40);
       SD.toast('✅ Quest complete: ' + def.text + ' (+40 XP)', 'gold'); SD.beep('win');
     }
   }
@@ -381,21 +493,21 @@ window.SD = window.SD || {};
     opts = opts || {};
     var s = SD.state, before = SD.levelInfo(s.xp).level;
     touchDay();
-    var gain = Math.round(base * (opts.flat ? 1 : SD.comboMult()));
-    s.xp += gain; s.days[today()] = (s.days[today()] || 0) + gain;
-    if (opts.count) s.counts[opts.count] = (s.counts[opts.count] || 0) + 1;
+    var earned = Math.round(base * (opts.flat ? 1 : SD.comboMult()));
+    gain(earned);
+    if (opts.count) count(opts.count);
     if (opts.quest) bumpQuest(opts.quest, 1);
     var after = SD.levelInfo(s.xp);
     if (after.level > before) { SD.toast('⬆️ Level ' + after.level + ' — ' + after.title, 'gold'); SD.confetti(); SD.beep('win'); }
     checkBadges(); SD.save();
-    return gain;
+    return earned;
   };
   // Record a right/wrong answer: drives the combo (win streak) and per-topic accuracy.
   SD.hit = function (correct, topicId) {
     var s = SD.state;
     if (correct) { s.combo++; s.bestCombo = Math.max(s.bestCombo, s.combo); if (s.combo === 5 || s.combo === 10 || s.combo % 25 === 0) SD.toast('⚡ ' + s.combo + ' in a row!', 'gold'); }
     else s.combo = 0;
-    if (topicId) { var t = SD.topicState(topicId); if (correct) t.right++; else t.wrong++; }
+    if (topicId) tallyHit(topicId, correct);
     SD.beep(correct ? 'ok' : 'bad');
   };
   SD.topicState = function (id) {

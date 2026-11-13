@@ -551,7 +551,7 @@
       if (!counted) { SD.hit(perfect, ctx.topicId); counted = perfect; }
       if (!v.passed) { fails++; revealBtn.classList.remove('hidden'); SD.save(); return; }
       if (score > best) best = score;
-      if (firstPerfect) { SD.state.counts.perfectDiagram = 1; SD.confetti(); }
+      if (firstPerfect) { SD.count('perfectDiagram', true); SD.confetti(); }
       if (!awarded) { awarded = true; SD.award(xp(ctx, Math.round(25 * score))); } else SD.save();
       ctx.onDone(best);
     }

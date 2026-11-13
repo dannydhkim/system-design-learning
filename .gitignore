@@ -1,3 +1,5 @@
 screenshots/
 node_modules/
 .DS_Store
+# Local progress backup written by serve.py. The code repository is public; progress syncs to a private one.
+progress/

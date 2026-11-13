@@ -32,7 +32,9 @@
     var fill = h('div', { class: 'fill' }); fill.style.width = Math.round(lv.pct * 100) + '%';
     hud.appendChild(h('a', { class: 'brand', href: '#/map' }, '◈ System Design Quest'));
     hud.appendChild(h('nav', { class: 'navs' }, link('map', '🗺️', 'Map'), link('review', '🧠', 'Review', due || null), link('arcade', '🕹️', 'Arcade'), link('boss', '🏆', 'Bosses'), link('stats', '📊', 'Stats'), link('settings', '⚙️', 'Settings')));
+    var cs = SD.cloud.describe();
     hud.appendChild(h('div', { class: 'meters' },
+      cs.icon ? h('a', { class: 'meter cloud ' + cs.cls, href: '#/settings', title: 'Cloud sync: ' + cs.word, 'aria-label': 'Cloud sync: ' + cs.word }, cs.icon) : null,
       h('div', { class: 'lvl', title: lv.into + ' / ' + lv.span + ' XP to next level' }, h('b', {}, 'Lv ' + lv.level), h('span', { class: 'ltitle' }, lv.title), h('div', { class: 'track' }, fill)),
       h('div', { class: 'meter', title: 'Daily streak' }, '🔥 ', h('b', {}, SD.streakNow())),
       h('div', { class: 'meter' + (s.combo >= 5 ? ' hot' : ''), title: 'Correct answers in a row' }, '⚡ ', h('b', {}, s.combo))));
@@ -282,37 +284,19 @@
   }
 
   /* ---------- Settings & sync ---------- */
-  var GHKEY = 'sdq.github';   // kept out of the progress file on purpose: it holds a token
-  function ghConf() { try { return JSON.parse(localStorage.getItem(GHKEY)) || {}; } catch (e) { return {}; } }
-  function b64(str) { return btoa(unescape(encodeURIComponent(str))); }
-  function unb64(str) { return decodeURIComponent(escape(atob(str.replace(/\s/g, '')))); }
-  function ghCall(c, method, body) {
-    var url = 'https://api.github.com/repos/' + c.owner + '/' + c.repo + '/contents/' + c.path + (method === 'GET' ? '?ref=' + encodeURIComponent(c.branch) : '');
-    return fetch(url, { method: method, headers: { Authorization: 'Bearer ' + c.token, Accept: 'application/vnd.github+json' }, body: body ? JSON.stringify(body) : undefined });
-  }
-  SD.github = {
-    push: function (c) {
-      return ghCall(c, 'GET').then(function (r) { if (r.status === 404) return null; if (!r.ok) throw new Error('GitHub answered ' + r.status); return r.json(); })
-        .then(function (cur) { return ghCall(c, 'PUT', { message: 'Update study progress', content: b64(JSON.stringify(SD.state, null, 1)), branch: c.branch, sha: cur ? cur.sha : undefined }); })
-        .then(function (r) { if (!r.ok) throw new Error('GitHub answered ' + r.status); });
-    },
-    pull: function (c) {
-      return ghCall(c, 'GET').then(function (r) { if (!r.ok) throw new Error(r.status === 404 ? 'No progress file in the repository yet' : 'GitHub answered ' + r.status); return r.json(); })
-        .then(function (f) { SD.replaceState(JSON.parse(unb64(f.content))); });
-    }
-  };
   function viewSettings() {
-    var s = SD.state, c = ghConf();
+    var s = SD.state;
     main.appendChild(h('h1', {}, '⚙️ Settings'));
 
     var snd = h('input', { type: 'checkbox' }); snd.checked = !!s.settings.sound;
     snd.addEventListener('change', function () { s.settings.sound = snd.checked; SD.save(); });
     main.appendChild(h('div', { class: 'card' }, h('label', { class: 'check' }, snd, ' Sound effects')));
 
-    var status = SD.sync.server === 'ok' ? '✓ Auto-saving to progress/progress.json in this folder. Commit and push that file to keep it on GitHub.'
+    var status = SD.sync.server === 'ok' ? '✓ Also saving to progress/progress.json in this folder (serve.py is running). That file is a local backup and stays out of git.'
       : SD.sync.server === 'retrying' ? '⚠ The local save server stopped answering. Progress is kept in this browser and will be written to progress/progress.json once the server is back.'
-      : SD.sync.server === 'none' ?'No local save server detected, so progress lives in this browser only. Run “python serve.py” for auto-save to a file, or use the options below.'
+      : SD.sync.server === 'none' ? 'Progress is saved in this browser. Export a copy now and then as a backup, or set up cloud sync below.'
         : 'Checking for the local save server…';
+    var everywhere = SD.cloud.conf().token ? ' Cloud sync is on, so this applies to every synced device, including progress another device has not synced yet.' : '';
     main.appendChild(h('div', { class: 'card' }, h('div', { class: 'label' }, 'Progress file'), h('p', {}, status),
       h('div', { class: 'row wrap' },
         h('button', { class: 'btn', onclick: function () {
@@ -324,21 +308,86 @@
           f.text().then(function (txt) {
             var obj;
             try { obj = JSON.parse(txt); } catch (err) { throw new Error('the file is not valid JSON'); }
-            SD.replaceState(obj); SD.toast('Progress imported'); route();
+            if (!confirm('Replace the progress on this device with the file?' + everywhere)) return;
+            SD.replaceState(obj); SD.cloud.ackReset(); SD.toast('Progress imported'); route();
           }).catch(function (err) { SD.toast('Import failed: ' + err.message); });
         } })))));
 
-    function field(k, label, type, ph) { var i = h('input', { class: 'num wide', type: type || 'text', placeholder: ph || '', value: c[k] || '', autocomplete: 'off' }); i.addEventListener('change', function () { c[k] = i.value.trim(); localStorage.setItem(GHKEY, JSON.stringify(c)); }); return h('label', { class: 'field' }, h('span', {}, label), i); }
-    c.owner = c.owner || 'dannydhkim'; c.repo = c.repo || 'system-design-learning'; c.branch = c.branch || 'main'; c.path = c.path || 'progress/progress.json';
-    function run(fn, okMsg) { if (!c.token) return SD.toast('Add a token first'); fn(c).then(function () { SD.toast(okMsg, 'gold'); route(); }).catch(function (e) { SD.toast('GitHub sync failed: ' + e.message); }); }
-    main.appendChild(h('div', { class: 'card' }, h('div', { class: 'label' }, 'Sync straight to GitHub (optional)'),
-      h('p', { class: 'muted' }, 'Commits the progress file through the GitHub API, for when you are not running serve.py. Needs a fine-grained personal access token with “Contents: read and write” on this one repository. The token is stored only in this browser and is never written to the progress file.'),
-      h('div', { class: 'fields' }, field('owner', 'Owner'), field('repo', 'Repository'), field('branch', 'Branch'), field('path', 'File path'), field('token', 'Token', 'password', 'github_pat_…')),
-      h('div', { class: 'row wrap' }, h('button', { class: 'btn', onclick: function () { run(SD.github.push, 'Progress pushed to GitHub'); } }, '⬆ Push to GitHub'),
-        h('button', { class: 'btn', onclick: function () { if (confirm('Replace the progress in this browser with the copy on GitHub?')) run(SD.github.pull, 'Progress pulled from GitHub'); } }, '⬇ Pull from GitHub'))));
+    var card = h('div', { class: 'card' });
+    main.appendChild(card);
+    drawCloud(card);
+    SD.cloud.onChange = function () { drawCloud(card); };
+    SD.onLeave(function () { SD.cloud.onChange = null; });
 
     main.appendChild(h('div', { class: 'card pitfall' }, h('div', { class: 'label' }, 'Danger zone'),
-      h('button', { class: 'btn', onclick: function () { if (confirm('Erase all progress, streaks and high scores? This cannot be undone.')) { SD.resetState(); SD.toast('Progress reset'); route(); } } }, 'Reset all progress')));
+      h('button', { class: 'btn', onclick: function () { if (confirm('Erase all progress, streaks and high scores? This cannot be undone.' + everywhere)) { SD.resetState(); SD.cloud.ackReset(); SD.toast('Progress reset'); route(); } } }, 'Reset all progress')));
+  }
+
+  // The cloud sync card. Redrawn when the sync status changes, unless the owner is typing in one of its fields.
+  function drawCloud(card) {
+    var C = SD.cloud, active = document.activeElement;
+    if (card.firstChild && active && card.contains(active) && /^(INPUT|SUMMARY)$/.test(active.tagName)) {
+      var line = card.querySelector('.cloudstatus');
+      if (line) { clear(line); fillStatus(line); }
+      return;
+    }
+    var c = C.conf(), q = C.conflict, open = card.querySelector('details') ? card.querySelector('details').open : false;
+    function fillStatus(el) { var d = C.describe(); el.className = 'cloudstatus fb ' + (d.cls === 'ok' ? 'good' : d.cls === 'bad' || d.cls === 'warn' ? 'bad' : ''); el.appendChild(h('b', {}, (d.icon ? d.icon + ' ' : '') + d.word + '. ')); el.appendChild(document.createTextNode(d.text)); }
+    function field(k, label, type, ph) {
+      var i = h('input', { class: 'num wide', type: type || 'text', placeholder: ph || '', value: c[k] || '', autocomplete: 'off', spellcheck: 'false' });
+      i.addEventListener('change', function () { C.setConf(k, i.value); });
+      return h('label', { class: 'field' }, h('span', {}, label), i);
+    }
+    clear(card);
+    card.appendChild(h('div', { class: 'label' }, 'Cloud sync'));
+    var st = h('div', { role: 'status' }); fillStatus(st); card.appendChild(st);
+    if (q) {
+      var when = new Date(q.at).toLocaleString();
+      card.appendChild(h('div', { class: 'fb bad', role: 'alert' },
+        h('p', {}, q.drops === 'online'
+          ? 'This device was reset or had progress imported on ' + when + '. The online copy has progress from before that (' + SD.fmt(q.remote.xp) + ' XP), which syncing would erase. Which copy do you want to keep?'
+          : 'The online copy was reset or replaced on ' + when + ' from another device. This device has progress that was never synced (' + SD.fmt(SD.state.xp) + ' XP here), which syncing would erase. Which copy do you want to keep?'),
+        h('p', { class: 'muted' }, 'The copy you keep replaces the other on every synced device. Export this device\'s progress first if you are unsure.'),
+        h('div', { class: 'row wrap' },
+          h('button', { class: 'btn', onclick: function () { C.resolve('device').then(route); } }, 'Keep this device\'s progress'),
+          h('button', { class: 'btn', onclick: function () { C.resolve('online').then(route); } }, 'Keep the online copy'))));
+    }
+    card.appendChild(h('div', { class: 'fields' }, field('token', 'Token', 'password', 'github_pat_…'), field('label', 'Device name (optional)', 'text', 'e.g. Laptop')));
+    var more = h('details', {}, h('summary', {}, 'Repository details'),
+      h('div', { class: 'fields' }, field('owner', 'Owner'), field('repo', 'Repository'), field('branch', 'Branch'), field('path', 'File path')));
+    more.open = open;
+    card.appendChild(more);
+    card.appendChild(h('div', { class: 'row wrap' }, h('button', { class: 'btn', disabled: !c.token || C.status === 'syncing', onclick: function () { C.syncNow(); } }, '⟳ Sync now')));
+    card.appendChild(h('details', {}, h('summary', {}, 'How to set this up'), h('ol', { class: 'points' },
+      h('li', {}, 'On GitHub, create a new ', h('b', {}, 'private'), ' repository named ' + C.DEFAULTS.repo + '. Sync refuses a public one.'),
+      h('li', {}, 'Create a fine-grained personal access token: Settings → Developer settings → Fine-grained tokens. Give it access to that one repository only, with “Contents: read and write”.'),
+      h('li', {}, 'Paste the token here on each device. It is stored only in this browser and never written to the progress file.')),
+      h('p', { class: 'muted' }, 'After that, progress syncs by itself: at launch, shortly after you answer, and when the connection comes back. Progress from two devices is merged, never overwritten.')));
+  }
+
+  /* ---------- App updates and offline ---------- */
+  // sw.js keeps a copy of the app so it opens with no connection. When a newer version has been downloaded it waits;
+  // the page offers a reload and never reloads by itself, so a quiz or boss fight is not interrupted. Closing
+  // every window of the app also switches to the new version.
+  function offerUpdate(worker) {
+    var box = document.getElementById('toasts');
+    if (box.querySelector('.update')) return;
+    box.appendChild(h('div', { class: 'toast update', role: 'status' }, 'New version ready ',
+      h('button', { class: 'btn mini', onclick: function () { reloading = true; worker.postMessage('activate'); } }, 'Reload'),
+      h('button', { class: 'btn mini', 'aria-label': 'Dismiss', onclick: function () { box.querySelector('.update').remove(); } }, '✕')));
+  }
+  var reloading = false;
+  function startOffline() {
+    if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
+    navigator.serviceWorker.register('sw.js').then(function (reg) {
+      function watch(w) { if (w) w.addEventListener('statechange', function () { if (w.state === 'installed' && navigator.serviceWorker.controller) offerUpdate(w); }); }
+      if (reg.waiting && navigator.serviceWorker.controller) offerUpdate(reg.waiting);
+      watch(reg.installing);
+      reg.addEventListener('updatefound', function () { watch(reg.installing); });
+    }).catch(function () { /* offline support is optional */ });
+    navigator.serviceWorker.addEventListener('controllerchange', function () { if (reloading) location.reload(); });
+    // Ask the browser not to evict this site's storage when space runs low (it matters most on iOS).
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {});
   }
 
   /* ---------- Router ---------- */
@@ -366,6 +415,8 @@
       SD.on(drawHud);
       window.addEventListener('hashchange', route);
       route();
+      SD.cloud.start();
+      startOffline();
     });
   });
 })(window.SD);

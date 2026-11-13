@@ -4,8 +4,9 @@
     python serve.py            # http://localhost:8000
     python serve.py --port 9000
 
-The app POSTs its state to /api/progress; this writes it to progress/progress.json
-so you can `git add progress && git commit && git push` to keep it on GitHub.
+The app POSTs its state to /api/progress; this writes it to progress/progress.json as a local
+backup. That folder is ignored by git: syncing between devices goes through the app's own cloud
+sync (Settings), not through this repository.
 
 Binds to localhost only, and only answers a browser that is really on this page:
   · the Host header must be localhost or 127.0.0.1 on our port (stops DNS rebinding, where another
@@ -27,6 +28,8 @@ MAX_BYTES = 5 * 1024 * 1024
 
 
 class Handler(SimpleHTTPRequestHandler):
+    extensions_map = {**SimpleHTTPRequestHandler.extensions_map, ".webmanifest": "application/manifest+json"}
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
