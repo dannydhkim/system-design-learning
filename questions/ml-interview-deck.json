@@ -1476,8 +1476,8 @@
    "title": "Exploration vs exploitation",
    "type": "interview",
    "question": "Define both, and compare epsilon-greedy, UCB, and Thompson sampling.",
-   "answer": "• Exploitation: choose what the model currently believes is best. Exploration: try seemingly suboptimal options to learn more about them.\n• Epsilon-greedy: random action with probability epsilon (0.05 = 95/5). Simple but explores blindly (uniformly at random).\n• UCB: pick the highest estimated mean plus a confidence-interval bonus; total regret only logarithmic in the number of trials (context-free case).\n• Thompson sampling: sample from each option's posterior and pick the best sample; each option is chosen with the probability that it is optimal given the history.\n• Contextual bandits condition on user and item features (LinUCB for Yahoo! news recommendation) and generalize to new users and items.",
-   "key_concept": "Probe — Exploration raises short-term regret to lower long-term regret; quantify the cost as regret and cap it with a traffic budget (a small slice of traffic for exploration).",
+   "answer": "• Exploitation: choose what the model currently believes is best. Exploration: try seemingly suboptimal options to learn more about them.\n• Epsilon-greedy: random action with probability epsilon (0.05 = 95/5). Simple but explores blindly (uniformly at random).\n• UCB: pick the highest estimated mean plus a confidence-interval bonus; total regret only logarithmic in the number of trials (context-free case).\n• Thompson sampling: sample from each option's posterior and pick the best sample; each option is chosen with the probability that it is optimal given the history.\n• Contextual bandits condition on user and item features (LinUCB for Yahoo! news recommendation) and generalize to new users and items.\n• Netflix artwork personalization is a contextual bandit with the member as the context. Its exploration injects controlled randomization, from epsilon-greedy to schemes that scale randomization with model uncertainty, and logs it so new policies can be evaluated offline without bias (replay).",
+   "key_concept": "Probe — Exploration raises short-term regret to lower long-term regret; quantify the cost as regret and cap it with a traffic budget (a small slice of traffic for exploration). Netflix notes the cost per member is negligible because exploration is spread over 100M+ members, and that bandit exploration would be less suitable where exploring is expensive.",
    "next_review": "2026-10-07",
    "interval_days": 3,
    "ease_factor": 2.5,
@@ -1485,7 +1485,8 @@
    "note": "Definitions muddy",
    "refs": [
     "bandits",
-    "new-ts"
+    "new-ts",
+    "nflx-artwork"
    ],
    "verified": "2026-11-13"
   },
@@ -1646,10 +1647,11 @@
    "title": "Netflix-flavored problems",
    "type": "interview",
    "question": "What makes recommendations at Netflix different, and what techniques fit?",
-   "answer": "• Subscription business: revenue comes only from the monthly fee and members can cancel any time, so the main target is member retention, not ad impressions; engagement (time spent viewing) correlates strongly with retention and is the practical A/B metric.\n• Page construction: choosing and ordering rows (about 40 per homepage) for relevance and diversity, not just ranking a single list.\n• Evidence selection, including which artwork image to show for each title; interleaving explored for faster local-metric tests; A/B tests running 2 to 6 months, preferably on new members.\n• Mixed content length: counting hours over-credits multi-season shows, counting distinct titles over-credits movies.",
+   "answer": "• Subscription business: revenue comes only from the monthly fee and members can cancel any time, so the main target is member retention, not ad impressions; engagement (time spent viewing) correlates strongly with retention and is the practical A/B metric.\n• Page construction: choosing and ordering rows (about 40 per homepage) for relevance and diversity, not just ranking a single list.\n• Evidence selection, including which artwork image to show each member for each title: a contextual bandit, labelled by quality of engagement rather than plays to avoid clickbait, evaluated offline by replay on logged random exploration, then A/B tested against an unpersonalized bandit (gains were largest for titles the member had not interacted with); interleaving explored for faster local-metric tests; A/B tests running 2 to 6 months, preferably on new members.\n• Mixed content length: counting hours over-credits multi-season shows, counting distinct titles over-credits movies.",
    "key_concept": "Probe — How do you get a training signal for retention, which is slow and sparse? Engagement metrics that correlate with retention, checked in long A/B tests; detecting a 0.1% retention change needs roughly 2 million members per cell.",
    "refs": [
-    "nflx-recsys"
+    "nflx-recsys",
+    "nflx-artwork"
    ],
    "verified": "2026-11-13"
   },
@@ -2871,6 +2873,10 @@
   "new-yarn": [
    "YaRN: Efficient Context Window Extension of Large Language Models — Peng, Quesnelle, Fan, Shippole (2023)",
    "https://arxiv.org/abs/2309.00071"
+  ],
+  "nflx-artwork": [
+   "Artwork Personalization at Netflix — Chandrashekar, Amat, Basilico, Jebara, Netflix Technology Blog (2017)",
+   "https://netflixtechblog.com/artwork-personalization-c589f074ad76"
   ],
   "nflx-culture": [
    "Netflix Culture Memo — Netflix (jobs.netflix.com, read 2026-11-13)",

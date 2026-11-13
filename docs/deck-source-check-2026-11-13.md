@@ -13,11 +13,12 @@ Some removed claims are probably true; they are listed per card below so they ca
 
 ## Sources that could not be read from this environment
 
-Removed from cards (the links themselves are probably fine): Netflix tech blog posts on artwork personalization and interleaving (403 from netflixtechblog.com),
+Removed from cards (the links themselves are probably fine): the Netflix tech blog post on interleaving (403 from netflixtechblog.com),
 *The Elements of Statistical Learning* (book PDF returned 404), Stanford *Introduction to Information Retrieval* and the 1997 LSTM paper (hosts unreachable from here),
 MMoE (ACM paywall), Chapelle 2014 delayed feedback, Micci-Barreca target encoding, *Dataset Shift in Machine Learning*, Bolton & Hand fraud review, Meta prevalence page (JavaScript only), Järvelin & Kekäläinen NDCG.
 Replaced by an open copy: Elkan (IJCAI proceedings PDF), Davis & Goadrich (author copy), Kohavi et al. book (free chapter 1), Mixtape (2nd-edition chapters).
 Where the link is a publisher page and the text came from another copy, the source has a third field `read_at` with that copy.
+*Artwork Personalization at Netflix* (netflixtechblog.com, blocked here) was restored on REC-01 and REC-12 from the full text the owner pasted on 2026-11-13; every claim it supports was matched against that text.
 SRCH-04 cites two Wikipedia articles because the IR book could not be reached.
 
 ## Per card
@@ -160,3 +161,4 @@ SRCH-04 cites two Wikipedia articles because the IR book could not be reached.
 | EXP-09 | fixed | Probe: 'parallel trends can be checked on pre-treatment data' corrected per Mixtape (parallel trends untestable; pre-trends and balance checkable); 'sensitivity analysis' -> falsification test; dropped unsourced 'Netflix publishes heavily on causal inference'. |
 | REC-14 | fixed | DR 'consistent' changed to 'unbiased' (Dudik et al.'s wording); SNIPS 'much lower variance' replaced with Swaminathan & Joachims' claims (consistent, bounded, more accurate when weights fluctuate); DM bias wording aligned; added joachims-ips for the slate/position-level probe. |
 | DIST-02 | (after review) | Added PyTorch FSDP (Zhao et al. 2023) back, since the title promises it. |
+| REC-01, REC-12 | (after review) | Restored *Artwork Personalization at Netflix* from owner-supplied text: contextual bandit with member as context, logged randomized exploration, replay evaluation, quality-engagement labels, A/B result. |

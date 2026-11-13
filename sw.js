@@ -4,7 +4,7 @@
 // tools/check-sw.mjs, and `node tools/check-sw.mjs --write` rewrites them after any file changes. A new VERSION is
 // what makes installed copies pick up a deploy: the browser sees sw.js changed, downloads the new files into a fresh
 // cache, and the page offers a reload (js/app.js). Progress is not stored here; it lives in localStorage.
-const VERSION = '674181e8b26c';
+const VERSION = '82449902043a';
 const FILES = [
   './',
   'js/data/meta.js',
