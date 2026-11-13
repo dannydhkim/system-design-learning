@@ -205,5 +205,8 @@ bosses and topic 0C.1.
   `node tools/check-sw.mjs --write`**; otherwise installed copies do not pick up the change.
   `node tools/check-sw.mjs` fails when the list or the version is out of date.
 - `curriculum.md` — full learning path
-- `questions/` — flashcard decks (also loaded by the game)
+- `questions/` — flashcard decks (also loaded by the game). `ml-interview-deck.json` is the staff MLE interview deck
+  (ML theory, statistics, deep learning, LLMs, evaluation, experimentation, recommendation, production ML, and
+  project deep-dive prompts): 145 cards in 15 sections, studied from the Review page. It is not tied to topics, and
+  its answers are written from general ML knowledge without per-card sources, unlike the quizzes.
 - `breakscale-reference.md`, `ml-system-design.md` — reference notes

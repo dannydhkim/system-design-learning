@@ -211,9 +211,23 @@
     function start(ids) { clear(body); L.recall(body, { ids: ids }, { onDone: function () { body.appendChild(h('a', { class: 'btn primary big', href: '#/map' }, 'Back to the map')); } }); }
     if (due.length) intro.appendChild(h('button', { class: 'btn primary big', onclick: function () { start(due.slice(0, 20)); } }, 'Review ' + Math.min(20, due.length) + ' due card' + (due.length > 1 ? 's' : '')));
     else intro.appendChild(h('div', { class: 'fb good' }, h('b', {}, '✓ Nothing due. '), 'Come back tomorrow, or learn new cards.'));
-    var pool = built.length ? built : fresh;
+    var pool = built.length ? built : fresh.filter(function (id) { return !SD.cards[id].section; });
     if (pool.length) intro.appendChild(h('button', { class: 'btn big', onclick: function () { start(pool.slice(0, 5)); } }, 'Learn 5 new cards (' + pool.length + ' unseen)'));
     body.appendChild(intro);
+    // The interview deck: sections in the order the deck suggests. A session is that section's due cards, then new ones.
+    if (SD.deckSections.length) {
+      var t0 = SD.today(), cs = SD.state.cards;
+      body.appendChild(h('h3', {}, '🎯 ' + SD.deckSections[0].deck));
+      body.appendChild(h('p', { class: 'muted' }, 'Say the answer out loud, reveal, then answer the probe before you grade yourself. Sections are listed in suggested study order; each session is up to 10 cards, due ones first.'));
+      body.appendChild(h('div', { class: 'grid' }, SD.deckSections.map(function (sec) {
+        var ids = Object.keys(SD.cards).filter(function (id) { return SD.cards[id].section === sec.id; }).sort();
+        var seen = ids.filter(function (id) { return cs[id]; }), dueNow = seen.filter(function (id) { return cs[id].due <= t0; }), unseen = ids.filter(function (id) { return !cs[id]; });
+        var session = dueNow.concat(unseen).slice(0, 10);
+        return h('button', { class: 'tile decktile', disabled: !session.length, onclick: function () { start(session); window.scrollTo(0, 0); } },
+          h('h3', {}, sec.id + ' · ' + sec.title),
+          h('div', { class: 'row wrap' }, h('span', { class: 'pill' }, seen.length + ' / ' + ids.length + ' seen'), dueNow.length ? h('span', { class: 'pill duepill' }, dueNow.length + ' due') : null, !session.length ? h('span', { class: 'pill' }, 'nothing due') : null));
+      })));
+    }
     main.appendChild(body);
     var fc = forecast(), max = Math.max.apply(null, fc.map(function (x) { return x.n; })) || 1;
     main.appendChild(h('h3', {}, 'Next 7 days'));

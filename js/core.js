@@ -616,7 +616,9 @@ window.SD = window.SD || {};
       SD.topicById[t.id] = t;
       (t.cards || []).forEach(function (c, i) { var id = t.id + '.c' + (i + 1); SD.cards[id] = { id: id, topic: t.id, q: c[0], a: c[1] }; });
     });
-    var files = [['1', 'questions/module-1-foundations.json'], ['5', 'questions/module-5-ml-systems.json']];
+    // The interview deck is not tied to topics: its cards belong to sections (FND, REC, LLM …) studied from Review.
+    var files = [['1', 'questions/module-1-foundations.json'], ['5', 'questions/module-5-ml-systems.json'], ['deck', 'questions/ml-interview-deck.json']];
+    SD.deckSections = [];   // [{ id, title, deck }] in the deck's suggested study order
     SD.deckErrors = {};   // module id -> file that could not be read; the pages say so (see deckNotice in app.js)
     SD.checkLabs();
     return Promise.all(files.map(function (f) {
@@ -625,8 +627,9 @@ window.SD = window.SD || {};
     })).then(function (decks) {
       var seeded = false;
       decks.forEach(function (d) {
+        if (d.sections) (d.order || Object.keys(d.sections)).forEach(function (id) { if (d.sections[id]) SD.deckSections.push({ id: id, title: d.sections[id], deck: d.title || d.module }); });
         (d.cards || []).forEach(function (c) {
-          SD.cards[c.id] = { id: c.id, topic: c.topic, q: c.question, a: c.answer, key: c.key_concept };
+          SD.cards[c.id] = { id: c.id, topic: c.topic, q: c.question, a: c.answer, key: c.key_concept, note: c.note, section: d.sections && d.sections[c.topic] ? c.topic : null };
           if (!SD.state.cards[c.id] && c.reps > 0 && c.next_review) {
             SD.state.cards[c.id] = { iv: c.interval_days || 1, ef: c.ease_factor || 2.5, reps: c.reps, due: c.next_review, last: c.last_reviewed };
             seeded = true;

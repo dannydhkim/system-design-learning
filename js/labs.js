@@ -77,7 +77,7 @@
       var ta = h('textarea', { class: 'ta', rows: 3, placeholder: 'Answer from memory first — type it, or say it out loud. Then reveal.' });
       var reveal = h('button', { class: 'btn primary', onclick: function () {
         reveal.remove(); ta.readOnly = true;
-        answerBox.appendChild(h('div', { class: 'answer' }, h('div', { class: 'label' }, 'Answer'), c.a, c.key ? h('div', { class: 'keyc' }, '💡 ' + c.key) : null));
+        answerBox.appendChild(h('div', { class: 'answer' }, h('div', { class: 'label' }, 'Answer'), c.a, c.key ? h('div', { class: 'keyc' }, '💡 ' + c.key) : null, c.note ? h('div', { class: 'keyc' }, '📝 Your note from an earlier review: ' + c.note) : null));
         answerBox.appendChild(h('div', { class: 'label' }, 'How well did you recall it?'));
         answerBox.appendChild(h('div', { class: 'grades' }, ['Again', 'Hard', 'Good', 'Easy'].map(function (name, g) {
           return h('button', { class: 'btn grade g' + g, onclick: function () {
