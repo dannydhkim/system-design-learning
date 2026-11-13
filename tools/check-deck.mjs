@@ -8,6 +8,8 @@
 //   · a DIVE card (prompts about your own work, which need no source) cites a source the deck does not list
 //   · a card's "verified" field is not a date (YYYY-MM-DD), or is set on a card that cites no source
 //   · a source has no title or no https URL, or is cited by no card
+//   A source is [title, url] or [title, url, read_at]: read_at is the copy whose text the cards were checked against, when the
+//   url is a publisher page that could not be read (a paywall, say).
 // --links also requests every source URL and reports the ones that do not answer. An answer of 503 whose body is
 // "upstream connect error ..." comes from this machine's network proxy, not the site: it is reported as unreachable from
 // here, not as dead.
