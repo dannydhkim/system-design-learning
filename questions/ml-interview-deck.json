@@ -1237,14 +1237,15 @@
    "title": "Offline-online gap",
    "type": "interview",
    "question": "Your offline NDCG went up but the A/B test is flat. Why, and what do you do?",
-   "answer": "• Logged data only shows what the old system chose (selection bias); offline metrics fit past engagement and miss long-term effects; the metric does not match the business objective (local wins that do not move retention); training-serving skew; position bias in labels.\n• Tools: counterfactual or off-policy evaluation with inverse propensity scoring (needs logged propensities, high variance), interleaving for fast ranker comparisons, better proxy metrics correlated with long-term outcomes.",
+   "answer": "• Logged data only shows what the old system chose (selection bias); offline metrics fit past engagement and miss long-term effects; the metric does not match the business objective (local wins that do not move retention); training-serving skew; position bias in labels.\n• Tools: counterfactual or off-policy evaluation with inverse propensity scoring (needs logged propensities, high variance), interleaving for fast ranker comparisons (at Netflix its preference correlated strongly with the most sensitive A/B metric), better proxy metrics correlated with long-term outcomes.",
    "key_concept": "Probe — Log propensities (the probability the old policy showed each item) at serving time; IPS needs them (or estimates from randomized interventions), and the old policy must give every item a nonzero chance.",
    "refs": [
     "joachims-ips",
     "snips",
     "nflx-recsys",
     "rules-ml",
-    "yt-dnn"
+    "yt-dnn",
+    "nflx-interleave"
    ],
    "verified": "2026-11-13"
   },
@@ -1360,12 +1361,12 @@
    "title": "Interleaving",
    "type": "interview",
    "question": "What is interleaving and why does Netflix use it for ranking?",
-   "answer": "• Merge results from rankers A and B into one list per user (for example team-draft) and credit the ranker whose items get clicked.\n• Each user compares both directly (a paired comparison); in Chapelle et al. interleaving needed over an order of magnitude fewer queries than an absolute click metric.\n• Netflix (2015) was exploring interleaving-based tests as a faster, more predictive replacement for offline experiments when choosing which algorithms go to full A/B tests on streaming and retention.",
-   "key_concept": "Probe — Interleaving says which ranker users prefer, not the size of the effect on retention or revenue; Netflix noted it was still unclear when interleaving results track retention wins.",
+   "answer": "• Merge results from rankers A and B into one list per user and credit the ranker whose items get engaged with. Netflix uses team draft: a coin toss picks which ranker contributes first, then they alternate, each adding its highest-ranked video not yet in the list. Randomizing who goes first keeps each position equally likely to come from A or B, which handles position bias.\n• Each member compares both directly (a repeated-measures design): it removes the spread in how much people watch and gives each member equal weight, so heavy users cannot tilt the result. Netflix measured that interleaving needed over 100× fewer users than its most sensitive A/B metric for 95% power (Chapelle et al. report over an order of magnitude fewer queries than absolute click metrics).\n• Netflix runs it as stage one of two: interleaving prunes many rankers within days, then a smaller A/B test measures longer-term behaviour such as retention. Its interleaving preference correlated very strongly with its most sensitive A/B metric.",
+   "key_concept": "Probe — Limits Netflix names: interleaving is a relative preference between rankers, so it cannot measure changes to retention directly (hence the second-stage A/B test), and it is involved to build: business logic in the page can interfere, needing consistency checks and automated issue detection.",
    "refs": [
+    "nflx-interleave",
     "chapelle-interleave",
-    "joachims-ips",
-    "nflx-recsys"
+    "joachims-ips"
    ],
    "verified": "2026-11-13"
   },
@@ -1647,11 +1648,13 @@
    "title": "Netflix-flavored problems",
    "type": "interview",
    "question": "What makes recommendations at Netflix different, and what techniques fit?",
-   "answer": "• Subscription business: revenue comes only from the monthly fee and members can cancel any time, so the main target is member retention, not ad impressions; engagement (time spent viewing) correlates strongly with retention and is the practical A/B metric.\n• Page construction: choosing and ordering rows (about 40 per homepage) for relevance and diversity, not just ranking a single list.\n• Evidence selection, including which artwork image to show each member for each title: a contextual bandit, labelled by quality of engagement rather than plays to avoid clickbait, evaluated offline by replay on logged random exploration, then A/B tested against an unpersonalized bandit (gains were largest for titles the member had not interacted with); interleaving explored for faster local-metric tests; A/B tests running 2 to 6 months, preferably on new members.\n• Mixed content length: counting hours over-credits multi-season shows, counting distinct titles over-credits movies.",
-   "key_concept": "Probe — How do you get a training signal for retention, which is slow and sparse? Engagement metrics that correlate with retention, checked in long A/B tests; detecting a 0.1% retention change needs roughly 2 million members per cell.",
+   "answer": "• Subscription business: revenue comes only from the monthly fee and members can cancel any time, so the main target is member retention, not ad impressions; engagement (time spent viewing) correlates strongly with retention and is the practical A/B metric.\n• Page construction: choosing and ordering rows (about 40 per homepage) for relevance and diversity, not just ranking a single list.\n• Evidence selection, including which artwork image to show each member for each title: a contextual bandit, labelled by quality of engagement rather than plays to avoid clickbait, evaluated offline by replay on logged random exploration, then A/B tested against an unpersonalized bandit (gains were largest for titles the member had not interacted with); interleaving as a first stage that prunes candidate rankers within days before a smaller A/B test (EXP-07); A/B tests running 2 to 6 months, preferably on new members.\n• Mixed content length: counting hours over-credits multi-season shows, counting distinct titles over-credits movies.\n• 2026 follow-up (Nam et al., Stanford and Netflix): a post-trained Llama 3.1 8B picks the artwork from a text caption of each candidate image (about 200 tokens each) and the member's watch history written as text. SFT with reasoning distilled from Qwen3-32B beat the production model (a non-LLM deep network) by 5% IPS, and DPO by 3%, on 5K held-out user–title pairs; the paper reports offline results only.",
+   "key_concept": "Probe — How do you get a training signal for retention, which is slow and sparse? Engagement metrics that correlate with retention, checked in long A/B tests; detecting a 0.1% retention change needs roughly 2 million members per cell. On the 2026 paper: why IPS rather than accuracy? Titles have from 4 to over 40 candidate images, so each hit is weighted by 1/π with π uniform over the candidates: a correct pick among 40 counts 20 times one among 2. Its stated caveat: every image except the one the member engaged with is labelled negative, though it is unclear whether the randomized production selector simply never showed it.",
    "refs": [
     "nflx-recsys",
-    "nflx-artwork"
+    "nflx-artwork",
+    "nflx-artwork-llm",
+    "nflx-interleave"
    ],
    "verified": "2026-11-13"
   },
@@ -2878,9 +2881,17 @@
    "Artwork Personalization at Netflix — Chandrashekar, Amat, Basilico, Jebara, Netflix Technology Blog (2017)",
    "https://netflixtechblog.com/artwork-personalization-c589f074ad76"
   ],
+  "nflx-artwork-llm": [
+   "Netflix Artwork Personalization via LLM Post-training — Nam, Oh, Kong, Feng, Bhattacharya (Stanford and Netflix, 2026)",
+   "https://arxiv.org/abs/2601.02764"
+  ],
   "nflx-culture": [
    "Netflix Culture Memo — Netflix (jobs.netflix.com, read 2026-11-13)",
    "https://jobs.netflix.com/culture"
+  ],
+  "nflx-interleave": [
+   "Innovating Faster on Personalization Algorithms at Netflix Using Interleaving — Parks, Aurisset, Ramm, Netflix Technology Blog (2017)",
+   "https://netflixtechblog.com/interleaving-in-online-experiments-at-netflix-a04ee392ec55"
   ],
   "nflx-recsys": [
    "The Netflix Recommender System: Algorithms, Business Value, and Innovation — Gomez-Uribe and Hunt (ACM TMIS, 2015)",
