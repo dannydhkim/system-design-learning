@@ -19,7 +19,8 @@ window.SD = window.SD || {};
 
   var KIND = {
     client: 'client', cdn: 'cdn', lb: 'lb', gateway: 'apigateway', app: 'service', cache: 'cache', db: 'db', replica: 'db',
-    queue: 'queue', worker: 'worker', blob: 'objectstore', search: 'searchindex', ws: 'service', idgen: 'service', ledger: 'db', psp: 'service'
+    queue: 'queue', worker: 'worker', blob: 'objectstore', search: 'searchindex', ws: 'service', idgen: 'service', ledger: 'db', psp: 'service',
+    index: 'service', features: 'service', ranker: 'service', warehouse: 'db'
   };
   var FRONTS = { lb: 1, apigateway: 1 };       // kinds that spread traffic over a fleet
   var ABSORBS = { cache: 1, cdn: 1 };          // kinds that answer a share of requests themselves

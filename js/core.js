@@ -37,7 +37,10 @@ window.SD = window.SD || {};
     if (abs >= 100 || abs === Math.round(abs)) return Math.round(n).toLocaleString('en-US');
     return (Math.round(n * 100) / 100).toLocaleString('en-US');
   }
-  SD.h = h; SD.clear = clear; SD.shuffle = shuffle; SD.pick = pick; SD.fmt = fmt;
+  // True when focus is inside el or has fallen back to the page. A component that rebuilds itself after a click checks
+  // this first, so it can put focus back on one of its own controls without taking it from wherever the player moved it.
+  function ownsFocus(el) { var a = document.activeElement; return !a || a === document.body || el.contains(a); }
+  SD.h = h; SD.clear = clear; SD.shuffle = shuffle; SD.pick = pick; SD.fmt = fmt; SD.ownsFocus = ownsFocus;
 
   /* ---------- Toasts, confetti, sound ---------- */
   SD.toast = function (msg, cls) {
@@ -104,60 +107,215 @@ window.SD = window.SD || {};
 
   /* ---------- State ---------- */
   var KEY = 'sdq.state.v1';
+  // resetAt: when this progress was last reset or replaced by an import. A copy from before that is discarded
+  // rather than merged, so a deliberate reset is not undone by another tab or by progress/progress.json.
   function blank() {
     return {
-      v: 1, updatedAt: 0, xp: 0, combo: 0, bestCombo: 0,
+      v: 1, updatedAt: 0, resetAt: 0, xp: 0, combo: 0, bestCombo: 0,
       streak: { count: 0, best: 0, last: null }, days: {},
       topics: {}, cards: {}, hi: {}, badges: {}, counts: {},
       quests: { date: null, prog: {}, done: {} },
+      runs: {},   // a boss fight left part-way: boss id -> { i: next phase, scores: [0..1 per phase done], ms: time spent }
       settings: { sound: true }
     };
   }
+  function isObj(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
+  function own(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
+  function num(x) { return typeof x === 'number' && isFinite(x) ? x : null; }
+  function str(x) { return typeof x === 'string' ? x : null; }
+  // The entries of a map that survive `fix` (which returns null to drop one). Anything that is not a map becomes {}.
+  function only(o, fix) {
+    var r = {};
+    if (isObj(o)) Object.keys(o).forEach(function (k) { var v = k === '__proto__' ? null : fix(o[k]); if (v != null) r[k] = v; });
+    return r;
+  }
+  function topicRec(t) {
+    if (!isObj(t)) return null;
+    var r = {}, k;
+    for (k in t) if (num(t[k]) != null) r[k] = t[k];   // right, wrong and the per-station bests
+    r.right = num(t.right) || 0; r.wrong = num(t.wrong) || 0;
+    r.done = only(t.done, str); r.notes = only(t.notes, str);
+    return r;
+  }
+  function runRec(r) {
+    if (!isObj(r) || num(r.i) == null || r.i < 1 || !Array.isArray(r.scores) || r.scores.length !== r.i) return null;
+    if (r.scores.some(function (x) { return num(x) == null || x < 0 || x > 1; })) return null;
+    return { i: r.i, scores: r.scores.slice(), ms: Math.max(0, num(r.ms) || 0) };
+  }
+  function cardRec(c) {
+    if (!isObj(c) || num(c.iv) == null || num(c.ef) == null || num(c.reps) == null || typeof c.due !== 'string') return null;
+    var r = { iv: c.iv, ef: c.ef, reps: c.reps, due: c.due };
+    if (typeof c.last === 'string') r.last = c.last;
+    return r;
+  }
+  // Coerce whatever was loaded or imported into the shape blank() describes: a field of the wrong type falls back to
+  // its blank value and a malformed entry inside a map is dropped, so one bad field cannot break every later load.
   function normalize(s) {
-    var b = blank(), k;
-    for (k in b) if (s[k] == null) s[k] = b[k];
+    var b = blank();
+    if (!isObj(s)) return b;
+    s.v = 1;
+    ['updatedAt', 'resetAt', 'xp', 'combo', 'bestCombo'].forEach(function (k) { s[k] = Math.max(0, num(s[k]) || 0); });
+    var st = isObj(s.streak) ? s.streak : b.streak, count = Math.max(0, num(st.count) || 0);
+    s.streak = { count: count, best: Math.max(count, num(st.best) || 0), last: str(st.last) };
+    s.days = only(s.days, num); s.hi = only(s.hi, num); s.counts = only(s.counts, num);
+    s.badges = only(s.badges, str);
+    s.topics = only(s.topics, topicRec); s.cards = only(s.cards, cardRec);
+    s.runs = only(s.runs, runRec);
+    var q = isObj(s.quests) ? s.quests : b.quests;
+    s.quests = { date: str(q.date), prog: only(q.prog, num), done: only(q.done, num) };
+    if (!isObj(s.settings)) s.settings = b.settings;
+    if (typeof s.settings.sound !== 'boolean') s.settings.sound = true;
     return s;
   }
+  SD.normalize = normalize;
+
+  /* ---------- Merging two copies (this browser and progress/progress.json, or two tabs) ---------- */
+  function clone(x) { return JSON.parse(JSON.stringify(x)); }
+  // JSON with sorted keys, so two copies can be compared whatever order their fields were written in.
+  function stable(x) {
+    if (Array.isArray(x)) return '[' + x.map(stable).join(',') + ']';
+    if (isObj(x)) return '{' + Object.keys(x).sort().map(function (k) { return JSON.stringify(k) + ':' + stable(x[k]); }).join(',') + '}';
+    return JSON.stringify(x === undefined ? null : x);
+  }
+  function cmp(x, y) { return x === y ? 0 : x == null ? -1 : y == null ? 1 : x < y ? -1 : 1; }
+  function later(x, y) { return cmp(x, y) >= 0 ? x : y; }
+  function earlier(x, y) { return cmp(x, y) <= 0 ? x : y; }
+  function first(x) { return x; }
+  // Combine two maps key by key; `both(x, y)` decides a key present in each.
+  function eachKey(a, b, both) {
+    var r = {}, k;
+    for (k in a) if (own(a, k)) r[k] = own(b, k) ? both(a[k], b[k]) : a[k];
+    for (k in b) if (own(b, k) && !own(r, k)) r[k] = b[k];
+    return r;
+  }
+  // The copy of a card that was reviewed more recently; on a tie, the one further along.
+  function newerCard(x, y) { return (cmp(x.last, y.last) || cmp(x.reps, y.reps) || cmp(x.due, y.due) || cmp(stable(x), stable(y))) >= 0 ? x : y; }
+  // Both copies must be normalized. Nothing earned in either is lost: the larger of every total and best, the union
+  // of days, badges and passed stations, the more recently reviewed copy of each card, the later streak and daily
+  // quests. What cannot be combined (the current answer streak, settings, a note both copies have) comes from the
+  // copy saved last.
+  function merge(a, b) {
+    if (a.resetAt !== b.resetAt) return clone(a.resetAt > b.resetAt ? a : b);
+    var n = (cmp(a.updatedAt, b.updatedAt) || cmp(stable(a), stable(b))) >= 0 ? a : b, o = n === a ? b : a, m = {}, k;
+    for (k in o) m[k] = o[k];
+    for (k in n) m[k] = n[k];
+    m.updatedAt = Math.max(a.updatedAt, b.updatedAt);
+    m.xp = Math.max(a.xp, b.xp); m.bestCombo = Math.max(a.bestCombo, b.bestCombo);
+    var s = (cmp(n.streak.last, o.streak.last) || cmp(n.streak.count, o.streak.count)) >= 0 ? n.streak : o.streak;
+    m.streak = { count: s.count, best: Math.max(n.streak.best, o.streak.best), last: s.last };
+    m.days = eachKey(n.days, o.days, Math.max); m.hi = eachKey(n.hi, o.hi, Math.max); m.counts = eachKey(n.counts, o.counts, Math.max);
+    m.badges = eachKey(n.badges, o.badges, earlier);
+    m.cards = eachKey(n.cards, o.cards, newerCard);
+    m.topics = eachKey(n.topics, o.topics, function (x, y) {
+      var r = {}, k;
+      for (k in x) if (typeof x[k] === 'number') r[k] = x[k];
+      for (k in y) if (typeof y[k] === 'number') r[k] = typeof r[k] === 'number' ? Math.max(r[k], y[k]) : y[k];
+      r.done = eachKey(x.done, y.done, later); r.notes = eachKey(x.notes, y.notes, first);
+      return r;
+    });
+    var qn = n.quests, qo = o.quests;
+    m.quests = qn.date === qo.date ? { date: qn.date, prog: eachKey(qn.prog, qo.prog, Math.max), done: eachKey(qn.done, qo.done, Math.max) }
+      : cmp(qn.date, qo.date) > 0 ? qn : qo;
+    return clone(m);
+  }
+  SD.merge = merge;
+
   var listeners = [];
   SD.on = function (fn) { listeners.push(fn); };
   function emit() { listeners.forEach(function (fn) { fn(); }); }
 
-  var pushTimer = null;
+  // Cleanup for the current view, such as a live microphone or a stopwatch. route() runs and clears these on every navigation.
+  var leaving = [];
+  SD.onLeave = function (fn) { leaving.push(fn); };
+  SD.leave = function () { var fns = leaving; leaving = []; fns.forEach(function (fn) { try { fn(); } catch (e) { /* the rest still run */ } }); };
+
+  // Saving to serve.py. SD.sync.server: 'unknown' until the first save answers, then 'ok', 'retrying' (the server
+  // answered before but a later save failed: kept as unsaved and retried with backoff), or 'none' (static hosting).
+  var pushTimer = null, inflight = false, unsaved = false, backoff = 0;
   SD.sync = { server: 'unknown' };
+  function setServer(v) { if (SD.sync.server !== v) { SD.sync.server = v; emit(); } }
+  function schedulePush(ms) { clearTimeout(pushTimer); pushTimer = setTimeout(pushToServer, ms); }
+  // Write the state to this browser and/or queue it for the server, without touching updatedAt.
+  function persist(local, server) {
+    if (local) try { localStorage.setItem(KEY, JSON.stringify(SD.state)); } catch (e) { /* storage may be unavailable */ }
+    if (server) { unsaved = true; schedulePush(1200); }
+  }
   SD.save = function () {
     SD.state.updatedAt = Date.now();
-    try { localStorage.setItem(KEY, JSON.stringify(SD.state)); } catch (e) { /* storage may be unavailable */ }
-    clearTimeout(pushTimer);
-    pushTimer = setTimeout(pushToServer, 1200);
+    persist(true, true);
     emit();
   };
-  // serve.py accepts this and writes progress/progress.json into the repo. On static hosting it simply fails.
-  function pushToServer() {
-    if (SD.sync.server === 'none') return;
-    fetch('api/progress', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(SD.state, null, 1) })
-      .then(function (r) { SD.sync.server = r.ok ? 'ok' : 'none'; emit(); })
-      .catch(function () { SD.sync.server = 'none'; emit(); });
+  // serve.py accepts this and writes progress/progress.json into the repo. keepalive lets the last save outlive the page.
+  function pushToServer(keepalive) {
+    clearTimeout(pushTimer); pushTimer = null;
+    if (SD.sync.server === 'none' || !unsaved) return;
+    if (inflight && keepalive !== true) return schedulePush(500);
+    inflight = true; unsaved = false;
+    var opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(SD.state) };
+    if (keepalive === true) opts.keepalive = true;
+    fetch('api/progress', opts).then(function (r) { if (r.ok) pushed(); else pushFailed(r.status); }, function () { pushFailed(0); });
   }
+  function pushed() { inflight = false; backoff = 0; setServer('ok'); }
+  function pushFailed(status) {
+    inflight = false; unsaved = true;
+    // The very first save being refused (404 or 405 from a static host, 501 from a plain file server) means there is no
+    // save server here. A server that has answered before, or a network error, is worth retrying.
+    if (SD.sync.server === 'unknown' && (location.protocol === 'file:' || status === 501 || (status >= 400 && status < 500 && status !== 408 && status !== 429))) return setServer('none');
+    backoff = Math.min(60000, backoff ? backoff * 2 : 2000);
+    schedulePush(backoff);
+    setServer('retrying');
+  }
+  // Leaving or hiding the page flushes a save that is still waiting out its debounce.
+  window.addEventListener('pagehide', function () { pushToServer(true); });
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') pushToServer(true); });
+
+  // Replace the contents of SD.state in place, keeping each topic's object, because an open view may hold on to it.
+  function adopt(m) {
+    var s = SD.state, k;
+    Object.keys(m.topics).forEach(function (id) {
+      var t = own(s.topics, id) && s.topics[id];
+      if (!t) return;
+      for (k in t) delete t[k];
+      for (k in m.topics[id]) t[k] = m.topics[id][k];
+      m.topics[id] = t;
+    });
+    for (k in s) delete s[k];
+    for (k in m) s[k] = m[k];
+  }
+  // Fold another normalized copy into SD.state. Whichever side lacks something the merge produced is written back,
+  // without changing updatedAt, so the copies converge instead of bouncing saves between tabs.
+  // fromStorage: the copy is what another tab just wrote to localStorage (so the server has it, or will).
+  function reconcile(other, fromStorage) {
+    var mine = stable(SD.state), m = merge(SD.state, other), sm = stable(m), changed = sm !== mine;
+    if (changed) adopt(m);
+    if (fromStorage) { if (sm !== stable(other)) persist(true, true); }
+    else persist(changed, sm !== stable(other));
+    if (changed) emit();
+  }
+  window.addEventListener('storage', function (e) {
+    if (e.key !== KEY || !e.newValue || !SD.state) return;
+    var other = null;
+    try { other = JSON.parse(e.newValue); } catch (err) { return; }
+    if (isObj(other) && other.v === 1) reconcile(normalize(other), true);
+  });
   SD.load = function () {
     var local = null;
     try { local = JSON.parse(localStorage.getItem(KEY)); } catch (e) { local = null; }
     SD.state = normalize(local || blank());
-    // The copy in the repo wins if it is newer (e.g. you pulled progress made on another machine).
+    // Merge with the copy in the repo (e.g. you pulled progress made on another machine).
     return fetch('progress/progress.json', { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (remote) {
-        if (remote && remote.v === 1 && (remote.updatedAt || 0) > (SD.state.updatedAt || 0)) {
-          SD.state = normalize(remote);
-          try { localStorage.setItem(KEY, JSON.stringify(SD.state)); } catch (e) { /* ignore */ }
-        }
+        if (isObj(remote) && remote.v === 1) reconcile(normalize(remote), false);
+        else if (SD.state.updatedAt) persist(false, true);   // no file yet: give the server this browser's progress
       })
       .catch(function () { /* no saved file yet */ });
   };
   SD.replaceState = function (obj) {
-    if (!obj || obj.v !== 1) throw new Error('Not a System Design Quest progress file');
-    SD.state = normalize(obj); SD.save();
+    if (!isObj(obj) || obj.v !== 1) throw new Error('this is not a System Design Quest progress file (it must be a JSON object with "v": 1)');
+    SD.state = normalize(obj); SD.state.resetAt = Date.now(); SD.save();
   };
-  SD.resetState = function () { SD.state = blank(); SD.save(); };
+  SD.resetState = function () { SD.state = blank(); SD.state.resetAt = Date.now(); SD.save(); };
 
   /* ---------- Levels ---------- */
   var TITLES = [[1, 'Intern'], [3, 'Junior Engineer'], [6, 'Engineer'], [10, 'Senior Engineer'], [15, 'Staff Engineer'], [21, 'Principal Engineer'], [28, 'Distinguished Engineer']];
@@ -209,6 +367,15 @@ window.SD = window.SD || {};
 
   /* ---------- XP, combo, badges ---------- */
   SD.comboMult = function () { return 1 + Math.min(SD.state.combo, 10) * 0.1; };
+  // Full XP the first time; a replay pays in full only what beats the best earlier attempt, and a fifth (at least 1)
+  // of the rest, so practice still counts but cannot be farmed. base: what this attempt is worth;
+  // prev: what the best earlier attempt was worth, or null if there was none.
+  SD.replayXp = function (base, prev) {
+    if (base <= 0) return 0;
+    if (prev == null) return base;
+    var gain = Math.max(0, base - prev);
+    return gain + (base > gain ? Math.max(1, Math.round((base - gain) * 0.2)) : 0);
+  };
   // Award XP. opts: {quest: 'review'|'quiz'|'teach', count: 'reviews'|...}
   SD.award = function (base, opts) {
     opts = opts || {};
@@ -272,6 +439,7 @@ window.SD = window.SD || {};
 
   /* ---------- Topics, cards, progress ---------- */
   SD.cards = {};          // id -> {id, topic, q, a, key}
+  SD.deckErrors = {};
   SD.topicById = {};
   SD.stationsOf = function (t) {
     var list = ['learn'];
@@ -295,6 +463,26 @@ window.SD = window.SD || {};
     if (first && SD.topicProgress(topicId).pct >= 1) { SD.toast('🎓 Topic mastered: ' + SD.topicById[topicId].title, 'gold'); SD.confetti(); SD.beep('win'); }
     return first;
   };
+  // A topic's lab can be replaced by a different kind of lab (six Foundations labs became load tests on 2026-11-11).
+  // A tick, a best score and mission progress earned on the old lab say nothing about the new one, so they are
+  // dropped. notes.labSig records which lab the tick was earned on; a tick from before that was recorded is only
+  // dropped when its date shows it predates the load tests.
+  var RIGS_ADDED = '2026-11-11';
+  SD.checkLabs = function () {
+    var L = SD.labs, changed = false;
+    if (!L || !L.sigOf) return;
+    SD.topics.forEach(function (t) {
+      var st = SD.state.topics[t.id];
+      if (!st || !t.lab) return;
+      var sig = L.sigOf(t.lab), old = st.notes.labSig;
+      var stale = old ? old !== sig : !!st.done.lab && sig.indexOf('rig:') >= 0 && st.done.lab < RIGS_ADDED;
+      if (!stale) return;
+      delete st.done.lab; delete st.labBest; delete st.rigPaid; delete st.notes.labSig;
+      Object.keys(st).forEach(function (k) { if (/^seqS\d+$/.test(k)) delete st[k]; });
+      changed = true;
+    });
+    if (changed) SD.save();
+  };
   SD.dueCards = function () {
     var t = today(), cs = SD.state.cards;
     return Object.keys(cs).filter(function (id) { return SD.cards[id] && cs[id].due <= t; })
@@ -316,9 +504,12 @@ window.SD = window.SD || {};
       SD.topicById[t.id] = t;
       (t.cards || []).forEach(function (c, i) { var id = t.id + '.c' + (i + 1); SD.cards[id] = { id: id, topic: t.id, q: c[0], a: c[1] }; });
     });
-    var files = ['questions/module-1-foundations.json', 'questions/module-5-ml-systems.json'];
+    var files = [['1', 'questions/module-1-foundations.json'], ['5', 'questions/module-5-ml-systems.json']];
+    SD.deckErrors = {};   // module id -> file that could not be read; the pages say so (see deckNotice in app.js)
+    SD.checkLabs();
     return Promise.all(files.map(function (f) {
-      return fetch(f).then(function (r) { return r.ok ? r.json() : { cards: [] }; }).catch(function () { return { cards: [] }; });
+      return fetch(f[1]).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .catch(function () { SD.deckErrors[f[0]] = f[1]; return { cards: [] }; });
     })).then(function (decks) {
       var seeded = false;
       decks.forEach(function (d) {

@@ -52,23 +52,42 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")  # always serve fresh files while studying/editing
         super().end_headers()
 
-    def do_GET(self):
+    def refused(self):
+        """Apply the checks every GET and HEAD needs. Returns True when the request has been answered with an error."""
         if not self.allowed_host():
-            return self.send_error(403, "Open this app at http://localhost")
+            self.send_error(403, "Open this app at http://localhost")
+            return True
         if self.hidden():
-            return self.send_error(404)
-        # Before the first save there is no progress file; answer with an empty object rather than a 404.
-        if self.path.split("?")[0] == "/progress/progress.json" and not PROGRESS.exists():
-            body = b"{}"
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
+            self.send_error(404)
+            return True
+        return False
+
+    def empty_progress(self):
+        """Before the first save there is no progress file: send the headers for an empty object rather than a 404.
+        Returns the body for the caller to write (GET) or drop (HEAD), or None when the file exists."""
+        if self.path.split("?")[0] != "/progress/progress.json" or PROGRESS.exists():
+            return None
+        body = b"{}"
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        return body
+
+    def do_GET(self):
+        if self.refused():
+            return
+        body = self.empty_progress()
+        if body is not None:
             self.wfile.write(body)
             return
         super().do_GET()
 
-    do_HEAD = do_GET
+    def do_HEAD(self):
+        # Same answers as GET, headers only (send_error already leaves the body out of a HEAD reply).
+        if self.refused() or self.empty_progress() is not None:
+            return
+        super().do_HEAD()
 
     def do_POST(self):
         if self.path != "/api/progress":

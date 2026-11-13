@@ -16,13 +16,16 @@ const verbose = process.argv.includes('-v');
 const sandbox = { console };
 sandbox.window = sandbox; sandbox.globalThis = sandbox;
 vm.createContext(sandbox);
-for (const f of ['js/vendor/breakscale-sim.js', 'js/data/meta.js', 'js/data/sources.js', 'js/data/m0.js', 'js/data/m1.js', 'js/data/m2.js', 'js/data/bosses.js', 'js/hld.js']) {
+// Every content file index.html loads, so a diagram lab in a new module is tested without editing this list.
+const dataFiles = [...fs.readFileSync(path.join(root, 'index.html'), 'utf8').matchAll(/<script src="(js\/data\/[^"]+)"/g)].map((m) => m[1]);
+for (const f of ['js/vendor/breakscale-sim.js'].concat(dataFiles, ['js/hld.js'])) {
   vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), sandbox, { filename: f });
 }
 const SD = sandbox.SD, SEEDS = [1, 2, 3];
 const errors = [];
 const labs = [];
-for (const t of SD.topics) if (t.lab && t.lab.type === 'diagram') labs.push(['topic ' + t.id, t.lab]);
+// A diagram lab may be a topic's whole lab or the last part of a multi-part lab (the case studies).
+for (const t of SD.topics) for (const p of !t.lab ? [] : t.lab.type === 'seq' ? t.lab.parts : [t.lab]) if (p.type === 'diagram') labs.push(['topic ' + t.id, p]);
 for (const b of SD.bosses) for (const p of b.phases) if (p.lab.type === 'diagram') labs.push(['boss ' + b.id, p.lab]);
 
 const design = (nodes, edges) => ({ nodes: Object.fromEntries(nodes.map((n) => [n, true])), edges: Object.fromEntries(edges.map((e) => [e[0] + '>' + e[1], true])) });

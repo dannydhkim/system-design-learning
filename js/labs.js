@@ -7,6 +7,8 @@
 
   function scoreLine(score) { return Math.round(score * 100) + '%'; }
   function feedback(ok, text) { return h('div', { class: 'fb ' + (ok ? 'good' : 'bad') }, h('b', {}, ok ? '✓ ' : '✗ '), text); }
+  // XP for an award inside an activity: ctx.replay (a lab passed before, a boss fought before) pays a fifth, see SD.replayXp.
+  function xp(ctx, base) { return ctx.replay ? SD.replayXp(base, base) : base; }
   function srcLink(key) { var s = SD.sources[key]; return s ? h('a', { href: s[1], target: '_blank', rel: 'noopener noreferrer' }, s[0]) : null; }
 
   /* ================= Evidence (every answer cites its sources: js/data/sources.js) ================= */
@@ -24,10 +26,13 @@
   };
 
   /* ================= Quiz (multiple choice, immediate explanation) ================= */
-  // qs: [question, [correct, wrong...], why, evidence, topicId?]
+  // qs: [question, [correct, wrong...], why, evidence, topicId?]. The data lists the correct option first; what is shown is
+  // shuffled each time a question is drawn, so neither a position nor a sequence of positions can be memorised.
+  // ctx.paid: how many correct answers an earlier run already paid in full; those pay replay XP this time.
   L.quiz = function (el, spec, ctx) {
-    var qs = spec.qs, i = 0, right = 0;
+    var qs = shuffle(spec.qs), i = 0, right = 0;   // question order and option order both change on every attempt
     function show() {
+      var refocus = i > 0 && SD.ownsFocus(el);
       clear(el);
       if (i >= qs.length) {
         el.appendChild(h('div', { class: 'result' }, h('div', { class: 'big' }, right + ' / ' + qs.length), h('p', {}, right === qs.length ? 'Flawless.' : 'Read the explanations for the ones you missed — they come back in Survival mode.')));
@@ -40,7 +45,7 @@
           btns.forEach(function (b, j) { b.disabled = true; if (opts[j].ok) b.classList.add('right'); });
           if (!o.ok) this.classList.add('wrong'); else right++;
           SD.hit(o.ok, q[4] || ctx.topicId);
-          if (o.ok) SD.award(6, { quest: 'quiz' }); else SD.save();
+          if (o.ok) SD.award(right > (ctx.paid || 0) ? xp(ctx, 6) : SD.replayXp(6, 6), { quest: 'quiz' }); else SD.save();
           var fbEl = feedback(o.ok, q[2]), evEl = L.evidence(q[3]);
           if (evEl) fbEl.appendChild(evEl);
           after.appendChild(fbEl);
@@ -52,6 +57,7 @@
       el.appendChild(h('h3', { class: 'question' }, q[0]));
       el.appendChild(h('div', { class: 'opts' }, btns));
       el.appendChild(after);
+      if (refocus) btns[0].focus();
     }
     show();
   };
@@ -59,7 +65,8 @@
   /* ================= Recall (flashcards with spaced repetition) ================= */
   L.recall = function (el, spec, ctx) {
     var queue = spec.ids.slice(), again = {}, done = 0, total = queue.length, good = 0;
-    function show() {
+    function show(graded) {
+      var refocus = graded && SD.ownsFocus(el);
       clear(el);
       if (!queue.length) {
         el.appendChild(h('div', { class: 'result' }, h('div', { class: 'big' }, '🧠 ' + total + ' card' + (total === 1 ? '' : 's') + ' reviewed'), h('p', {}, 'Each one is now scheduled to return just before you would forget it.')));
@@ -77,13 +84,15 @@
             SD.gradeCard(id, g);
             queue.shift();
             if (g === 0 && !again[id]) { again[id] = 1; queue.push(id); } else { done++; if (g >= 2) good++; }
-            show();
+            show(true);
           } }, name, h('small', {}, g === 0 ? 'repeat now' : SD.srs.label(st, g)));
         })));
+        answerBox.querySelector('.grade').focus();   // the reveal button that had focus is gone
       } }, 'Reveal answer');
       el.appendChild(h('div', { class: 'qcount' }, 'Card ' + (done + 1) + ' of ' + total + (st ? '' : ' · new')));
       el.appendChild(h('h3', { class: 'question' }, c.q));
       el.appendChild(ta); el.appendChild(reveal); el.appendChild(answerBox);
+      if (refocus) reveal.focus();
     }
     show();
   };
@@ -93,9 +102,12 @@
   L.teach = function (el, spec, ctx) {
     var Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
     var texts = [], step = 0, prompts = [spec.prompt].concat(spec.followups || []);
+    var halt = function () {};   // stops the current step's microphone and stopwatch
     function words(s) { return (s.trim().match(/\S+/g) || []).length; }
+    SD.onLeave(function () { halt(); });
 
     function ask() {
+      halt();
       clear(el);
       var isFollow = step > 0;
       var ta = h('textarea', { class: 'ta', rows: isFollow ? 4 : 7, placeholder: 'No notes. Plain words, as if to someone who has never heard of it.' });
@@ -108,11 +120,15 @@
       var aloud = h('button', { class: 'btn', onclick: function () {
         if (tick) { clearInterval(tick); tick = null; aloud.textContent = '🗣 Start speaking timer'; spoke.checked = true; return; }
         t0 = Date.now(); aloud.textContent = '⏹ Stop';
-        tick = setInterval(function () { var s = Math.floor((Date.now() - t0) / 1000); clock.textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }, 250);
+        tick = setInterval(function () { if (!clock.isConnected) return halt(); var s = Math.floor((Date.now() - t0) / 1000); clock.textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }, 250);
       } }, '🗣 Start speaking timer');
 
       // Dictation, where the browser supports it
       var rec = null, mic = null;
+      halt = function () {
+        if (tick) { clearInterval(tick); tick = null; }
+        if (rec) { var r = rec; rec = null; r.onresult = null; r.onerror = null; try { r.abort(); } catch (e) { /* already stopped */ } }
+      };
       if (Rec) {
         mic = h('button', { class: 'btn', onclick: function () {
           if (rec) { rec.stop(); return; }
@@ -138,7 +154,7 @@
       el.appendChild(warn);
       el.appendChild(h('button', { class: 'btn primary', onclick: function () {
         if (words(ta.value) < (isFollow ? 5 : 15) && !spoke.checked) { warn.textContent = 'Give it a real attempt first — write at least ' + (isFollow ? 5 : 15) + ' words, or tick the box if you said it aloud.'; return; }
-        if (rec) rec.stop(); if (tick) clearInterval(tick);
+        halt();
         texts.push(ta.value.trim() || '(spoken aloud)');
         step++; if (step < prompts.length) ask(); else grade();
       } }, step + 1 < prompts.length ? 'Answer →' : 'Compare with the rubric →'));
@@ -172,6 +188,7 @@
   L.sort = function (el, spec, ctx) {
     var items = shuffle(spec.items), i = 0, right = 0, misses = [];
     function show() {
+      var refocus = i > 0 && SD.ownsFocus(el);
       clear(el);
       if (i >= items.length) {
         el.appendChild(h('div', { class: 'result' }, h('div', { class: 'big' }, right + ' / ' + items.length),
@@ -184,7 +201,7 @@
           var ok = bi === it[1];
           btns.forEach(function (x, j) { x.disabled = true; if (j === it[1]) x.classList.add('right'); });
           if (ok) right++; else { this.classList.add('wrong'); misses.push(it); }
-          SD.hit(ok, ctx.topicId); if (ok) SD.award(3); else SD.save();
+          SD.hit(ok, ctx.topicId); if (ok) SD.award(xp(ctx, 3)); else SD.save();
           setTimeout(function () { i++; show(); }, ok ? 450 : 1300);
         } }, b);
       });
@@ -193,34 +210,47 @@
       el.appendChild(h('div', { class: 'sortcard' }, it[0]));
       el.appendChild(h('div', { class: 'opts buckets' }, btns));
       el.appendChild(fb);
+      if (refocus) btns[0].focus();
     }
     show();
   };
 
   /* ================= Order (arrange steps) ================= */
   L.order = function (el, spec, ctx) {
-    var correct = spec.items, cur = shuffle(correct), tries = 0, firstScore = null;
+    var correct = spec.items, cur = shuffle(correct), tries = 0, firstScore = null, solved = false, moves = [];
     if (cur.join('|') === correct.join('|')) cur.reverse();
+    // Once solved the board is locked, so the check cannot be pressed again for more XP.
     function show(marks) {
-      clear(el);
+      clear(el); moves = [];
       if (spec.brief) el.appendChild(h('p', { class: 'brief' }, spec.brief));
       el.appendChild(h('ol', { class: 'orderlist' }, cur.map(function (text, i) {
-        return h('li', { class: marks ? (marks[i] ? 'right' : 'wrong') : '' },
-          h('span', { class: 'otext' }, text),
-          h('button', { class: 'btn mini', 'aria-label': 'Move up', disabled: i === 0, onclick: function () { swap(i, i - 1); } }, '↑'),
-          h('button', { class: 'btn mini', 'aria-label': 'Move down', disabled: i === cur.length - 1, onclick: function () { swap(i, i + 1); } }, '↓'));
+        var up = h('button', { class: 'btn mini', 'aria-label': 'Move up', disabled: solved || i === 0, onclick: function () { swap(i, i - 1, 0); } }, '↑');
+        var down = h('button', { class: 'btn mini', 'aria-label': 'Move down', disabled: solved || i === cur.length - 1, onclick: function () { swap(i, i + 1, 1); } }, '↓');
+        moves.push([up, down]);
+        return h('li', { class: marks ? (marks[i] ? 'right' : 'wrong') : '' }, h('span', { class: 'otext' }, text), up, down);
       })));
-      el.appendChild(h('button', { class: 'btn primary', onclick: check }, 'Check order'));
+      var chk = h('button', { class: 'btn primary', disabled: solved, onclick: check }, 'Check order');
+      el.appendChild(chk);
+      return chk;
     }
-    function swap(a, b) { var t = cur[a]; cur[a] = cur[b]; cur[b] = t; show(); }
+    // Keep focus on the moved item's button (or its other one, at either end of the list).
+    function swap(a, b, dir) {
+      if (solved) return;
+      var t = cur[a]; cur[a] = cur[b]; cur[b] = t; show();
+      var btn = moves[b][dir].disabled ? moves[b][1 - dir] : moves[b][dir];
+      btn.focus();
+    }
     function check() {
+      if (solved) return;
       tries++;
       var marks = cur.map(function (t, i) { return t === correct[i]; }), n = marks.filter(Boolean).length;
       if (firstScore === null) firstScore = n / correct.length;
       var ok = n === correct.length;
+      solved = ok;
       SD.hit(ok, ctx.topicId);
-      show(marks);
-      if (ok) { SD.award(10); el.appendChild(feedback(true, 'Correct order' + (tries > 1 ? ' (attempt ' + tries + ').' : ' on the first try.'))); ctx.onDone(firstScore); }
+      var chk = show(marks);
+      if (!ok) chk.focus();
+      if (ok) { SD.award(xp(ctx, 10)); el.appendChild(feedback(true, 'Correct order' + (tries > 1 ? ' (attempt ' + tries + ').' : ' on the first try.'))); ctx.onDone(firstScore); }
       else { SD.save(); el.appendChild(feedback(false, n + ' of ' + correct.length + ' in the right place. Adjust and check again.')); }
     }
     show();
@@ -252,7 +282,7 @@
             h('b', {}, (sel ? (o[1] ? '✓ Chosen, good: ' : '✗ Chosen, weak: ') : (o[1] ? '○ Missed: ' : '· Skipped: '))), o[0], h('div', { class: 'muted' }, o[2]));
         })));
         var score = right / spec.want;
-        SD.hit(score === 1, ctx.topicId); SD.award(Math.round(12 * score));
+        SD.hit(score === 1, ctx.topicId); SD.award(xp(ctx, Math.round(12 * score)));
         el.appendChild(h('div', { class: 'result' }, h('div', { class: 'big' }, right + ' / ' + spec.want)));
         ctx.onDone(score);
       } }, 'Lock in'), count));
@@ -286,7 +316,7 @@
       });
       var score = pts / max;
       clear(out).appendChild(h('div', { class: 'result' }, h('div', { class: 'big' }, pts + ' / ' + max), h('p', { class: 'muted' }, 'Real APIs vary in style; what matters is being able to justify each choice.')));
-      if (!graded) { graded = true; SD.hit(score === 1, ctx.topicId); SD.award(Math.round(15 * score)); ctx.onDone(score); }
+      if (!graded) { graded = true; SD.hit(score === 1, ctx.topicId); SD.award(xp(ctx, Math.round(15 * score))); ctx.onDone(score); }
     } }, 'Check API'));
     el.appendChild(out);
   };
@@ -296,7 +326,8 @@
     client: ['📱', 'Client'], cdn: ['🌍', 'CDN'], lb: ['⚖️', 'Load balancer'], gateway: ['🚪', 'API gateway'], app: ['🧩', 'App service'],
     cache: ['⚡', 'Cache'], db: ['🗄️', 'Database'], replica: ['📚', 'Read replica'], queue: ['📨', 'Queue'], worker: ['🛠️', 'Workers'],
     blob: ['🪣', 'Object storage'], search: ['🔎', 'Search index'], ws: ['🔌', 'WebSocket server'], idgen: ['🔢', 'ID generator'],
-    ledger: ['📒', 'Ledger'], psp: ['🏦', 'Card processor (external)']
+    ledger: ['📒', 'Ledger'], psp: ['🏦', 'Card processor (external)'],
+    index: ['🧭', 'Candidate index (ANN)'], features: ['🧮', 'Online feature store'], ranker: ['🧠', 'Ranking model (GPU)'], warehouse: ['🏛️', 'Warehouse (offline store)']
   };
   var NS = 'http://www.w3.org/2000/svg';
   function svg(tag, attrs) { var e = document.createElementNS(NS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); return e; }
@@ -309,11 +340,11 @@
     var narrow = (el.clientWidth || window.innerWidth) < 560;
     var W = narrow ? 360 : 760, H = narrow ? 560 : 440, BW = narrow ? 112 : 120, BH = 54;
     var HLD = SD.hld, canSim = !!(spec.sim && window.BreakscaleSim && HLD);
-    var nodes = {}, edges = {}, selected = null, best = 0, awarded = false, revealed = false, fails = 0;
+    var nodes = {}, edges = {}, selected = null, best = 0, awarded = false, revealed = false, fails = 0, counted = false;
     var running = null, shown = null, nodeEls = {}, edgeEls = {};
     var label = function (id) { return (spec.labels && spec.labels[id]) || COMP[id][1]; };
     var palette = shuffle(spec.required.concat(Object.keys(spec.decoys || {})));
-    var canvas = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'diagram', role: 'img', 'aria-label': 'Architecture diagram canvas' });
+    var canvas = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'diagram', role: 'group', 'aria-label': 'Architecture diagram canvas: select a caller, then the component it calls' });
     var gE = svg('g', {}), gN = svg('g', {});
     canvas.appendChild(gE); canvas.appendChild(gN);
     var pal = h('div', { class: 'palette' }), out = h('div', {}), hud = h('div', { class: 'lt-hud' });
@@ -327,14 +358,19 @@
       return [8 + (n % cols) * (BW + gap), 16 + Math.floor(n / cols) * (narrow ? 84 : 104)];
     }
     function edited() { if (shown) { shown = null; clear(out); paintHud(null); } }
+    // Redrawing replaces every chip and box, so the one that had focus is found by id and focused again.
+    function focusedId(box) { var a = document.activeElement; return a && box.contains(a) ? a.getAttribute('data-id') : null; }
     function drawPalette() {
+      var again = focusedId(pal);
       clear(pal);
       palette.forEach(function (id) {
-        pal.appendChild(h('button', { class: 'chip' + (nodes[id] ? ' on' : ''), disabled: !!running, onclick: function () {
+        var chip = h('button', { class: 'chip' + (nodes[id] ? ' on' : ''), 'data-id': id, 'aria-pressed': nodes[id] ? 'true' : 'false', disabled: !!running, onclick: function () {
           if (nodes[id]) { delete nodes[id]; Object.keys(edges).forEach(function (k) { if (k.split('>').indexOf(id) >= 0) delete edges[k]; }); if (selected === id) selected = null; }
           else { var p = freeSpot(); nodes[id] = { x: p[0], y: p[1] }; }
           edited(); draw();
-        } }, COMP[id][0] + ' ' + label(id)));
+        } }, COMP[id][0] + ' ' + label(id));
+        pal.appendChild(chip);
+        if (id === again) chip.focus();
       });
     }
     function pt(evt) { var m = canvas.getScreenCTM().inverse(); var p = canvas.createSVGPoint(); p.x = evt.clientX; p.y = evt.clientY; return p.matrixTransform(m); }
@@ -355,6 +391,7 @@
     }
     function draw() {
       drawPalette();
+      var again = focusedId(gN);
       while (gE.firstChild) gE.removeChild(gE.firstChild);
       while (gN.firstChild) gN.removeChild(gN.firstChild);
       nodeEls = {}; edgeEls = {};
@@ -366,7 +403,8 @@
         placeEdge(k);
       });
       Object.keys(nodes).forEach(function (id) {
-        var n = nodes[id], g = svg('g', { class: 'node' + (selected === id ? ' sel' : ''), transform: 'translate(' + n.x + ',' + n.y + ')', tabindex: 0 });
+        var n = nodes[id], g = svg('g', { class: 'node' + (selected === id ? ' sel' : ''), transform: 'translate(' + n.x + ',' + n.y + ')', tabindex: 0,
+          role: 'button', 'aria-pressed': selected === id ? 'true' : 'false', 'aria-label': label(id), 'data-id': id });
         g.appendChild(svg('rect', { class: 'box', width: BW, height: BH, rx: 9 }));
         var t = svg('text', { class: 'name', x: BW / 2, y: 20, 'text-anchor': 'middle' }), full = label(id), fits = narrow ? 17 : 18;
         // A long name is shortened to fit the box; the chip above the canvas and the tooltip keep it whole.
@@ -394,6 +432,7 @@
         g.addEventListener('pointercancel', function () { start = null; });
         g.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tap(id); } });
         gN.appendChild(g);
+        if (id === again) g.focus();
       });
       if (shown) paint(shown);
     }
@@ -507,11 +546,13 @@
         : 'Change the design and run it again. Nothing is scored until it holds.';
       out.appendChild(h('div', { class: 'result' }, h('div', { class: 'big' }, head + (v.passed ? ' ' + scoreLine(score) : '')), h('p', { class: 'muted' }, note)));
       out.appendChild(list);
-      SD.hit(v.clean && !revealed, ctx.topicId);
+      // Only the first clean run counts as a right answer; re-running a design that already held proves nothing new.
+      var perfect = v.clean && !revealed, firstPerfect = perfect && !counted;
+      if (!counted) { SD.hit(perfect, ctx.topicId); counted = perfect; }
       if (!v.passed) { fails++; revealBtn.classList.remove('hidden'); SD.save(); return; }
       if (score > best) best = score;
-      if (v.clean && !revealed) { SD.state.counts.perfectDiagram = 1; SD.confetti(); }
-      if (!awarded) { awarded = true; SD.award(Math.round(25 * score)); } else SD.save();
+      if (firstPerfect) { SD.state.counts.perfectDiagram = 1; SD.confetti(); }
+      if (!awarded) { awarded = true; SD.award(xp(ctx, Math.round(25 * score))); } else SD.save();
       ctx.onDone(best);
     }
     // Without the engine (the script failed to load) fall back to comparing against the reference design.
@@ -529,8 +570,8 @@
       out.appendChild(list);
       revealBtn.classList.remove('hidden');
       if (score > best) best = score;
-      SD.hit(score >= 0.999, ctx.topicId);
-      if (!awarded) { awarded = true; SD.award(Math.round(25 * score)); } else SD.save();
+      if (!counted) { counted = score >= 0.999; SD.hit(counted, ctx.topicId); }
+      if (!awarded) { awarded = true; SD.award(xp(ctx, Math.round(25 * score))); } else SD.save();
       ctx.onDone(best);
     }
     function reveal() {
@@ -555,6 +596,8 @@
             : { x: 10 + along * (W - BW - 20), y: (H - BH) / 2 + across * 92 };
         });
       });
+      // A crowded design can give its own positions for the wide canvas, where the layered layout would hide arrows.
+      if (!narrow && spec.layout) Object.keys(spec.layout).forEach(function (id) { if (nodes[id]) nodes[id] = { x: spec.layout[id][0], y: spec.layout[id][1] }; });
       spec.edges.forEach(function (e) { edges[e[0] + '>' + e[1]] = 1; });
       draw();
       out.appendChild(feedback(true, canSim ? 'This is one reference design. Run the load test to watch it carry the traffic.' : 'This is one reference design.'));
@@ -566,6 +609,38 @@
     el.appendChild(hud); el.appendChild(out);
     nodes[spec.required[0]] = { x: 8, y: 16 };
     setBusy(false); draw();
+    // The canvas is sized once, for a phone or for a desktop. If the window later crosses that line (a rotated phone,
+    // a resized window) the drawing would only shrink until its labels cannot be read, so it is laid out again:
+    // a wide canvas reads left to right and a tall one top to bottom, so the boxes keep their order along that axis.
+    function relayout() {
+      if (!canvas.isConnected) return window.removeEventListener('resize', relayout);
+      var nowNarrow = (el.clientWidth || window.innerWidth) < 560;
+      if (running || nowNarrow === narrow) return;
+      var ids = Object.keys(nodes), oldBW = BW, wasNarrow = narrow;
+      // Group the boxes into lanes along the old reading direction and across it (boxes that were level share a lane).
+      function lanes(key, tol) {
+        var sorted = ids.slice().sort(function (p, q) { return nodes[p][key] - nodes[q][key]; }), lane = {}, n = -1, last = null;
+        sorted.forEach(function (id) { var v = nodes[id][key]; if (last === null || v - last > tol) n++; lane[id] = n; last = v; });
+        return { of: lane, count: n + 1 };
+      }
+      var along = wasNarrow ? lanes('y', BH / 2) : lanes('x', oldBW / 2), across = wasNarrow ? lanes('x', oldBW / 2) : lanes('y', BH / 2);
+      narrow = nowNarrow; W = narrow ? 360 : 760; H = narrow ? 560 : 440; BW = narrow ? 112 : 120;
+      canvas.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+      var seen = {}, clash = ids.some(function (id) { var k = along.of[id] + ':' + across.of[id]; if (seen[k]) return true; seen[k] = 1; return false; });
+      var fits = narrow ? along.count * (BH + 10) <= H - 12 && across.count * (BW + 8) <= W + 8 : along.count * (BW + 8) <= W + 8 && across.count * (BH + 10) <= H - 12;
+      function at(i, n, lo, hi) { return n < 2 ? (lo + hi) / 2 : lo + i * (hi - lo) / (n - 1); }
+      if (!clash && fits) ids.forEach(function (id) {
+        var a = along.of[id], c = across.of[id];
+        nodes[id] = narrow ? { x: at(c, across.count, 0, W - BW), y: at(a, along.count, 12, H - BH) } : { x: at(a, along.count, 0, W - BW), y: at(c, across.count, 12, H - BH) };
+      });
+      else {   // too many lanes for the new shape: fall back to a plain grid in reading order
+        var order = ids.slice().sort(function (p, q) { return along.of[p] - along.of[q] || across.of[p] - across.of[q]; });
+        ids.forEach(function (id) { delete nodes[id]; });
+        order.forEach(function (id) { var sp = freeSpot(); nodes[id] = { x: sp[0], y: sp[1] }; });
+      }
+      draw();
+    }
+    window.addEventListener('resize', relayout);
   };
 
   /* ================= Estimation ================= */
@@ -632,7 +707,7 @@
         return ctx.onDone(right / ps.length);
       }
       count.textContent = 'Problem ' + (i + 1) + ' of ' + ps.length;
-      L.numQuestion(body, ps[i], function (ok) { if (ok) right++; SD.hit(ok, ctx.topicId); if (ok) SD.award(8); else SD.save(); i++; show(); });
+      L.numQuestion(body, ps[i], function (ok) { if (ok) right++; SD.hit(ok, ctx.topicId); if (ok) SD.award(xp(ctx, 8)); else SD.save(); i++; show(); });
     }
     show();
   };
@@ -735,7 +810,7 @@
       m.bars.forEach(function (b) { var f = h('div', { class: 'fill ' + b[2] }); f.style.width = Math.max(1, b[1] / max * 100) + '%'; bars.appendChild(h('div', { class: 'bar' }, h('span', {}, b[0]), h('div', { class: 'track' }, f), h('em', {}, fmt(b[1])))); });
       var cur = S.missions[mi];
       if (judge && !free && cur && !mission.querySelector('.fb') && cur.check(state, m)) {
-        SD.hit(true, ctx.topicId); SD.award(12);
+        SD.hit(true, ctx.topicId); SD.award(xp(ctx, 12));
         mission.appendChild(h('div', { class: 'fb good' }, h('b', {}, '✓ '), cur.win));
         mission.appendChild(h('button', { class: 'btn primary', onclick: function () { mi++; setMission(); render(false); if (mi >= S.missions.length) ctx.onDone(1); } }, mi + 1 < S.missions.length ? 'Next mission →' : 'Finish'));
         Object.keys(inputs).forEach(function (k) { inputs[k].r.disabled = true; });
@@ -745,5 +820,6 @@
   };
 
   L.mount = function (el, spec, ctx) { clear(el); L[spec.type](el, spec, ctx); };
+  L.PASS = 0.7;   // the score a lab needs to count as passed
   L.NAMES = { sort: 'Sorting drill', order: 'Sequence puzzle', pick: 'Choose wisely', api: 'API builder', diagram: 'Diagram builder', estimate: 'Estimation drill', sim: 'Simulator' };
 })(window.SD);

@@ -64,6 +64,7 @@
       function finish() { SD.stopTimers(); endScreen(el, { key: 'survival', title: 'Survival', score: score, xp: Math.round(score / 20), detail: 'Best streak this run: ' + bestStreak, review: missed, again: function () { SD.arcade.survival(el); } }); }
       function next() {
         if (lives <= 0 || i >= pool.length) return finish();
+        var refocus = i > 0 && SD.ownsFocus(el);   // after "Next →", not on the first question
         var q = pool[i++], opts = shuffle(q[1].map(function (t, k) { return { t: t, ok: k === 0 }; })), after = h('div', {});
         function answer(ok, btn) {
           if (!running) return;
@@ -84,6 +85,7 @@
         body.appendChild(h('div', { class: 'qcount' }, SD.topicById[q[4]].title));
         body.appendChild(h('h3', { class: 'question' }, q[0]));
         body.appendChild(h('div', { class: 'opts' }, btns)); body.appendChild(after);
+        if (refocus) btns[0].focus();
         left = 30000; running = true; paint();
       }
       every(100, function () { if (!running) return; left -= 100; paint(); if (left <= 0) onTimeout(); });
@@ -93,17 +95,22 @@
     /* ----- Sort Rush: 60 seconds of rapid classification. A miss costs 3 seconds. ----- */
     rush: function (el) {
       var pool = [];
-      SD.topics.forEach(function (t) { if (t.lab && t.lab.type === 'sort') t.lab.items.forEach(function (it) { pool.push({ text: it[0], ok: it[1], buckets: t.lab.buckets, topic: t.id }); }); });
+      // A sorting drill may be the whole lab or the first part of a drill-then-load-test lab.
+      SD.topics.forEach(function (t) {
+        (!t.lab ? [] : t.lab.type === 'seq' ? t.lab.parts : [t.lab]).forEach(function (lab) {
+          if (lab.type === 'sort') lab.items.forEach(function (it) { pool.push({ text: it[0], ok: it[1], buckets: lab.buckets, topic: t.id }); });
+        });
+      });
       pool = shuffle(pool);
       var left = 60000, score = 0, streak = 0, bestStreak = 0, i = 0, locked = false, missed = [];
       var bar = timerBar(), hud = h('div', { class: 'gamehud' }), body = h('div', {});
       clear(el); el.appendChild(bar.el); el.appendChild(hud); el.appendChild(body);
       function paint() { bar.set(left / 60000, Math.ceil(left / 1000) + 's'); clear(hud); hud.appendChild(h('span', {}, 'Score ', h('b', {}, SD.fmt(score)))); hud.appendChild(h('span', {}, 'Streak ', h('b', {}, '⚡' + streak))); }
       function finish() { SD.stopTimers(); endScreen(el, { key: 'rush', title: 'Sort Rush', score: score, xp: Math.round(score / 2), detail: 'Best streak this run: ' + bestStreak, review: missed, again: function () { SD.arcade.rush(el); } }); }
-      function next() {
+      function next(user) {
         if (left <= 0) return finish();
         if (i >= pool.length) { pool = shuffle(pool); i = 0; }
-        var it = pool[i++]; locked = false;
+        var it = pool[i++], refocus = user && SD.ownsFocus(el); locked = false;
         var btns = it.buckets.map(function (b, bi) {
           return h('button', { class: 'opt bucket', onclick: function () {
             if (locked) return; locked = true;
@@ -113,13 +120,14 @@
             if (ok) { streak++; bestStreak = Math.max(bestStreak, streak); score += 10 + Math.min(streak, 10); }
             else { this.classList.add('wrong'); streak = 0; left -= 3000; missed.push([it.text, '→ ' + it.buckets[it.ok]]); }
             SD.save(); paint();
-            setTimeout(next, ok ? 250 : 1100);
+            setTimeout(function () { next(true); }, ok ? 250 : 1100);
           } }, b);
         });
         clear(body);
         body.appendChild(h('div', { class: 'qcount' }, SD.topicById[it.topic].title));
         body.appendChild(h('div', { class: 'sortcard' }, it.text));
         body.appendChild(h('div', { class: 'opts buckets' }, btns));
+        if (refocus) btns[0].focus();
       }
       every(100, function () { if (locked) return; left -= 100; paint(); if (left <= 0) { locked = true; finish(); } });
       paint(); next();
@@ -134,8 +142,13 @@
 
   /* ---------- Boss fight ---------- */
   SD.runBoss = function (el, boss) {
-    var i = 0, scores = [], t0 = Date.now();
+    var i = 0, scores = [], t0 = Date.now(), prevBest = SD.state.hi['boss.' + boss.id] || 0, replay = prevBest > 0;
     var steps = h('div', { class: 'steps' }), body = h('div', {}), foot = h('div', {});
+    // An interview left part-way is kept (the next phase, the scores so far, the time spent), so leaving the page
+    // does not throw away the phases already done. It is forgotten when the interview is finished or restarted.
+    var runs = SD.state.runs, saved = runs[boss.id];
+    if (saved && (saved.i >= boss.phases.length || saved.scores.length !== saved.i)) { delete runs[boss.id]; saved = null; }
+    function keep() { runs[boss.id] = { i: i, scores: scores.slice(0, i), ms: Date.now() - t0 }; SD.save(); }
     function paintSteps() {
       clear(steps);
       boss.phases.forEach(function (p, k) { steps.appendChild(h('div', { class: 'step' + (k < i ? ' done' : k === i ? ' now' : '') }, h('b', {}, k < i ? Math.round(scores[k] * 100) + '%' : String(k + 1)), h('span', {}, p.name))); });
@@ -147,11 +160,11 @@
       clear(body);
       body.appendChild(h('h2', {}, 'Phase ' + (i + 1) + ': ' + p.name));
       var mountEl = h('div', {}); body.appendChild(mountEl);
-      L.mount(mountEl, p.lab, { onDone: function (score) {
+      L.mount(mountEl, p.lab, { replay: replay, onDone: function (score) {
         scores[i] = Math.max(scores[i] || 0, score);
-        if (p.lab.type === 'teach') SD.award(10, { quest: 'teach' });
+        if (p.lab.type === 'teach') SD.award(replay ? SD.replayXp(10, 10) : 10, { quest: 'teach' });
         if (shown) return; shown = true;
-        var nx = h('button', { class: 'btn primary big', onclick: function () { i++; phase(); window.scrollTo(0, 0); } }, i + 1 < boss.phases.length ? 'Next phase →' : 'Finish interview');
+        var nx = h('button', { class: 'btn primary big', onclick: function () { i++; if (i < boss.phases.length) keep(); phase(); window.scrollTo(0, 0); } }, i + 1 < boss.phases.length ? 'Next phase →' : 'Finish interview');
         foot.appendChild(nx);
       } });
     }
@@ -160,8 +173,9 @@
       boss.phases.forEach(function (p, k) { total += p.w * (scores[k] || 0); });
       total = Math.round(total);
       var mins = Math.round((Date.now() - t0) / 60000);
+      delete runs[boss.id];
       var isHigh = SD.setHigh('boss.' + boss.id, total);
-      var xp = SD.award(total, { flat: true });
+      var xp = SD.award(SD.replayXp(total, replay ? prevBest : null), { flat: true });   // a replay pays in full only for beating the best
       if (total >= 80) { SD.confetti(); SD.beep('win'); }
       clear(body); clear(foot);
       var weakest = boss.phases.map(function (p, k) { return [p.name, scores[k] || 0]; }).sort(function (a, b) { return a[1] - b[1]; })[0];
@@ -177,6 +191,14 @@
     clear(el);
     el.appendChild(h('div', { class: 'bosshead' }, h('div', { class: 'bossicon' }, boss.icon), h('div', {}, h('h1', {}, boss.title + ' — ' + boss.sub), h('p', {}, boss.brief))));
     el.appendChild(steps); el.appendChild(body); el.appendChild(foot);
-    phase();
+    if (!saved) return phase();
+    // Offer the unfinished interview before anything else is drawn.
+    var sofar = saved.scores.map(function (x, k) { return boss.phases[k].name + ' ' + Math.round(x * 100) + '%'; }).join(' · ');
+    body.appendChild(h('div', { class: 'card' }, h('div', { class: 'label' }, 'Unfinished interview'),
+      h('p', {}, 'You left this interview before phase ' + (saved.i + 1) + ' of ' + boss.phases.length + ' (' + boss.phases[saved.i].name + '). So far: ' + sofar + '.'),
+      h('div', { class: 'row wrap' },
+        h('button', { class: 'btn primary big', onclick: function () { i = saved.i; scores = saved.scores.slice(); t0 = Date.now() - saved.ms; phase(); } }, 'Resume at phase ' + (saved.i + 1)),
+        h('button', { class: 'btn big', onclick: function () { delete runs[boss.id]; SD.save(); phase(); } }, 'Start over'))));
+    paintSteps();
   };
 })(window.SD);

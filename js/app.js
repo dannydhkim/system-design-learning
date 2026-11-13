@@ -74,18 +74,25 @@
   }
 
   /* ---------- Topic ---------- */
+  // XP the best earlier attempt at a free-text station was worth, or null on the first attempt (see SD.replayXp).
+  function prevXp(best, passed, passMark, scale) {
+    if (best == null && passed) best = passMark;   // passed before bests were recorded, so it scored at least the pass mark
+    return best == null ? null : Math.round(scale * best) + 5;
+  }
   function viewTopic(id, station) {
-    var t = SD.topicById[id];
-    if (!t) return (location.hash = '#/map');
+    var t = Object.prototype.hasOwnProperty.call(SD.topicById, id) ? SD.topicById[id] : null;
+    if (!t) return location.replace('#/map');
     var all = SD.stationsOf(t);
     if (all.indexOf(station) < 0) station = nextStation(t);
     var st = SD.topicState(id);
     var idx = SD.topics.indexOf(t), prev = SD.topics[idx - 1], nxt = SD.topics[idx + 1];
+    var boss = t.boss ? SD.bosses.filter(function (b) { return b.id === t.boss; })[0] : null;   // case studies with a mock interview
 
     main.appendChild(h('div', { class: 'crumbs' }, h('a', { href: '#/map' }, '← Map'), h('span', { class: 'spacer' }),
       prev ? h('a', { href: '#/topic/' + prev.id }, '‹ ' + prev.id) : null, nxt ? h('a', { href: '#/topic/' + nxt.id }, nxt.id + ' ›') : null));
     var head = h('div', {});
     main.appendChild(head);
+    if (SD.deckErrors[t.mod]) main.appendChild(deckNotice([SD.deckErrors[t.mod]]));
     // Redrawn whenever a station is passed, so the ring and tab ticks update immediately.
     function drawHead() {
       var p = SD.topicProgress(id);
@@ -109,6 +116,8 @@
       var i = all.indexOf(station), nk = all[i + 1];
       if (msg) foot.appendChild(h('p', { class: 'muted' }, msg));
       if (nk) foot.appendChild(h('a', { class: 'btn primary big', href: '#/topic/' + id + '/' + nk }, 'Next station: ' + STATION[nk][0] + ' ' + STATION[nk][1] + ' →'));
+      else if (boss) foot.appendChild(h('div', { class: 'row wrap' }, h('a', { class: 'btn primary big', href: '#/boss/' + boss.id }, 'Now the mock interview: ' + boss.icon + ' ' + boss.title + ' →'),
+        nxt ? h('a', { class: 'btn big', href: '#/topic/' + nxt.id }, 'Next topic: ' + nxt.id + ' →') : null));
       else if (nxt) foot.appendChild(h('a', { class: 'btn primary big', href: '#/topic/' + nxt.id }, 'Next topic: ' + nxt.id + ' ' + nxt.title + ' →'));
       else foot.appendChild(h('a', { class: 'btn primary big', href: '#/boss' }, 'Face a boss →'));
       return first;
@@ -120,6 +129,9 @@
       body.appendChild(h('div', { class: 'card' }, h('div', { class: 'label' }, 'Key ideas'), h('ul', { class: 'points' }, t.points.map(function (x) { return h('li', {}, x); }))));
       body.appendChild(h('div', { class: 'card pitfall' }, h('div', { class: 'label' }, '⚠️ Common mistake'), h('p', {}, t.pitfall)));
       body.appendChild(h('div', { class: 'card say' }, h('div', { class: 'label' }, '🎙️ Say it in the interview'), h('p', {}, '“' + t.say + '”')));
+      if (boss) body.appendChild(h('div', { class: 'card' }, h('div', { class: 'label' }, '🏆 Mock interview for this case study'),
+        h('p', {}, boss.icon + ' ', h('b', {}, boss.title), ' — ' + boss.sub + '. The stations here prepare for it; the boss fight is the full interview, scored out of 100.'),
+        h('a', { class: 'btn', href: '#/boss/' + boss.id }, 'Go to the boss fight →')));
       if (t.refs && t.refs.length) body.appendChild(h('div', { class: 'card sources' }, h('div', { class: 'label' }, '📚 Evidence — where these claims come from'), L.sourceList(t.refs)));
       foot.appendChild(h('button', { class: 'btn primary big', onclick: function () { if (!st.done.learn) SD.award(10); passed('Reading is the weakest way to learn. The next stations make it stick.'); } }, st.done.learn ? 'Read again ✓ — continue' : 'Got it — mark as read (+10 XP)'));
     }
@@ -131,24 +143,33 @@
     }
     else if (station === 'quiz') {
       var m2 = h('div', {}); body.appendChild(m2);
-      L.quiz(m2, { qs: t.quiz }, { topicId: id, onDone: function (score) {
+      // Correct answers up to the previous best pay replay XP; only answers beyond it pay in full.
+      L.quiz(m2, { qs: t.quiz }, { topicId: id, paid: st.quizBest != null ? Math.round(st.quizBest * t.quiz.length) : st.done.quiz ? t.quiz.length : 0, onDone: function (score) {
         st.quizBest = Math.max(st.quizBest || 0, score);
-        if (score >= 0.66) passed(score === 1 ? 'Perfect.' : 'Passed.'); else { SD.save(); retry('Pass mark is ' + Math.ceil(0.66 * t.quiz.length) + ' of ' + t.quiz.length + '. The options are reshuffled each time.'); }
+        if (score >= 0.66) passed(score === 1 ? 'Perfect.' : 'Passed.'); else { SD.save(); retry('Pass mark is ' + Math.ceil(0.66 * t.quiz.length) + ' of ' + t.quiz.length + '. The questions and their options are reshuffled each time.'); }
       } });
     }
     else if (station === 'lab') {
-      body.appendChild(h('div', { class: 'label' }, '🔧 ' + L.NAMES[t.lab.type]));
+      body.appendChild(h('div', { class: 'label' }, '🔧 ' + L.nameOf(t.lab)));
       var m3 = h('div', {}); body.appendChild(m3);
-      L.mount(m3, t.lab, { topicId: id, onDone: function (score) {
+      // A tick with no record of which lab earned it may come from a lab since replaced, so it earns no replay discount.
+      var sig = L.sigOf(t.lab);
+      L.mount(m3, t.lab, { topicId: id, replay: !!st.done.lab && st.notes.labSig === sig, onDone: function (score) {
         st.labBest = Math.max(st.labBest || 0, score);
-        if (score >= 0.7) passed('Lab passed at ' + Math.round(score * 100) + '%.'); else { SD.save(); retry('Pass mark is 70%. You scored ' + Math.round(score * 100) + '%.'); }
+        if (score >= L.PASS) {
+          st.notes.labSig = sig;
+          Object.keys(st).forEach(function (k) { if (/^seqS\d+$/.test(k)) delete st[k]; });   // part scores are only kept until the lab is passed
+          passed('Lab passed at ' + Math.round(score * 100) + '%.');
+        } else { SD.save(); retry('Pass mark is ' + Math.round(L.PASS * 100) + '%. You scored ' + Math.round(score * 100) + '%.'); }
       } });
     }
     else if (station === 'explain') {
       body.appendChild(h('p', { class: 'brief' }, 'Summarise it in your own words. Writing forces you to find the gaps that re-reading hides.'));
       var m4 = h('div', {}); body.appendChild(m4);
       L.teach(m4, { prompt: t.explain[0], rubric: t.explain[1], saved: st.notes.explain }, { onDone: function (score, text) {
-        st.notes.explain = text; SD.award(Math.round(20 * score) + 5, { quest: 'teach' });
+        var prev = prevXp(st.explainBest, st.done.explain, 0.5, 20);
+        st.notes.explain = text; st.explainBest = Math.max(st.explainBest || 0, score);
+        SD.award(SD.replayXp(Math.round(20 * score) + 5, prev), { quest: 'teach' });
         if (score >= 0.5) passed('Saved. You can re-read your own explanation here later.'); else retry('Covered under half the rubric — revisit Learn, then try again.');
       } });
     }
@@ -156,7 +177,9 @@
       body.appendChild(h('p', { class: 'brief' }, 'The rubber duck method: teach it to someone who knows nothing. Speak out loud if you can — the duck will push back.'));
       var m5 = h('div', {}); body.appendChild(m5);
       L.teach(m5, { duck: true, prompt: 'Teach me "' + t.title + '" from scratch — what it is, why it matters, and when I would use it.', followups: t.duck, rubric: DUCK_RUBRIC, saved: st.notes.duck }, { onDone: function (score, text) {
-        st.notes.duck = text; SD.award(Math.round(25 * score) + 5, { quest: 'teach' });
+        var prev = prevXp(st.duckBest, st.done.duck, 0.6, 25);
+        st.notes.duck = text; st.duckBest = Math.max(st.duckBest || 0, score);
+        SD.award(SD.replayXp(Math.round(25 * score) + 5, prev), { quest: 'teach' });
         if (score >= 0.6) passed('The duck is satisfied. 🦆'); else retry('The duck is still confused — teach it again once the gaps are filled.');
       } });
     }
@@ -169,9 +192,17 @@
     Object.keys(cs).forEach(function (id) { if (!SD.cards[id]) return; var due = cs[id].due; if (due <= t) days[0].n++; else days.forEach(function (x) { if (x.d === due) x.n++; }); });
     return days;
   }
+  // A card deck that failed to load must not pass for "this topic has no cards".
+  function deckNotice(files) {
+    return h('div', { class: 'fb bad', role: 'alert' }, h('b', {}, '⚠ Some flashcards did not load. '),
+      'The file ' + files.join(' and ') + ' could not be read, so its cards are missing from Recall and from review until it loads. Your progress is not affected. ',
+      h('button', { class: 'btn mini', onclick: function () { location.reload(); } }, 'Reload'));
+  }
   function viewReview() {
     var due = SD.dueCards(), fresh = SD.newCards(), built = fresh.filter(function (id) { return SD.topicById[SD.cards[id].topic]; });
     main.appendChild(h('h1', {}, '🧠 Daily review'));
+    var lost = Object.keys(SD.deckErrors).map(function (m) { return SD.deckErrors[m]; });
+    if (lost.length) main.appendChild(deckNotice(lost));
     main.appendChild(h('p', { class: 'muted' }, 'Spaced repetition: each card returns just before you are likely to forget it. A few minutes daily beats an hour weekly.'));
     var body = h('section', { class: 'station' });
     var intro = h('div', { class: 'row wrap' });
@@ -192,7 +223,7 @@
 
   /* ---------- Arcade & bosses ---------- */
   function viewArcade(mode) {
-    if (mode && SD.arcade[mode]) { var el = h('section', { class: 'station' }); main.appendChild(h('div', { class: 'crumbs' }, h('a', { href: '#/arcade' }, '← Arcade'))); main.appendChild(el); return SD.arcade[mode](el); }
+    if (mode && Object.prototype.hasOwnProperty.call(SD.arcade, mode)) { var el = h('section', { class: 'station' }); main.appendChild(h('div', { class: 'crumbs' }, h('a', { href: '#/arcade' }, '← Arcade'))); main.appendChild(el); return SD.arcade[mode](el); }
     main.appendChild(h('h1', {}, '🕹️ Arcade'));
     main.appendChild(h('p', { class: 'muted' }, 'Timed drills for speed and fluency. Wrong answers always show the working.'));
     main.appendChild(h('div', { class: 'grid' }, SD.ARCADE.map(function (a) {
@@ -202,6 +233,7 @@
   function viewBoss(id) {
     var b = SD.bosses.filter(function (x) { return x.id === id; })[0];
     if (b) { var el = h('section', { class: 'station' }); main.appendChild(h('div', { class: 'crumbs' }, h('a', { href: '#/boss' }, '← Bosses'))); main.appendChild(el); return SD.runBoss(el, b); }
+    if (id) return location.replace('#/map');
     main.appendChild(h('h1', {}, '🏆 Boss fights'));
     main.appendChild(h('p', { class: 'muted' }, 'A full mock interview: requirements → estimation → API → high-level design → deep dive → teach it back. Scored out of 100.'));
     main.appendChild(h('div', { class: 'grid' }, SD.bosses.map(function (x) {
@@ -278,7 +310,8 @@
     main.appendChild(h('div', { class: 'card' }, h('label', { class: 'check' }, snd, ' Sound effects')));
 
     var status = SD.sync.server === 'ok' ? '✓ Auto-saving to progress/progress.json in this folder. Commit and push that file to keep it on GitHub.'
-      : SD.sync.server === 'none' ? 'No local save server detected, so progress lives in this browser only. Run “python serve.py” for auto-save to a file, or use the options below.'
+      : SD.sync.server === 'retrying' ? '⚠ The local save server stopped answering. Progress is kept in this browser and will be written to progress/progress.json once the server is back.'
+      : SD.sync.server === 'none' ?'No local save server detected, so progress lives in this browser only. Run “python serve.py” for auto-save to a file, or use the options below.'
         : 'Checking for the local save server…';
     main.appendChild(h('div', { class: 'card' }, h('div', { class: 'label' }, 'Progress file'), h('p', {}, status),
       h('div', { class: 'row wrap' },
@@ -288,7 +321,11 @@
         } }, '⬇ Export progress.json'),
         h('label', { class: 'btn' }, '⬆ Import progress.json', h('input', { type: 'file', accept: 'application/json', class: 'hidden', onchange: function (e) {
           var f = e.target.files[0]; if (!f) return;
-          f.text().then(function (txt) { SD.replaceState(JSON.parse(txt)); SD.toast('Progress imported'); route(); }).catch(function (err) { SD.toast('Import failed: ' + err.message); });
+          f.text().then(function (txt) {
+            var obj;
+            try { obj = JSON.parse(txt); } catch (err) { throw new Error('the file is not valid JSON'); }
+            SD.replaceState(obj); SD.toast('Progress imported'); route();
+          }).catch(function (err) { SD.toast('Import failed: ' + err.message); });
         } })))));
 
     function field(k, label, type, ph) { var i = h('input', { class: 'num wide', type: type || 'text', placeholder: ph || '', value: c[k] || '', autocomplete: 'off' }); i.addEventListener('change', function () { c[k] = i.value.trim(); localStorage.setItem(GHKEY, JSON.stringify(c)); }); return h('label', { class: 'field' }, h('span', {}, label), i); }
@@ -306,14 +343,15 @@
 
   /* ---------- Router ---------- */
   function route() {
-    SD.stopTimers();
-    var parts = (location.hash || '#/map').replace(/^#\/?/, '').split('/');
+    SD.stopTimers(); SD.leave();
+    var parts = (location.hash || '#/map').replace(/^#\/?/, '').split('/'), id;
+    try { id = decodeURIComponent(parts[1] || ''); } catch (e) { return location.replace('#/map'); }   // e.g. #/topic/%
     clear(main);
     var v = parts[0] || 'map';
-    if (v === 'topic') viewTopic(decodeURIComponent(parts[1] || ''), parts[2]);
+    if (v === 'topic') viewTopic(id, parts[2]);
     else if (v === 'review') viewReview();
-    else if (v === 'arcade') viewArcade(parts[1]);
-    else if (v === 'boss') viewBoss(parts[1]);
+    else if (v === 'arcade') viewArcade(id);
+    else if (v === 'boss') viewBoss(id);
     else if (v === 'stats') viewStats();
     else if (v === 'settings') viewSettings();
     else viewMap();

@@ -128,6 +128,19 @@ Full interview simulation: requirements → API → architecture → deep dive �
 - [ ] 7.9 Design a personalized notification system (ML-ranked, multi-channel)
 - [ ] 7.10 Design an autonomous driving data pipeline (ingest → label → train → deploy)
 
+## Module 8: Applied ML Design
+
+The modelling half of an ML design interview: what applied-ML rounds at large companies grade. Module 5 covers the infrastructure half.
+
+- [ ] 8.1 The ML design round — framework, time split, what is graded
+- [ ] 8.2 Problem framing — from a business goal to an ML task and objective
+- [ ] 8.3 Metrics — offline, online and guardrail metrics
+- [ ] 8.4 Data and labels — label sources, delay, bias, leakage, imbalance
+- [ ] 8.5 Feature engineering — what to feed the model: crosses, embeddings, freshness
+- [ ] 8.6 Model selection — baselines first, then the simplest model that fits
+- [ ] 8.7 Training and offline evaluation — splits, losses, sampling, calibration
+- [ ] 8.8 Online evaluation and iteration — launch decisions, offline-online gaps, feedback loops
+
 ## Breakscale Challenges Progress
 
 - [ ] Challenge 1: Hold the line (p99 < 200ms)

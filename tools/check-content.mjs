@@ -6,6 +6,8 @@
 //   · a topic or boss has no evidence list, or cites a source that is not in js/data/sources.js
 //   · a quiz question does not cite evidence (source keys, or 'calc' when the explanation derives the answer)
 //   · a quiz, lab or boss phase is malformed (wrong number of options, bad bucket index, weights not 100…)
+//   · the length of an option gives the answer away: across a module, the correct option sits at the same
+//     length rank (longest, second-longest, …) in more than 40% of its questions
 // --links additionally requests every source URL and reports the ones that do not answer.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,9 +18,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sandbox = {};
 sandbox.window = sandbox;
 vm.createContext(sandbox);
-for (const f of ['meta', 'sources', 'm0', 'm1', 'm2', 'bosses']) {
-  vm.runInContext(fs.readFileSync(path.join(root, 'js/data', f + '.js'), 'utf8'), sandbox, { filename: f + '.js' });
-}
+// The content files are the ones index.html loads, in that order, so a new module cannot be left unchecked.
+const dataFiles = [...fs.readFileSync(path.join(root, 'index.html'), 'utf8').matchAll(/<script src="(js\/data\/[^"]+)"/g)].map((m) => m[1]);
+for (const f of dataFiles) vm.runInContext(fs.readFileSync(path.join(root, f), 'utf8'), sandbox, { filename: f });
 const SD = sandbox.SD;
 const errors = [], warnings = [];
 const err = (where, msg) => errors.push(where + ': ' + msg);
@@ -44,8 +46,11 @@ function checkRefs(where, refs, min) {
 }
 
 /* ---------- quiz questions ---------- */
-let keyed = 0, keyLongest = 0;   // test-wiseness guard: the correct option must not usually be the longest
-function checkQuiz(where, qs, min) {
+// Test-wiseness guard: where the correct option ranks by length must not be predictable. lenRank[group][r] counts
+// the questions in which r distractors are longer than the correct option (0 = it is the longest or tied longest).
+let keyed = 0, keyLongest = 0;
+const lenRank = {};
+function checkQuiz(where, qs, min, group) {
   if (!Array.isArray(qs) || qs.length < min) return err(where, 'needs at least ' + min + ' quiz questions');
   qs.forEach((q, i) => {
     const w = where + ' quiz #' + (i + 1);
@@ -56,6 +61,8 @@ function checkQuiz(where, qs, min) {
     if (Array.isArray(q[1]) && q[1].length === 4) {
       const len = q[1].map((s) => s.length), longest = Math.max(len[1], len[2], len[3]);
       keyed++; if (len[0] > longest) keyLongest++;
+      const ranks = lenRank[group || 'bosses'] = lenRank[group || 'bosses'] || [0, 0, 0, 0];
+      ranks[len.slice(1).filter((x) => x > len[0]).length]++;
       if (len[0] > 60 && len[0] > 1.6 * longest) warn(w, 'correct option is much longer than every distractor (' + len.join('/') + ')');
     }
   });
@@ -79,6 +86,8 @@ function checkLab(where, lab) {
   }
   if (lab.type === 'estimate' && lab.fixed) lab.fixed.forEach((p) => { if (typeof p.a !== 'number' || !p.how) err(where, 'estimate needs a numeric answer and its working: ' + p.q); });
   if (lab.type === 'quiz') checkQuiz(where, lab.qs, 3);
+  if (lab.type === 'rig' && !/^[a-z]+$/.test(lab.rig || '')) err(where, 'rig lab must name a rig (checked against js/rig.js by tools/check-rig.mjs)');
+  if (lab.type === 'seq') { if (!Array.isArray(lab.parts) || lab.parts.length < 2) err(where, 'seq lab needs at least two parts'); else lab.parts.forEach((p, i) => checkLab(where + ' part ' + (i + 1), p)); }
 }
 
 /* ---------- topics vs curriculum ---------- */
@@ -96,7 +105,7 @@ for (const t of SD.topics) {
   for (const k of ['title', 'analogy', 'pitfall', 'say']) if (!t[k]) err(where, 'missing ' + k);
   if (!Array.isArray(t.points) || t.points.length < 3) err(where, 'needs at least 3 key points');
   checkRefs(where, t.refs, 2);
-  checkQuiz(where, t.quiz, 3);
+  checkQuiz(where, t.quiz, 3, t.mod);
   (t.cards || []).forEach((c, i) => { if (!c[0] || !c[1]) err(where + ' card #' + (i + 1), 'needs a question and an answer'); });
   if (!t.explain || !Array.isArray(t.explain[1]) || t.explain[1].length < 3) err(where, 'explain needs a rubric');
   checkLab(where + ' lab', t.lab);
@@ -120,6 +129,13 @@ for (const key of Object.keys(SD.sources)) if (!used.has(key)) warn('source ' + 
 // With four options, chance is 25%. Well above that, "pick the longest" becomes a winning strategy.
 const longestShare = keyed ? keyLongest / keyed : 0;
 if (longestShare > 0.4) err('quiz options', 'the correct option is the longest in ' + Math.round(longestShare * 100) + '% of questions (limit 40%) — lengthen distractors');
+// Padding one distractor per question only moves the giveaway: "pick the second-longest" then wins instead.
+const RANK_NAME = ['the longest (or tied longest)', 'the second-longest', 'the second-shortest', 'the shortest'];
+for (const [group, ranks] of Object.entries(lenRank)) {
+  const n = ranks.reduce((a, b) => a + b, 0);
+  if (n < 12) continue;   // too few questions for a share to mean anything
+  ranks.forEach((c, r) => { if (c / n > 0.4) err('quiz options, module ' + group, 'the correct option is ' + RANK_NAME[r] + ' in ' + Math.round(100 * c / n) + '% of ' + n + ' questions (limit 40%) — vary which options are long'); });
+}
 
 /* ---------- optional: do the URLs answer? ---------- */
 async function checkLinks() {
