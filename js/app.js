@@ -333,6 +333,19 @@
     SD.cloud.onChange = function () { drawCloud(card); };
     SD.onLeave(function () { SD.cloud.onChange = null; });
 
+    // Answer judge
+    var J = SD.judge, jc = J.conf(), spent = J.spend();
+    var jkey = h('input', { class: 'num wide', type: 'password', placeholder: 'sk-ant-…', value: jc.key, autocomplete: 'off', spellcheck: 'false' });
+    jkey.addEventListener('change', function () { J.setConf('key', jkey.value); route(); });
+    var jauto = h('input', { type: 'checkbox' }); jauto.checked = jc.auto;
+    jauto.addEventListener('change', function () { J.setConf('auto', jauto.checked); });
+    main.appendChild(h('div', { class: 'card' }, h('div', { class: 'label' }, 'Answer judge (optional)'),
+      h('p', { class: 'muted' }, 'On flashcards, a small Claude model (' + jc.model + ') compares what you typed or dictated with the reference answer and says what you covered, missed or got wrong. You still pick the grade. It needs your own Claude API key from platform.claude.com; the key is stored only in this browser, is sent only to api.anthropic.com, and is never written to the progress file. Paste it on each device.'),
+      h('div', { class: 'fields' }, h('label', { class: 'field' }, h('span', {}, 'Claude API key'), jkey)),
+      h('label', { class: 'check' }, jauto, ' Check my answer automatically when I reveal a card'),
+      h('p', { class: 'muted' }, jc.calls ? 'Used so far on this device: ' + jc.calls + ' check' + (jc.calls === 1 ? '' : 's') + ', ' + SD.fmt(jc.inTok) + ' input and ' + SD.fmt(jc.outTok) + ' output tokens' + (spent != null ? ', about $' + spent.toFixed(4) + ' at list price.' : '.') : 'Nothing has been sent yet. Expect well under a tenth of a cent per card at list price; this page shows the running total.'),
+      h('p', { class: 'muted' }, 'Dictation (the 🎙 button on a card) is separate and free: the browser transcribes your speech. It works in Chrome, Edge and Safari.')));
+
     main.appendChild(h('div', { class: 'card pitfall' }, h('div', { class: 'label' }, 'Danger zone'),
       h('button', { class: 'btn', onclick: function () { if (confirm('Erase all progress, streaks and high scores? This cannot be undone.' + everywhere)) { SD.resetState(); SD.cloud.ackReset(); SD.toast('Progress reset'); route(); } } }, 'Reset all progress')));
   }

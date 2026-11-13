@@ -208,5 +208,10 @@ bosses and topic 0C.1.
 - `questions/` — flashcard decks (also loaded by the game). `ml-interview-deck.json` is the staff MLE interview deck
   (ML theory, statistics, deep learning, LLMs, evaluation, experimentation, recommendation, production ML, and
   project deep-dive prompts): 145 cards in 15 sections, studied from the Review page. It is not tied to topics, and
-  its answers are written from general ML knowledge without per-card sources, unlike the quizzes.
+  each knowledge card lists its sources under the answer. The deck is marked `"verified": false`: the sources were
+  chosen from the standard literature and have not yet been compared with each card, unlike the quizzes.
+  `node tools/check-deck.mjs` checks that every card cites a listed source (`--links` also requests each URL).
+- `js/judge.js` — optional answer judge for flashcards: a small Claude model compares your typed or dictated answer
+  with the reference answer. It needs your own API key (Settings → Answer judge), stored only in the browser.
+  The 🎙 button on a card dictates through the browser's own speech recognition and needs no key.
 - `breakscale-reference.md`, `ml-system-design.md` — reference notes

@@ -281,3 +281,7 @@ details > summary { cursor: pointer; color: var(--muted); font-size: .92rem; mar
 .answer { white-space: pre-wrap; }
 .decktile { text-align: left; font: inherit; color: inherit; cursor: pointer; } .decktile:disabled { opacity: .55; cursor: default; } .decktile h3 { margin-top: 0; }
 .duepill { color: var(--gold); border-color: var(--gold); }
+.cardrefs { margin-top: 10px; font-size: .88rem; white-space: normal; } .cardrefs ul { margin: 2px 0 0; padding-left: 1.2em; } .cardrefs .label { margin: 0; }
+.verdict { white-space: normal; border-color: var(--line); } .verdict > div { margin: 3px 0; }
+.grade.suggested { box-shadow: 0 0 0 3px var(--accent); }
+.btn.rec { border-color: var(--bad); color: var(--bad); }

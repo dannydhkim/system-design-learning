@@ -63,8 +63,53 @@
   };
 
   /* ================= Recall (flashcards with spaced repetition) ================= */
+  // A dictation button for a text box, or null where the browser has no speech recognition. The browser does the
+  // transcription (Chrome and Safari; it costs nothing). Returns { button, stop }.
+  L.dictate = function (ta) {
+    var Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Rec) return null;
+    var rec = null, on = false, base = '';
+    var btn = h('button', { class: 'btn', type: 'button', 'aria-pressed': 'false', onclick: function () { if (on) stop(); else start(); } }, '🎙 Dictate');
+    function label() { btn.textContent = on ? '⏹ Stop dictating' : '🎙 Dictate'; btn.setAttribute('aria-pressed', on ? 'true' : 'false'); btn.classList.toggle('rec', on); }
+    function start() {
+      try {
+        rec = new Rec(); rec.continuous = true; rec.interimResults = true; rec.lang = 'en-US';
+        base = ta.value ? ta.value.replace(/\s*$/, ' ') : '';
+        rec.onresult = function (e) {
+          var fin = '', interim = '';
+          for (var i = 0; i < e.results.length; i++) { if (e.results[i].isFinal) fin += e.results[i][0].transcript; else interim += e.results[i][0].transcript; }
+          ta.value = base + fin + interim;
+        };
+        rec.onerror = function (e) { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') SD.toast('Microphone access was refused. Allow it for this site to dictate.'); };
+        rec.onend = function () { on = false; label(); };
+        rec.start(); on = true; label();
+      } catch (e) { on = false; label(); }
+    }
+    function stop() { if (rec) try { rec.stop(); } catch (e) { /* already stopped */ } on = false; label(); }
+    return { button: btn, stop: stop };
+  };
+  function sourceLinks(refs) {
+    var known = (refs || []).filter(function (k) { return SD.deckSources && SD.deckSources[k]; });
+    if (!known.length) return null;
+    return h('div', { class: 'cardrefs' }, h('span', { class: 'label' }, '📚 Sources'), h('ul', {}, known.map(function (k) {
+      return h('li', {}, h('a', { href: SD.deckSources[k][1], target: '_blank', rel: 'noopener noreferrer' }, SD.deckSources[k][0]));
+    })));
+  }
+  // What the judge said about an answer, and which grade it suggests.
+  function showVerdict(box, out) {
+    var name = { correct: '✓ Correct', partial: '◐ Partly right', incorrect: '✗ Not yet' }[out.verdict];
+    function list(title, items) { return items.length ? h('div', {}, h('b', {}, title + ' '), items.join(' · ')) : null; }
+    clear(box);
+    box.className = 'fb ' + (out.verdict === 'correct' ? 'good' : 'bad') + ' verdict';
+    box.appendChild(h('div', {}, h('b', {}, '🤖 ' + name + '. '), out.feedback || ''));
+    [list('Covered:', out.covered), list('Missing:', out.missing), list('Wrong:', out.wrong)].forEach(function (x) { if (x) box.appendChild(x); });
+    box.appendChild(h('div', { class: 'muted' }, 'Probe: ' + { answered: 'answered', partly: 'partly answered', not_answered: 'not answered' }[out.probe] + '. A small model graded this; you choose the grade.'));
+  }
+
   L.recall = function (el, spec, ctx) {
     var queue = spec.ids.slice(), again = {}, done = 0, total = queue.length, good = 0;
+    var mic = null;
+    SD.onLeave(function () { if (mic) mic.stop(); });
     function show(graded) {
       var refocus = graded && SD.ownsFocus(el);
       clear(el);
@@ -75,9 +120,31 @@
       var id = queue[0], c = SD.cards[id], st = SD.state.cards[id];
       var answerBox = h('div', {});
       var ta = h('textarea', { class: 'ta', rows: 3, placeholder: 'Answer from memory first — type it, or say it out loud. Then reveal.' });
+      if (mic) mic.stop();
+      mic = L.dictate(ta);
       var reveal = h('button', { class: 'btn primary', onclick: function () {
+        if (mic) { mic.stop(); mic.button.remove(); }
         reveal.remove(); ta.readOnly = true;
-        answerBox.appendChild(h('div', { class: 'answer' }, h('div', { class: 'label' }, 'Answer'), c.a, c.key ? h('div', { class: 'keyc' }, '💡 ' + c.key) : null, c.note ? h('div', { class: 'keyc' }, '📝 Your note from an earlier review: ' + c.note) : null));
+        var mine = ta.value.trim(), verdict = h('div', { class: 'fb verdict', role: 'status' });
+        function check() {
+          clear(verdict); verdict.className = 'fb verdict'; verdict.appendChild(document.createTextNode('🤖 Checking your answer…'));
+          SD.judge.grade(c, mine).then(function (out) {
+            if (!verdict.isConnected) return;
+            showVerdict(verdict, out);
+            var g = answerBox.querySelectorAll('.grade')[SD.judge.suggest(out)];
+            if (g) { g.classList.add('suggested'); if (SD.ownsFocus(el)) g.focus(); }
+          }, function (e) {
+            if (!verdict.isConnected) return;
+            clear(verdict); verdict.className = 'fb bad verdict';
+            verdict.appendChild(document.createTextNode('🤖 ' + e.message + ' '));
+            verdict.appendChild(h('button', { class: 'btn mini', onclick: check }, 'Try again'));
+          });
+        }
+        if (SD.judge && SD.judge.ready() && mine) {
+          answerBox.appendChild(verdict);
+          if (SD.judge.conf().auto) check(); else { verdict.appendChild(h('button', { class: 'btn mini', onclick: check }, '🤖 Check my answer')); }
+        }
+        answerBox.appendChild(h('div', { class: 'answer' }, h('div', { class: 'label' }, 'Answer'), c.a, c.key ? h('div', { class: 'keyc' }, '💡 ' + c.key) : null, c.note ? h('div', { class: 'keyc' }, '📝 Your note from an earlier review: ' + c.note) : null, sourceLinks(c.refs)));
         answerBox.appendChild(h('div', { class: 'label' }, 'How well did you recall it?'));
         answerBox.appendChild(h('div', { class: 'grades' }, ['Again', 'Hard', 'Good', 'Easy'].map(function (name, g) {
           return h('button', { class: 'btn grade g' + g, onclick: function () {
@@ -91,7 +158,7 @@
       } }, 'Reveal answer');
       el.appendChild(h('div', { class: 'qcount' }, 'Card ' + (done + 1) + ' of ' + total + (st ? '' : ' · new')));
       el.appendChild(h('h3', { class: 'question' }, c.q));
-      el.appendChild(ta); el.appendChild(reveal); el.appendChild(answerBox);
+      el.appendChild(ta); el.appendChild(h('div', { class: 'row wrap' }, mic ? mic.button : null, reveal)); el.appendChild(answerBox);
       if (refocus) reveal.focus();
     }
     show();

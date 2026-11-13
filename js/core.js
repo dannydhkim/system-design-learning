@@ -626,10 +626,13 @@ window.SD = window.SD || {};
         .catch(function () { SD.deckErrors[f[0]] = f[1]; return { cards: [] }; });
     })).then(function (decks) {
       var seeded = false;
+      SD.deckSources = {};   // key -> [title, url], for the cards of a deck that cites its sources
       decks.forEach(function (d) {
+        var src = d.sources || {}, k;
+        for (k in src) SD.deckSources[k] = src[k];
         if (d.sections) (d.order || Object.keys(d.sections)).forEach(function (id) { if (d.sections[id]) SD.deckSections.push({ id: id, title: d.sections[id], deck: d.title || d.module }); });
         (d.cards || []).forEach(function (c) {
-          SD.cards[c.id] = { id: c.id, topic: c.topic, q: c.question, a: c.answer, key: c.key_concept, note: c.note, section: d.sections && d.sections[c.topic] ? c.topic : null };
+          SD.cards[c.id] = { id: c.id, topic: c.topic, q: c.question, a: c.answer, key: c.key_concept, note: c.note, refs: c.refs, section: d.sections && d.sections[c.topic] ? c.topic : null };
           if (!SD.state.cards[c.id] && c.reps > 0 && c.next_review) {
             SD.state.cards[c.id] = { iv: c.interval_days || 1, ef: c.ease_factor || 2.5, reps: c.reps, due: c.next_review, last: c.last_reviewed };
             seeded = true;

@@ -49,7 +49,11 @@
    "interval_days": 3,
    "ease_factor": 2.5,
    "reps": 1,
-   "note": "Variance is model sensitivity, not a property of the data"
+   "note": "Variance is model sensitivity, not a property of the data",
+   "refs": [
+    "esl",
+    "double-descent"
+   ]
   },
   {
    "id": "FND-02",
@@ -63,7 +67,10 @@
    "interval_days": 3,
    "ease_factor": 2.5,
    "reps": 1,
-   "note": "Mechanism needed the gradients"
+   "note": "Mechanism needed the gradients",
+   "refs": [
+    "esl"
+   ]
   },
   {
    "id": "FND-03",
@@ -77,7 +84,10 @@
    "interval_days": 7,
    "ease_factor": 2.5,
    "reps": 2,
-   "note": "Clean"
+   "note": "Clean",
+   "refs": [
+    "dlbook"
+   ]
   },
   {
    "id": "FND-04",
@@ -91,7 +101,10 @@
    "interval_days": 7,
    "ease_factor": 2.5,
    "reps": 2,
-   "note": "Clean"
+   "note": "Clean",
+   "refs": [
+    "dlbook"
+   ]
   },
   {
    "id": "FND-05",
@@ -105,7 +118,10 @@
    "interval_days": 3,
    "ease_factor": 2.5,
    "reps": 1,
-   "note": "Formal definition is about what is modeled"
+   "note": "Formal definition is about what is modeled",
+   "refs": [
+    "ng-jordan"
+   ]
   },
   {
    "id": "FND-06",
@@ -119,7 +135,10 @@
    "interval_days": 3,
    "ease_factor": 2.5,
    "reps": 1,
-   "note": "Observations vs features"
+   "note": "Observations vs features",
+   "refs": [
+    "esl"
+   ]
   },
   {
    "id": "FND-07",
@@ -133,7 +152,11 @@
    "interval_days": 1,
    "ease_factor": 2.5,
    "reps": 1,
-   "note": "Core right (bagging cuts variance, boosting cuts bias; bootstrap with replacement needed a nudge). Missed the probe: Var = rho*sigma^2 + (1-rho)*sigma^2/n, correlation sets a floor, so feature subsampling decorrelates trees. Recited it back cleanly after teaching but not solid cold. Say pairwise correlation."
+   "note": "Core right (bagging cuts variance, boosting cuts bias; bootstrap with replacement needed a nudge). Missed the probe: Var = rho*sigma^2 + (1-rho)*sigma^2/n, correlation sets a floor, so feature subsampling decorrelates trees. Recited it back cleanly after teaching but not solid cold. Say pairwise correlation.",
+   "refs": [
+    "rf",
+    "esl"
+   ]
   },
   {
    "id": "FND-08",
@@ -147,7 +170,11 @@
    "interval_days": 3,
    "ease_factor": 2.5,
    "reps": 1,
-   "note": "Started with volume and compute; corrected to sparsity then distance concentration (nearest and farthest become about equally far, so nearest neighbor loses meaning). Probe: embeddings work because data lies on a low-dimensional manifold and training makes distance meaningful. Open: PCA is linear, autoencoder is the nonlinear version."
+   "note": "Started with volume and compute; corrected to sparsity then distance concentration (nearest and farthest become about equally far, so nearest neighbor loses meaning). Probe: embeddings work because data lies on a low-dimensional manifold and training makes distance meaningful. Open: PCA is linear, autoencoder is the nonlinear version.",
+   "refs": [
+    "beyer-nn",
+    "esl"
+   ]
   },
   {
    "id": "FND-09",
@@ -156,7 +183,10 @@
    "type": "interview",
    "question": "Define both. How do they connect to regularization?",
    "answer": "• MLE: choose parameters maximizing P(data | theta). In practice minimize negative log-likelihood.\n• MAP: maximize P(theta | data), proportional to P(data | theta) * P(theta). Adds a log-prior term.\n• Gaussian prior on weights gives L2; Laplace prior gives L1.\n• MSE is the MLE under Gaussian noise; cross-entropy is the MLE under a Bernoulli or categorical model.",
-   "key_concept": "Probe — Why log-likelihood? Products of probabilities underflow; logs turn them into sums and keep the same argmax."
+   "key_concept": "Probe — Why log-likelihood? Products of probabilities underflow; logs turn them into sums and keep the same argmax.",
+   "refs": [
+    "dlbook"
+   ]
   },
   {
    "id": "FND-10",
@@ -165,7 +195,10 @@
    "type": "interview",
    "question": "Loss, gradient, and why not MSE?",
    "answer": "• p = sigmoid(w^T x). Loss = -[y log p + (1 - y) log(1 - p)].\n• Gradient = (p - y) * x. Clean and convex.\n• MSE with a sigmoid is non-convex and its gradient includes p(1 - p), which vanishes when the model is confidently wrong.\n• Coefficients are log-odds changes per unit of the feature.",
-   "key_concept": "Probe — Perfectly separable data: weights blow up to infinity without regularization."
+   "key_concept": "Probe — Perfectly separable data: weights blow up to infinity without regularization.",
+   "refs": [
+    "esl"
+   ]
   },
   {
    "id": "FND-11",
@@ -174,7 +207,11 @@
    "type": "interview",
    "question": "How are cross-entropy and KL divergence related? What does label smoothing do?",
    "answer": "• Cross-entropy H(p, q) = H(p) + KL(p || q). With fixed true labels, minimizing cross-entropy equals minimizing KL.\n• Softmax plus cross-entropy gradient w.r.t. logits = q - p.\n• Label smoothing mixes the one-hot target with a uniform distribution: each of the K classes gets epsilon / K and the true class gets 1 - epsilon + epsilon / K. Reduces overconfidence, often helps calibration and generalization.\n• KL is asymmetric: forward KL(p || q) is mass-covering, reverse KL(q || p) is mode-seeking.",
-   "key_concept": "Probe — Where does reverse KL show up? Variational inference, and the KL penalty to the reference policy in RLHF."
+   "key_concept": "Probe — Where does reverse KL show up? Variational inference, and the KL penalty to the reference policy in RLHF.",
+   "refs": [
+    "dlbook",
+    "label-smoothing"
+   ]
   },
   {
    "id": "FND-12",
@@ -183,7 +220,12 @@
    "type": "interview",
    "question": "How does gradient boosting actually fit each tree? What do XGBoost and LightGBM add?",
    "answer": "• Each new tree fits the negative gradient of the loss w.r.t. current predictions (pseudo-residuals). For MSE that is the plain residual.\n• Shrinkage (learning rate) scales each tree's contribution.\n• XGBoost: second-order Taylor expansion (gradient and Hessian), L2 on leaf weights, a per-leaf penalty gamma, a closed-form split gain, sparsity-aware splits.\n• LightGBM: histogram binning, leaf-wise growth (faster, can overfit, cap with num_leaves), GOSS sampling, exclusive feature bundling.",
-   "key_concept": "Probe — Why do GBDTs still beat deep nets on most tabular data? Heterogeneous features, irregular decision boundaries, robustness to uninformative features, little tuning. Deep nets win when you have huge sparse ID features or need embeddings."
+   "key_concept": "Probe — Why do GBDTs still beat deep nets on most tabular data? Heterogeneous features, irregular decision boundaries, robustness to uninformative features, little tuning. Deep nets win when you have huge sparse ID features or need embeddings.",
+   "refs": [
+    "xgboost",
+    "lightgbm",
+    "tabular"
+   ]
   },
   {
    "id": "FND-13",
@@ -192,7 +234,11 @@
    "type": "interview",
    "question": "How do trees choose splits? Why is impurity-based feature importance misleading?",
    "answer": "• Classification: maximize reduction in Gini or entropy. Regression: maximize variance reduction.\n• Impurity importance favors high-cardinality and continuous features with many possible split points, and splits credit among correlated features.\n• Prefer permutation importance on a holdout, or SHAP.",
-   "key_concept": "Probe — Permutation importance also misleads with correlated features, since permuting one leaves its twin intact. Permute groups."
+   "key_concept": "Probe — Permutation importance also misleads with correlated features, since permuting one leaves its twin intact. Permute groups.",
+   "refs": [
+    "sk-perm",
+    "shap"
+   ]
   },
   {
    "id": "FND-14",
@@ -201,7 +247,10 @@
    "type": "interview",
    "question": "When is k-fold CV wrong, and what do you use instead?",
    "answer": "• Time series: random folds leak the future. Use forward-chaining (expanding or rolling window) splits.\n• Grouped data (users, sessions): put all rows of a group in the same fold, or you measure memorization.\n• Hyperparameter tuning plus evaluation on the same folds is optimistic; use nested CV or a final untouched test set.",
-   "key_concept": "Probe — At big-tech scale you rarely do k-fold; you do a time-based split plus online A/B. Say why: data is huge and non-stationary."
+   "key_concept": "Probe — At big-tech scale you rarely do k-fold; you do a time-based split plus online A/B. Say why: data is huge and non-stationary.",
+   "refs": [
+    "sk-cv"
+   ]
   },
   {
    "id": "FND-15",
@@ -210,7 +259,10 @@
    "type": "interview",
    "question": "Name the main kinds of leakage and how you catch them.",
    "answer": "• Target leakage: a feature computed from or after the label (for example \"refund issued\" predicting fraud).\n• Temporal leakage: training on data from after the prediction time, or aggregates that include the future.\n• Preprocessing leakage: fitting scalers, imputers, or target encoders on the full dataset before splitting.\n• Entity leakage: the same user or near-duplicate items in train and test.\n• Detection: suspiciously high offline metrics, a single feature dominating importance, a big offline-online gap.",
-   "key_concept": "Probe — Point-in-time correct feature joins (DATA-02) are the systematic fix."
+   "key_concept": "Probe — Point-in-time correct feature joins (DATA-02) are the systematic fix.",
+   "refs": [
+    "sk-pitfalls"
+   ]
   },
   {
    "id": "FND-16",
@@ -219,7 +271,11 @@
    "type": "interview",
    "question": "How do you handle a 0.1% positive rate?",
    "answer": "• Data level: downsample negatives, oversample positives, SMOTE (rarely helps much with modern models).\n• Loss level: class weights, focal loss (down-weights easy examples by (1 - p)^gamma).\n• Evaluation: PR-AUC, recall at fixed precision, cost-based thresholds.\n• If you downsample, correct the predicted probabilities afterward (ADS-03).",
-   "key_concept": "Probe — Weighting and resampling change calibration. If downstream uses the probability (auctions, expected cost), recalibrate."
+   "key_concept": "Probe — Weighting and resampling change calibration. If downstream uses the probability (auctions, expected cost), recalibrate.",
+   "refs": [
+    "focal",
+    "fb-ads"
+   ]
   },
   {
    "id": "FND-17",
@@ -228,7 +284,11 @@
    "type": "interview",
    "question": "What is calibration, how do you measure it, and how do you fix it?",
    "answer": "• Calibrated: among predictions of 0.3, about 30% are positive.\n• Measure: reliability diagram, expected calibration error, calibration ratio (sum of predictions / sum of labels), log loss.\n• Fix: Platt scaling (logistic fit on scores), isotonic regression (non-parametric, needs more data), temperature scaling for neural nets.\n• Matters when the probability is consumed directly: ad auctions (bid x pCTR), expected-cost thresholds, combining multiple model outputs.",
-   "key_concept": "Probe — AUC is invariant to calibration. A model can have great AUC and terrible calibration, which breaks an auction."
+   "key_concept": "Probe — AUC is invariant to calibration. A model can have great AUC and terrible calibration, which breaks an auction.",
+   "refs": [
+    "guo-calib",
+    "sk-calib"
+   ]
   },
   {
    "id": "FND-18",
@@ -237,7 +297,11 @@
    "type": "interview",
    "question": "What does PCA compute and what are its limits?",
    "answer": "• Finds orthogonal directions of maximum variance: eigenvectors of the covariance matrix, computed in practice via SVD of centered data.\n• Keep the top k components by explained variance.\n• Limits: linear only, sensitive to scaling (standardize first), variance is not the same as predictive usefulness.",
-   "key_concept": "Probe — Autoencoders give non-linear dimensionality reduction; a linear autoencoder with MSE recovers the PCA subspace."
+   "key_concept": "Probe — Autoencoders give non-linear dimensionality reduction; a linear autoencoder with MSE recovers the PCA subspace.",
+   "refs": [
+    "sk-pca",
+    "esl"
+   ]
   },
   {
    "id": "FND-19",
@@ -246,7 +310,11 @@
    "type": "interview",
    "question": "Objective, algorithm, and failure modes.",
    "answer": "• Minimizes within-cluster sum of squared distances. Lloyd's algorithm alternates assignment and centroid updates; converges to a local optimum.\n• k-means++ initialization spreads initial centroids and improves results.\n• Fails on non-spherical clusters, very different cluster sizes, and outliers. Choosing k: elbow, silhouette, downstream task.",
-   "key_concept": "Probe — Where does k-means show up in production ML? IVF indexes for ANN search (REC-04) and product quantization codebooks."
+   "key_concept": "Probe — Where does k-means show up in production ML? IVF indexes for ANN search (REC-04) and product quantization codebooks.",
+   "refs": [
+    "sk-kmeans",
+    "faiss"
+   ]
   },
   {
    "id": "STAT-01",
@@ -255,7 +323,10 @@
    "type": "interview",
    "question": "A fraud model has 99% recall and a 1% false positive rate. Fraud prevalence is 0.1%. If it flags a transaction, how likely is it fraud?",
    "answer": "• P(fraud | flag) = (0.99 * 0.001) / (0.99 * 0.001 + 0.01 * 0.999) ≈ 0.00099 / 0.01098 ≈ 9%.\n• Low prevalence makes even a good false positive rate produce mostly false alarms. This is precision.",
-   "key_concept": "Probe — What do you change? Raise the threshold, add a second-stage model, or route flags to human review sized for that volume."
+   "key_concept": "Probe — What do you change? Raise the threshold, add a second-stage model, or route flags to human review sized for that volume.",
+   "refs": [
+    "sk-metrics"
+   ]
   },
   {
    "id": "STAT-02",
@@ -264,7 +335,10 @@
    "type": "interview",
    "question": "What does the CLT say and why does it matter for experiments?",
    "answer": "• The sampling distribution of a mean of many independent samples approaches normal, whatever the underlying distribution (finite variance).\n• Standard error of the mean = sigma / sqrt(n). Halving the error needs 4x the data.\n• Justifies z and t tests on metrics like average watch time.",
-   "key_concept": "Probe — Heavy-tailed metrics (revenue) converge slowly; cap or winsorize, or log-transform, before testing."
+   "key_concept": "Probe — Heavy-tailed metrics (revenue) converge slowly; cap or winsorize, or log-transform, before testing.",
+   "refs": [
+    "kohavi"
+   ]
   },
   {
    "id": "STAT-03",
@@ -273,7 +347,10 @@
    "type": "interview",
    "question": "Define a p-value precisely, and type I and type II errors.",
    "answer": "• p-value: the probability of data at least this extreme if the null hypothesis were true. Not the probability the null is true.\n• Type I: false positive, rate alpha. Type II: false negative, rate beta. Power = 1 - beta.",
-   "key_concept": "Probe — Statistically significant is not practically significant. Report effect size and a confidence interval."
+   "key_concept": "Probe — Statistically significant is not practically significant. Report effect size and a confidence interval.",
+   "refs": [
+    "kohavi"
+   ]
   },
   {
    "id": "STAT-04",
@@ -282,7 +359,10 @@
    "type": "interview",
    "question": "What is the bootstrap and when do you use it?",
    "answer": "• Resample the data with replacement many times, compute the statistic each time, and use that distribution for confidence intervals.\n• Use when no closed-form variance exists: medians, percentiles, NDCG, ratio metrics.",
-   "key_concept": "Probe — Resample the randomization unit (users), not rows, or you understate variance."
+   "key_concept": "Probe — Resample the randomization unit (users), not rows, or you understate variance.",
+   "refs": [
+    "esl"
+   ]
   },
   {
    "id": "STAT-05",
@@ -291,7 +371,11 @@
    "type": "interview",
    "question": "You test 20 metrics at alpha 0.05. What goes wrong and how do you fix it?",
    "answer": "• Expect about one false positive by chance.\n• Bonferroni: alpha / m, controls family-wise error, conservative.\n• Benjamini-Hochberg: controls the false discovery rate, more power.\n• Practical: pre-register one primary metric; treat the rest as guardrails or exploratory.",
-   "key_concept": "Probe — Many simultaneous experiments and segments (\"it won for Android users in Brazil\") are the same problem in disguise."
+   "key_concept": "Probe — Many simultaneous experiments and segments (\"it won for Android users in Brazil\") are the same problem in disguise.",
+   "refs": [
+    "bh",
+    "kohavi"
+   ]
   },
   {
    "id": "OPT-01",
@@ -300,7 +384,12 @@
    "type": "interview",
    "question": "Batch vs stochastic vs mini-batch. Tradeoffs?",
    "answer": "• Batch: exact gradient over all data; slow per step, memory heavy.\n• SGD: one example; noisy, cheap, noise can help escape sharp minima.\n• Mini-batch: the default; vectorizes on GPUs, balances noise and stability.",
-   "key_concept": "Probe — Very large batches can hurt generalization and need learning-rate scaling (linear scaling rule with warmup, or LARS/LAMB)."
+   "key_concept": "Probe — Very large batches can hurt generalization and need learning-rate scaling (linear scaling rule with warmup, or LARS/LAMB).",
+   "refs": [
+    "dlbook",
+    "keskar",
+    "goyal"
+   ]
   },
   {
    "id": "OPT-02",
@@ -309,7 +398,11 @@
    "type": "interview",
    "question": "How do momentum and Adam work? Why is AdamW not the same as Adam with L2?",
    "answer": "• Momentum: exponential average of gradients; smooths updates, speeds through ravines.\n• Adam: first moment m (momentum) and second moment v (squared gradients), with bias correction; update = lr * m_hat / (sqrt(v_hat) + eps). Per-parameter adaptive steps.\n• With L2 inside Adam, the decay gradient is divided by sqrt(v), so parameters with large gradients get less decay. AdamW applies weight decay directly to the weights, decoupled from the adaptive scaling.",
-   "key_concept": "Probe — Adam's memory cost: two extra fp32 states per parameter, which matters for LLM training (DIST-04)."
+   "key_concept": "Probe — Adam's memory cost: two extra fp32 states per parameter, which matters for LLM training (DIST-04).",
+   "refs": [
+    "adam",
+    "adamw"
+   ]
   },
   {
    "id": "OPT-03",
@@ -318,7 +411,11 @@
    "type": "interview",
    "question": "Why warm up? Why cosine decay?",
    "answer": "• Warmup: early on, Adam's second-moment estimates are unreliable and weights are random, so big steps destabilize training (especially transformers and large batches).\n• Decay (cosine, linear, step): large steps explore early, small steps settle into a minimum late.",
-   "key_concept": "Probe — Loss spikes mid-training in LLMs: common responses are lowering LR, gradient clipping, skipping bad batches, restarting from a checkpoint."
+   "key_concept": "Probe — Loss spikes mid-training in LLMs: common responses are lowering LR, gradient clipping, skipping bad batches, restarting from a checkpoint.",
+   "refs": [
+    "attention",
+    "sgdr"
+   ]
   },
   {
    "id": "OPT-04",
@@ -327,7 +424,11 @@
    "type": "interview",
    "question": "Why does initialization matter? Xavier vs He.",
    "answer": "• Bad scale makes activations and gradients explode or vanish across layers.\n• Xavier/Glorot: variance 2 / (fan_in + fan_out); suited to tanh and sigmoid.\n• He: variance 2 / fan_in; compensates ReLU zeroing half its inputs.",
-   "key_concept": "Probe — Why not initialize all weights to zero? Symmetry: every neuron in a layer gets the same gradient and stays identical."
+   "key_concept": "Probe — Why not initialize all weights to zero? Symmetry: every neuron in a layer gets the same gradient and stays identical.",
+   "refs": [
+    "glorot",
+    "he-init"
+   ]
   },
   {
    "id": "OPT-05",
@@ -336,7 +437,10 @@
    "type": "interview",
    "question": "How does dropout behave at train vs inference time?",
    "answer": "• Training: zero each activation with probability p. Inverted dropout scales survivors by 1 / (1 - p) so expected values match.\n• Inference: no dropout, no scaling needed.\n• Interpretation: trains an implicit ensemble of subnetworks; discourages co-adaptation.",
-   "key_concept": "Probe — Large LLM pretraining often uses little or no dropout because there is so much data that overfitting is not the bottleneck."
+   "key_concept": "Probe — Large LLM pretraining often uses little or no dropout because there is so much data that overfitting is not the bottleneck.",
+   "refs": [
+    "dropout"
+   ]
   },
   {
    "id": "OPT-06",
@@ -345,7 +449,10 @@
    "type": "interview",
    "question": "Causes and fixes.",
    "answer": "• Products of large derivatives across layers or time steps, high learning rates, bad initialization.\n• Fixes: gradient clipping by global norm, lower LR, normalization layers, residual connections, careful init.",
-   "key_concept": "Probe — Clipping by global norm keeps the gradient direction; clipping by value per element distorts it."
+   "key_concept": "Probe — Clipping by global norm keeps the gradient direction; clipping by value per element distorts it.",
+   "refs": [
+    "pascanu"
+   ]
   },
   {
    "id": "OPT-07",
@@ -354,7 +461,10 @@
    "type": "interview",
    "question": "fp16 vs bf16, and why loss scaling?",
    "answer": "• fp16: 5 exponent bits, small range; small gradients underflow to zero, so you multiply the loss by a scale factor and unscale before the update.\n• bf16: 8 exponent bits, same range as fp32, less precision; usually no loss scaling needed. Standard on modern accelerators.\n• Keep fp32 master weights and optimizer states for stable updates.",
-   "key_concept": "Probe — fp8 training is emerging; it needs per-tensor scaling and careful choice of which ops stay in higher precision."
+   "key_concept": "Probe — fp8 training is emerging; it needs per-tensor scaling and careful choice of which ops stay in higher precision.",
+   "refs": [
+    "amp"
+   ]
   },
   {
    "id": "OPT-08",
@@ -363,7 +473,10 @@
    "type": "interview",
    "question": "List regularization methods beyond L1 and L2.",
    "answer": "• Dropout, early stopping, data augmentation, weight decay, label smoothing, mixup and cutmix, smaller models, ensembling, noise injection, stochastic depth.",
-   "key_concept": "Probe — Early stopping is roughly equivalent to L2 regularization for linear models with gradient descent."
+   "key_concept": "Probe — Early stopping is roughly equivalent to L2 regularization for linear models with gradient descent.",
+   "refs": [
+    "dlbook"
+   ]
   },
   {
    "id": "DL-01",
@@ -377,7 +490,11 @@
    "interval_days": 1,
    "ease_factor": 2.5,
    "reps": 1,
-   "note": "Did not recall"
+   "note": "Did not recall",
+   "refs": [
+    "pascanu",
+    "resnet"
+   ]
   },
   {
    "id": "DL-02",
@@ -391,7 +508,11 @@
    "interval_days": 1,
    "ease_factor": 2.5,
    "reps": 1,
-   "note": "Wrong axis"
+   "note": "Wrong axis",
+   "refs": [
+    "batchnorm",
+    "layernorm"
+   ]
   },
   {
    "id": "DL-03",
@@ -400,7 +521,10 @@
    "type": "interview",
    "question": "Why do residual connections let you train very deep networks?",
    "answer": "• Output = x + F(x). Layers learn a correction to the identity, which is easy to make near zero.\n• Gradients flow through the identity path, avoiding vanishing.",
-   "key_concept": "Probe — Transformers rely on them as a \"residual stream\" that every layer reads from and writes to, which is also how interpretability research frames the model."
+   "key_concept": "Probe — Transformers rely on them as a \"residual stream\" that every layer reads from and writes to, which is also how interpretability research frames the model.",
+   "refs": [
+    "resnet"
+   ]
   },
   {
    "id": "DL-04",
@@ -409,7 +533,11 @@
    "type": "interview",
    "question": "ReLU, dying ReLU, GELU, SwiGLU.",
    "answer": "• ReLU: max(0, x); cheap, no saturation for positives. Dying ReLU: neurons stuck outputting 0 if pushed negative; Leaky ReLU helps.\n• GELU: smooth, x * Phi(x); common in BERT and GPT.\n• SwiGLU: gated linear unit with a Swish gate; used in many modern LLM MLP blocks, better quality per parameter.",
-   "key_concept": "Probe — Why are sigmoids still used? Output layers for probabilities and gates inside LSTMs and GLUs."
+   "key_concept": "Probe — Why are sigmoids still used? Output layers for probabilities and gates inside LSTMs and GLUs.",
+   "refs": [
+    "gelu",
+    "glu"
+   ]
   },
   {
    "id": "DL-05",
@@ -418,7 +546,11 @@
    "type": "interview",
    "question": "What inductive biases do CNNs encode?",
    "answer": "• Locality (small kernels), weight sharing (same filter everywhere), translation equivariance; pooling adds some invariance.\n• Receptive field grows with depth.",
-   "key_concept": "Probe — Vision transformers have weaker inductive bias, so they need more data or pretraining but scale better."
+   "key_concept": "Probe — Vision transformers have weaker inductive bias, so they need more data or pretraining but scale better.",
+   "refs": [
+    "dlbook",
+    "vit"
+   ]
   },
   {
    "id": "DL-06",
@@ -427,7 +559,12 @@
    "type": "interview",
    "question": "How do LSTMs address vanishing gradients, and why did transformers replace them?",
    "answer": "• LSTM: a cell state with additive updates controlled by forget, input, and output gates, so information and gradients persist over many steps.\n• Transformers: parallel across the sequence during training, direct attention between any two positions, scale far better.",
-   "key_concept": "Probe — State-space models (Mamba) revisit recurrence for linear-time long sequences."
+   "key_concept": "Probe — State-space models (Mamba) revisit recurrence for linear-time long sequences.",
+   "refs": [
+    "lstm",
+    "attention",
+    "mamba"
+   ]
   },
   {
    "id": "DL-07",
@@ -436,7 +573,11 @@
    "type": "interview",
    "question": "What is an embedding table, and how do you handle billions of IDs?",
    "answer": "• A learned lookup from a categorical ID to a dense vector, trained end to end.\n• High cardinality: hashing trick (collisions trade accuracy for memory), frequency thresholds with an OOV bucket, multiple hash functions, compositional embeddings.\n• Embedding tables can dominate recsys model size; they are sharded across machines (DIST-06).",
-   "key_concept": "Probe — New IDs have untrained embeddings: fall back to content features or a default vector (cold start, REC-06)."
+   "key_concept": "Probe — New IDs have untrained embeddings: fall back to content features or a default vector (cold start, REC-06).",
+   "refs": [
+    "hashing",
+    "dlrm"
+   ]
   },
   {
    "id": "DL-08",
@@ -445,7 +586,11 @@
    "type": "interview",
    "question": "Explain InfoNCE and in-batch negatives.",
    "answer": "• Pull positive pairs together, push negatives apart. InfoNCE: softmax over similarity of the positive vs negatives, divided by temperature tau.\n• In-batch negatives: other examples in the batch serve as negatives; bigger batches give more and harder negatives.\n• Lower temperature sharpens the distribution and focuses on hard negatives.\n• Examples: CLIP (image-text), SimCLR, two-tower retrieval.",
-   "key_concept": "Probe — In-batch negatives oversample popular items; correct with logQ (DATA-03)."
+   "key_concept": "Probe — In-batch negatives oversample popular items; correct with logQ (DATA-03).",
+   "refs": [
+    "cpc",
+    "clip"
+   ]
   },
   {
    "id": "DL-09",
@@ -454,7 +599,10 @@
    "type": "interview",
    "question": "How does distillation work and why use it?",
    "answer": "• Train a small student to match a large teacher's softened outputs (softmax at temperature T), often mixed with the true-label loss.\n• Soft targets carry \"dark knowledge\" about class similarity.\n• Use: meet serving latency budgets, compress LLMs, distill an expensive ranker into a cheaper pre-ranker.",
-   "key_concept": "Probe — The T^2 factor keeps gradient magnitudes comparable when using a temperature."
+   "key_concept": "Probe — The T^2 factor keeps gradient magnitudes comparable when using a temperature.",
+   "refs": [
+    "distill"
+   ]
   },
   {
    "id": "LLM-01",
@@ -463,7 +611,10 @@
    "type": "interview",
    "question": "Write scaled dot-product attention. Why divide by sqrt(d_k)?",
    "answer": "• Attention(Q, K, V) = softmax(Q K^T / sqrt(d_k)) V, with Q, K, V linear projections of the input.\n• Dot products of random d_k-dimensional vectors have variance about d_k. Without scaling, logits grow large, softmax saturates, and gradients vanish.",
-   "key_concept": "Probe — Decoder models add a causal mask (negative infinity above the diagonal) so position i cannot see later tokens."
+   "key_concept": "Probe — Decoder models add a causal mask (negative infinity above the diagonal) so position i cannot see later tokens.",
+   "refs": [
+    "attention"
+   ]
   },
   {
    "id": "LLM-02",
@@ -472,7 +623,11 @@
    "type": "interview",
    "question": "Why multiple heads? What are multi-query and grouped-query attention for?",
    "answer": "• Multiple heads attend to different subspaces and relations in parallel.\n• MQA: all query heads share one K and V head. GQA: query heads share K and V within groups.\n• Purpose: shrink the KV cache and memory bandwidth at inference, with small quality loss (GQA is the common compromise).",
-   "key_concept": "Probe — Quantify it: GQA with 8 KV heads instead of 64 cuts KV cache memory 8x."
+   "key_concept": "Probe — Quantify it: GQA with 8 KV heads instead of 64 cuts KV cache memory 8x.",
+   "refs": [
+    "attention",
+    "gqa"
+   ]
   },
   {
    "id": "LLM-03",
@@ -481,7 +636,12 @@
    "type": "interview",
    "question": "Sinusoidal, learned, RoPE, ALiBi.",
    "answer": "• Self-attention without position information is permutation-equivariant: shuffle the input tokens and the outputs shuffle the same way, so word order carries no signal. Position must be injected.\n• Sinusoidal: fixed functions added to embeddings. Learned: trainable vectors, bad at lengths beyond training.\n• RoPE: rotates Q and K by position-dependent angles so their dot product depends on relative position. Standard in modern LLMs; context extension via scaling tricks.\n• ALiBi: adds a linear distance penalty to attention logits; extrapolates well.",
-   "key_concept": "Probe — Long-context extension methods (position interpolation, YaRN) rescale RoPE frequencies, then fine-tune briefly."
+   "key_concept": "Probe — Long-context extension methods (position interpolation, YaRN) rescale RoPE frequencies, then fine-tune briefly.",
+   "refs": [
+    "attention",
+    "rope",
+    "alibi"
+   ]
   },
   {
    "id": "LLM-04",
@@ -490,7 +650,10 @@
    "type": "interview",
    "question": "What is the complexity of attention, and what does FlashAttention change?",
    "answer": "• Time O(n^2 d), memory O(n^2) to materialize the attention matrix.\n• FlashAttention computes exact attention in tiles held in fast on-chip SRAM, with an online softmax, never writing the n x n matrix to HBM. Memory O(n), much faster because attention is memory-bandwidth bound.\n• It is exact, not an approximation.",
-   "key_concept": "Probe — Approximate methods (sparse, linear attention) reduce FLOPs but often lose quality; IO-awareness was the bigger practical win."
+   "key_concept": "Probe — Approximate methods (sparse, linear attention) reduce FLOPs but often lose quality; IO-awareness was the bigger practical win.",
+   "refs": [
+    "flash"
+   ]
   },
   {
    "id": "LLM-05",
@@ -499,7 +662,11 @@
    "type": "interview",
    "question": "Encoder-only vs decoder-only vs encoder-decoder.",
    "answer": "• Encoder-only (BERT): bidirectional, masked-LM pretraining; strong for classification, embeddings, retrieval.\n• Decoder-only (GPT-style, which is what current chat LLMs are): causal, next-token prediction; generation, and scales simply.\n• Encoder-decoder (T5): encoder reads input, decoder generates with cross-attention; translation, summarization.",
-   "key_concept": "Probe — Why did decoder-only win for general LLMs? One objective uses every token, simple scaling, and in-context learning covers most tasks."
+   "key_concept": "Probe — Why did decoder-only win for general LLMs? One objective uses every token, simple scaling, and in-context learning covers most tasks.",
+   "refs": [
+    "attention",
+    "bert"
+   ]
   },
   {
    "id": "LLM-06",
@@ -508,7 +675,10 @@
    "type": "interview",
    "question": "How does BPE work, and what problems does tokenization cause?",
    "answer": "• BPE: start from bytes or characters, repeatedly merge the most frequent adjacent pair into a new token until the vocab size is reached.\n• Problems: arithmetic and spelling (numbers and words split oddly), non-English text costs more tokens per word (cost and context length), glitch tokens.",
-   "key_concept": "Probe — Vocab size tradeoff: bigger vocab means shorter sequences but a larger embedding and output softmax."
+   "key_concept": "Probe — Vocab size tradeoff: bigger vocab means shorter sequences but a larger embedding and output softmax.",
+   "refs": [
+    "bpe"
+   ]
   },
   {
    "id": "LLM-07",
@@ -517,7 +687,10 @@
    "type": "interview",
    "question": "What is the pretraining loss, and what is perplexity?",
    "answer": "• Next-token cross-entropy averaged over tokens.\n• Perplexity = exp(average negative log-likelihood per token): the effective number of equally likely choices.",
-   "key_concept": "Probe — Perplexity is not comparable across different tokenizers, and lower perplexity does not guarantee better downstream behavior."
+   "key_concept": "Probe — Perplexity is not comparable across different tokenizers, and lower perplexity does not guarantee better downstream behavior.",
+   "refs": [
+    "dlbook"
+   ]
   },
   {
    "id": "LLM-08",
@@ -526,7 +699,12 @@
    "type": "interview",
    "question": "What do scaling laws say, and what changed with Chinchilla?",
    "answer": "• Loss falls as a power law in parameters, data, and compute.\n• Kaplan et al. (2020) suggested scaling parameters faster than data. Chinchilla (Hoffmann et al. 2022) found compute-optimal training scales them roughly equally, about 20 tokens per parameter.\n• In practice models are trained well past Chinchilla-optimal because inference cost depends on model size, so a smaller model trained longer is cheaper to serve.",
-   "key_concept": "Probe — Emergent abilities may partly be an artifact of discontinuous metrics; smooth metrics show smoother improvement."
+   "key_concept": "Probe — Emergent abilities may partly be an artifact of discontinuous metrics; smooth metrics show smoother improvement.",
+   "refs": [
+    "kaplan",
+    "chinchilla",
+    "mirage"
+   ]
   },
   {
    "id": "LLM-09",
@@ -535,7 +713,12 @@
    "type": "interview",
    "question": "How does LoRA work? When fine-tune vs prompt vs RAG?",
    "answer": "• LoRA: freeze W, learn a low-rank update delta W = B A with rank r much smaller than d. B starts at zero so training starts at the base model. Scale by alpha / r. Trainable parameters drop by orders of magnitude; adapters can be swapped at serve time.\n• QLoRA: LoRA on a 4-bit quantized base model.\n• Prompting: fastest, no training. RAG: fresh or private knowledge with citations. Fine-tuning: change behavior, format, style, or domain skill.",
-   "key_concept": "Probe — Fine-tuning is a poor way to add facts; it tends to teach format and can increase hallucination on new facts."
+   "key_concept": "Probe — Fine-tuning is a poor way to add facts; it tends to teach format and can increase hallucination on new facts.",
+   "refs": [
+    "lora",
+    "qlora",
+    "gekhman"
+   ]
   },
   {
    "id": "LLM-10",
@@ -544,7 +727,11 @@
    "type": "interview",
    "question": "Walk through the RLHF pipeline and its failure modes.",
    "answer": "• SFT on demonstrations, then a reward model trained on pairwise human preferences (Bradley-Terry: P(a preferred over b) = sigmoid(r(a) - r(b))), then optimize the policy with PPO against the reward minus a KL penalty to the SFT reference.\n• The KL penalty keeps the policy near the reference, preventing it from exploiting reward-model errors and from losing fluency.\n• Failure modes: reward hacking, sycophancy, verbosity bias, mode collapse and lost diversity.",
-   "key_concept": "Probe — RLAIF and Constitutional AI (Anthropic) replace some human labels with AI feedback guided by written principles."
+   "key_concept": "Probe — RLAIF and Constitutional AI (Anthropic) replace some human labels with AI feedback guided by written principles.",
+   "refs": [
+    "instructgpt",
+    "cai"
+   ]
   },
   {
    "id": "LLM-11",
@@ -553,7 +740,10 @@
    "type": "interview",
    "question": "What is DPO and how does it differ from PPO-based RLHF?",
    "answer": "• Direct Preference Optimization skips the explicit reward model and RL loop. Loss: -log sigmoid(beta * [log(pi(y_w|x)/pi_ref(y_w|x)) - log(pi(y_l|x)/pi_ref(y_l|x))]).\n• Simpler and more stable; offline on a fixed preference dataset.\n• Tradeoffs: no online exploration, can overfit preference data; online RL methods can still win at scale.",
-   "key_concept": "Probe — Beta plays the role of the KL penalty strength."
+   "key_concept": "Probe — Beta plays the role of the KL penalty strength.",
+   "refs": [
+    "dpo"
+   ]
   },
   {
    "id": "LLM-12",
@@ -562,7 +752,10 @@
    "type": "interview",
    "question": "Greedy, beam search, temperature, top-k, top-p.",
    "answer": "• Greedy: argmax each step; repetitive. Beam: keeps top b sequences; good for translation, bland for open-ended text.\n• Temperature: divide logits by T; lower is sharper, higher is more diverse.\n• Top-k: sample from the k most likely. Top-p (nucleus): sample from the smallest set whose probability sums to p, so it adapts to confidence.",
-   "key_concept": "Probe — For evals, sample multiple times at nonzero temperature and report variance, or you mistake noise for improvement."
+   "key_concept": "Probe — For evals, sample multiple times at nonzero temperature and report variance, or you mistake noise for improvement.",
+   "refs": [
+    "nucleus"
+   ]
   },
   {
    "id": "LLM-13",
@@ -571,7 +764,11 @@
    "type": "interview",
    "question": "What is cached, and how big is it?",
    "answer": "• Keys and values of past tokens at every layer, so each new token only computes its own Q, K, V.\n• Memory ≈ 2 x layers x kv_heads x head_dim x seq_len x batch x bytes per value.\n• Example: 80 layers, 8 KV heads, head dim 128, 32k tokens, bf16: 2 x 80 x 8 x 128 x 32768 x 2 bytes ≈ 10.7 GB per sequence.",
-   "key_concept": "Probe — KV cache, not weights, often caps batch size and therefore throughput. Fixes: GQA, KV quantization, paging, prefix caching."
+   "key_concept": "Probe — KV cache, not weights, often caps batch size and therefore throughput. Fixes: GQA, KV quantization, paging, prefix caching.",
+   "refs": [
+    "vllm",
+    "gqa"
+   ]
   },
   {
    "id": "LLM-14",
@@ -580,7 +777,10 @@
    "type": "interview",
    "question": "Why are prefill and decode different, and what metrics do you track?",
    "answer": "• Prefill processes the whole prompt in parallel: compute-bound.\n• Decode generates one token at a time, rereading all weights and the KV cache per step: memory-bandwidth-bound.\n• Metrics: time to first token (prefill-driven), time per output token or inter-token latency (decode-driven), throughput in tokens per second, cost per million tokens, p50 and p99 latency.",
-   "key_concept": "Probe — Disaggregated serving runs prefill and decode on separate pools because they want different hardware tradeoffs."
+   "key_concept": "Probe — Disaggregated serving runs prefill and decode on separate pools because they want different hardware tradeoffs.",
+   "refs": [
+    "vllm"
+   ]
   },
   {
    "id": "LLM-15",
@@ -589,7 +789,10 @@
    "type": "interview",
    "question": "How do these raise serving throughput?",
    "answer": "• Static batching waits for the longest sequence. Continuous (in-flight) batching adds and removes requests at every decode step, keeping the GPU full.\n• PagedAttention (vLLM): stores the KV cache in fixed-size blocks like virtual memory pages, eliminating fragmentation and enabling sharing of common prefixes.",
-   "key_concept": "Probe — Prefix caching reuses the KV cache for shared system prompts, cutting time to first token and cost."
+   "key_concept": "Probe — Prefix caching reuses the KV cache for shared system prompts, cutting time to first token and cost.",
+   "refs": [
+    "vllm"
+   ]
   },
   {
    "id": "LLM-16",
@@ -598,7 +801,11 @@
    "type": "interview",
    "question": "How does it work and why is it lossless?",
    "answer": "• A cheap draft model proposes k tokens; the big model verifies all k in one parallel forward pass.\n• Accept tokens with a rejection-sampling rule that provably preserves the target model's distribution; on rejection, resample from the corrected distribution.\n• Speedup depends on acceptance rate; it trades extra compute for fewer sequential steps, which helps because decode is bandwidth-bound.",
-   "key_concept": "Probe — Variants: self-speculation with extra heads (Medusa), n-gram lookup drafts for repetitive text like code edits."
+   "key_concept": "Probe — Variants: self-speculation with extra heads (Medusa), n-gram lookup drafts for repetitive text like code edits.",
+   "refs": [
+    "specdec",
+    "medusa"
+   ]
   },
   {
    "id": "LLM-17",
@@ -607,7 +814,11 @@
    "type": "interview",
    "question": "What gets quantized, and what are the tradeoffs?",
    "answer": "• Weight-only (int8, int4 via GPTQ or AWQ) cuts memory and bandwidth, which speeds decode. Activation quantization (int8, fp8) speeds compute-bound work but outliers make it harder.\n• KV cache quantization raises max batch size.\n• Tradeoff: quality loss grows at lower bits and hits small models and reasoning tasks harder. Evaluate on your own tasks, not just perplexity.",
-   "key_concept": "Probe — Outlier features in activations are why naive int8 failed; methods like SmoothQuant shift difficulty from activations into weights."
+   "key_concept": "Probe — Outlier features in activations are why naive int8 failed; methods like SmoothQuant shift difficulty from activations into weights.",
+   "refs": [
+    "gptq",
+    "smoothquant"
+   ]
   },
   {
    "id": "LLM-18",
@@ -616,7 +827,10 @@
    "type": "interview",
    "question": "How do MoE models work, and what are the systems tradeoffs?",
    "answer": "• Replace the MLP with many experts; a router picks the top-k experts per token. Total parameters are large, active parameters per token are small.\n• Needs a load-balancing loss so tokens do not collapse onto a few experts.\n• Systems: all parameters must be in memory; expert parallelism requires all-to-all communication; batching is less efficient at low traffic.",
-   "key_concept": "Probe — MoE lowers FLOPs per token but not memory, so it helps compute-bound settings more than memory-bound small-batch serving."
+   "key_concept": "Probe — MoE lowers FLOPs per token but not memory, so it helps compute-bound settings more than memory-bound small-batch serving.",
+   "refs": [
+    "switch"
+   ]
   },
   {
    "id": "LLM-19",
@@ -625,7 +839,11 @@
    "type": "interview",
    "question": "Design a RAG pipeline and name its failure modes.",
    "answer": "• Ingest and chunk documents, embed, store in a vector index (often hybrid with BM25), retrieve top-k, rerank with a cross-encoder, put in the prompt, generate with citations.\n• Failure modes: bad chunking splits answers, retrieval misses (recall problem), irrelevant context distracts the model, the model ignores context or hallucinates beyond it, stale index.\n• Evaluate separately: retrieval recall@k and MRR, then answer faithfulness and correctness.",
-   "key_concept": "Probe — Long-context models do not remove RAG: cost, latency, and freshness, plus accuracy drops for information in the middle of long contexts."
+   "key_concept": "Probe — Long-context models do not remove RAG: cost, latency, and freshness, plus accuracy drops for information in the middle of long contexts.",
+   "refs": [
+    "rag",
+    "lost-middle"
+   ]
   },
   {
    "id": "LLM-20",
@@ -634,7 +852,11 @@
    "type": "interview",
    "question": "How do you evaluate an LLM or an LLM product, and what are the pitfalls?",
    "answer": "• Layers: static benchmarks, task-specific golden sets, LLM-as-judge with rubrics, human evaluation, online metrics (task success, retention, thumbs, escalation rate).\n• Pitfalls: benchmark contamination; LLM-judge biases (position, verbosity, self-preference), so randomize order, use pairwise comparisons, calibrate against humans; small eval sets give noisy results.\n• Code: pass@k (probability at least one of k samples passes the tests).\n• Report confidence intervals; run multiple seeds and samples.",
-   "key_concept": "Probe — How do you know your judge is good? Measure agreement with expert human labels on a held-out set, and track it over time."
+   "key_concept": "Probe — How do you know your judge is good? Measure agreement with expert human labels on a held-out set, and track it over time.",
+   "refs": [
+    "judge",
+    "codex"
+   ]
   },
   {
    "id": "LLM-21",
@@ -643,7 +865,10 @@
    "type": "interview",
    "question": "Why do LLMs hallucinate, and how do you reduce it?",
    "answer": "• The objective rewards plausible continuations, not truth; rare facts are poorly learned; training can reward confident answers over abstaining.\n• Mitigations: retrieval grounding with citations, training to abstain or express uncertainty, verification steps, constrained decoding for structured outputs, evals that score \"I don't know\" correctly.",
-   "key_concept": "Probe — How do you measure it? Factuality evals on questions with known answers, citation-faithfulness checks, and calibration of stated confidence."
+   "key_concept": "Probe — How do you measure it? Factuality evals on questions with known answers, citation-faithfulness checks, and calibration of stated confidence.",
+   "refs": [
+    "hallu-survey"
+   ]
   },
   {
    "id": "LLM-22",
@@ -652,7 +877,11 @@
    "type": "interview",
    "question": "What is superposition, how do sparse autoencoders help, and what do safety evals look at?",
    "answer": "• Superposition: models represent more features than they have dimensions by packing them in nearly orthogonal directions, so individual neurons are polysemantic.\n• Sparse autoencoders (dictionary learning) decompose activations into many sparse, more interpretable features.\n• Safety evals: red-teaming, jailbreak robustness, dangerous-capability evals, honesty and sycophancy evals, behavior under distribution shift.",
-   "key_concept": "Probe — Why does this matter to an MLE, not just researchers? You may build the eval infrastructure, data pipelines, and monitoring that these depend on; read Anthropic's published work before an interview there."
+   "key_concept": "Probe — Why does this matter to an MLE, not just researchers? You may build the eval infrastructure, data pipelines, and monitoring that these depend on; read Anthropic's published work before an interview there.",
+   "refs": [
+    "superposition",
+    "monosemantic"
+   ]
   },
   {
    "id": "EVAL-01",
@@ -666,7 +895,10 @@
    "interval_days": 7,
    "ease_factor": 2.5,
    "reps": 2,
-   "note": "Clean"
+   "note": "Clean",
+   "refs": [
+    "sk-metrics"
+   ]
   },
   {
    "id": "EVAL-02",
@@ -680,7 +912,10 @@
    "interval_days": 3,
    "ease_factor": 2.5,
    "reps": 1,
-   "note": "Definitions blurred at first"
+   "note": "Definitions blurred at first",
+   "refs": [
+    "sk-metrics"
+   ]
   },
   {
    "id": "EVAL-03",
@@ -694,7 +929,10 @@
    "interval_days": 7,
    "ease_factor": 2.5,
    "reps": 2,
-   "note": "Good cost reasoning"
+   "note": "Good cost reasoning",
+   "refs": [
+    "elkan"
+   ]
   },
   {
    "id": "EVAL-04",
@@ -708,7 +946,10 @@
    "interval_days": 7,
    "ease_factor": 2.5,
    "reps": 2,
-   "note": "Clean"
+   "note": "Clean",
+   "refs": [
+    "sk-metrics"
+   ]
   },
   {
    "id": "EVAL-05",
@@ -722,7 +963,11 @@
    "interval_days": 1,
    "ease_factor": 2.5,
    "reps": 1,
-   "note": "Reached for ROC"
+   "note": "Reached for ROC",
+   "refs": [
+    "davis-pr",
+    "saito-pr"
+   ]
   },
   {
    "id": "EVAL-06",
@@ -736,7 +981,11 @@
    "interval_days": 1,
    "ease_factor": 2.5,
    "reps": 1,
-   "note": "New material"
+   "note": "New material",
+   "refs": [
+    "sk-metrics",
+    "fpp"
+   ]
   },
   {
    "id": "EVAL-07",
@@ -745,7 +994,11 @@
    "type": "interview",
    "question": "Give the probabilistic interpretation of ROC-AUC and what it does not tell you.",
    "answer": "• The probability that a random positive is scored above a random negative. Threshold-free; only the ranking matters.\n• Does not measure calibration, and a global AUC can hide poor ranking within each user (what matters for feeds).",
-   "key_concept": "Probe — Use per-user AUC (GAUC) averaged over users for recommenders."
+   "key_concept": "Probe — Use per-user AUC (GAUC) averaged over users for recommenders.",
+   "refs": [
+    "sk-metrics",
+    "din"
+   ]
   },
   {
    "id": "EVAL-08",
@@ -754,7 +1007,10 @@
    "type": "interview",
    "question": "Write DCG and NDCG. Why the log discount?",
    "answer": "• DCG@K = sum over i = 1..K of (2^rel_i - 1) / log2(i + 1).\n• NDCG@K = DCG@K / IDCG@K, where IDCG is the DCG of the ideal ordering. Ranges from 0 to 1.\n• The log discount models users paying less attention lower in the list; graded relevance rewards putting the best items first.",
-   "key_concept": "Probe — NDCG needs graded relevance labels; with implicit feedback you derive grades from signals (click 1, long watch 2, purchase 3), which is a modeling choice you should defend."
+   "key_concept": "Probe — NDCG needs graded relevance labels; with implicit feedback you derive grades from signals (click 1, long watch 2, purchase 3), which is a modeling choice you should defend.",
+   "refs": [
+    "ndcg"
+   ]
   },
   {
    "id": "EVAL-09",
@@ -763,7 +1019,10 @@
    "type": "interview",
    "question": "Which metrics fit candidate generation vs final ranking?",
    "answer": "• Candidate generation: Recall@K (did the good items make it into the few hundred candidates?); ordering matters little.\n• Ranking: NDCG@K, MAP, MRR (order matters, top positions dominate).",
-   "key_concept": "Probe — A ranker cannot recover items the retriever dropped, so retrieval recall upper-bounds final quality."
+   "key_concept": "Probe — A ranker cannot recover items the retriever dropped, so retrieval recall upper-bounds final quality.",
+   "refs": [
+    "yt-dnn"
+   ]
   },
   {
    "id": "EVAL-10",
@@ -772,7 +1031,11 @@
    "type": "interview",
    "question": "Why is log loss the main offline metric for CTR models, and what is normalized entropy?",
    "answer": "• CTR feeds auctions and value models, so you need calibrated probabilities; log loss rewards both ranking and calibration.\n• Normalized entropy (Facebook) = model log loss / log loss of always predicting the average CTR. Lower is better; it makes results comparable across datasets with different base rates.",
-   "key_concept": "Probe — How big an improvement matters? At large ad scale, relative gains of a fraction of a percent in log loss or NE are treated as meaningful; the Wide & Deep and DCN papers say the same of 0.1% in offline AUC or log loss. Say which holdout and what confidence interval you would need before believing it."
+   "key_concept": "Probe — How big an improvement matters? At large ad scale, relative gains of a fraction of a percent in log loss or NE are treated as meaningful; the Wide & Deep and DCN papers say the same of 0.1% in offline AUC or log loss. Say which holdout and what confidence interval you would need before believing it.",
+   "refs": [
+    "fb-ads",
+    "widedeep"
+   ]
   },
   {
    "id": "EVAL-11",
@@ -781,7 +1044,11 @@
    "type": "interview",
    "question": "Your offline NDCG went up but the A/B test is flat. Why, and what do you do?",
    "answer": "• Logged data only shows what the old system chose (selection bias); offline labels miss long-term effects; the metric does not match the business objective; training-serving skew; position bias in labels.\n• Tools: counterfactual or off-policy evaluation with inverse propensity scoring (needs logged propensities, high variance), interleaving for fast ranker comparisons, better proxy metrics correlated with long-term outcomes.",
-   "key_concept": "Probe — Log propensities (the probability the old policy showed each item) at serving time; without them off-policy evaluation is impossible."
+   "key_concept": "Probe — Log propensities (the probability the old policy showed each item) at serving time; without them off-policy evaluation is impossible.",
+   "refs": [
+    "joachims-ips",
+    "nflx-interleave"
+   ]
   },
   {
    "id": "EVAL-12",
@@ -790,7 +1057,11 @@
    "type": "interview",
    "question": "What should you measure besides relevance?",
    "answer": "• Diversity (intra-list dissimilarity), novelty, catalog coverage, serendipity, freshness, creator-side fairness.\n• Long-term: retention, satisfaction surveys, churn. Netflix-style framing: optimize long-term member satisfaction, not just clicks.",
-   "key_concept": "Probe — Optimizing short-term engagement can create clickbait and filter bubbles; long-term holdouts reveal it."
+   "key_concept": "Probe — Optimizing short-term engagement can create clickbait and filter bubbles; long-term holdouts reveal it.",
+   "refs": [
+    "kaminskas",
+    "nflx-recsys"
+   ]
   },
   {
    "id": "EXP-01",
@@ -799,7 +1070,10 @@
    "type": "interview",
    "question": "Walk through designing an A/B test for a new ranking model, including sample size.",
    "answer": "• Hypothesis; randomization unit (usually user); primary metric; guardrails (latency, crashes, revenue, unsubscribes); duration covering weekly cycles.\n• Sample size per arm ≈ 16 sigma^2 / delta^2 for alpha 0.05 two-sided and 80% power, where delta is the minimum detectable effect.\n• Decide stopping rules before launch.",
-   "key_concept": "Probe — If the required sample is too large, reduce variance (EXP-03), choose a more sensitive metric, or use interleaving (EXP-07)."
+   "key_concept": "Probe — If the required sample is too large, reduce variance (EXP-03), choose a more sensitive metric, or use interleaving (EXP-07).",
+   "refs": [
+    "kohavi"
+   ]
   },
   {
    "id": "EXP-02",
@@ -808,7 +1082,11 @@
    "type": "interview",
    "question": "Why is checking results daily and stopping at significance a problem?",
    "answer": "• Each look is another chance for a false positive; repeated peeking inflates type I error far above alpha.\n• Fixes: fixed horizon, group sequential designs with alpha spending, always-valid inference (mSPRT), Bayesian approaches with care.",
-   "key_concept": "Probe — Sequential methods trade some power for the right to stop early, useful for catching harmful launches fast."
+   "key_concept": "Probe — Sequential methods trade some power for the right to stop early, useful for catching harmful launches fast.",
+   "refs": [
+    "msprt",
+    "kohavi"
+   ]
   },
   {
    "id": "EXP-03",
@@ -817,7 +1095,10 @@
    "type": "interview",
    "question": "How does CUPED reduce variance?",
    "answer": "• Use a pre-experiment covariate X (often the same metric before the test): Y_adj = Y - theta * (X - mean(X)), theta = cov(Y, X) / var(X).\n• Unbiased because X is independent of treatment; the variance is multiplied by (1 - rho^2), where rho is the correlation between X and Y. A correlation of 0.7 roughly halves it.",
-   "key_concept": "Probe — New users have no pre-period data; use other covariates or accept less reduction for them."
+   "key_concept": "Probe — New users have no pre-period data; use other covariates or accept less reduction for them.",
+   "refs": [
+    "cuped"
+   ]
   },
   {
    "id": "EXP-04",
@@ -826,7 +1107,10 @@
    "type": "interview",
    "question": "When does user-level randomization break?",
    "answer": "• When treatment of one unit affects others (violates SUTVA): marketplaces (shared supply), social networks (sharing), ads budgets, ride-sharing.\n• Fixes: cluster randomization (graph clusters, geography), switchback experiments (alternate treatment over time windows), budget-split designs for ads.",
-   "key_concept": "Probe — People You May Know is a classic case: recommendations change the graph that both arms use."
+   "key_concept": "Probe — People You May Know is a classic case: recommendations change the graph that both arms use.",
+   "refs": [
+    "kohavi"
+   ]
   },
   {
    "id": "EXP-05",
@@ -835,7 +1119,10 @@
    "type": "interview",
    "question": "Why can early A/B results mislead?",
    "answer": "• Novelty: users engage with anything new, then it fades. Primacy: users resist change at first.\n• Check effects over time, look at new vs returning users, run long-term holdouts.",
-   "key_concept": "Probe — Surrogate metrics (short-term signals validated to predict long-term retention) let you decide sooner."
+   "key_concept": "Probe — Surrogate metrics (short-term signals validated to predict long-term retention) let you decide sooner.",
+   "refs": [
+    "kohavi"
+   ]
   },
   {
    "id": "EXP-06",
@@ -844,7 +1131,10 @@
    "type": "interview",
    "question": "You planned 50/50 but got 50.6/49.4 with millions of users. What now?",
    "answer": "• Run a chi-square test; with millions of users that gap is highly significant, so assignment or logging is broken (bot filtering, redirects, crashes in one arm, caching).\n• Do not trust any metric until fixed.",
-   "key_concept": "Probe — SRM is the first automated check a mature experimentation platform runs."
+   "key_concept": "Probe — SRM is the first automated check a mature experimentation platform runs.",
+   "refs": [
+    "srm"
+   ]
   },
   {
    "id": "EXP-07",
@@ -853,7 +1143,10 @@
    "type": "interview",
    "question": "What is interleaving and why does Netflix use it for ranking?",
    "answer": "• Merge results from rankers A and B into one list per user (for example team-draft) and credit the ranker whose items get engaged.\n• Each user sees both, removing between-user variance; needs far fewer users to detect a preference.\n• Netflix uses it as a fast first-stage filter, then runs full A/B tests on survivors for business metrics.",
-   "key_concept": "Probe — Interleaving says which ranker users prefer, not the size of the effect on retention or revenue."
+   "key_concept": "Probe — Interleaving says which ranker users prefer, not the size of the effect on retention or revenue.",
+   "refs": [
+    "nflx-interleave"
+   ]
   },
   {
    "id": "EXP-08",
@@ -862,7 +1155,10 @@
    "type": "interview",
    "question": "You randomize by user but measure CTR as clicks / impressions. What is wrong with a naive t-test?",
    "answer": "• Impressions from the same user are correlated, so treating them as independent understates variance and inflates false positives.\n• Use the delta method to get the variance of a ratio of user-level sums, or bootstrap over users.",
-   "key_concept": "Probe — Rule: the analysis unit must match the randomization unit, or you must correct for it."
+   "key_concept": "Probe — Rule: the analysis unit must match the randomization unit, or you must correct for it.",
+   "refs": [
+    "delta"
+   ]
   },
   {
    "id": "DATA-01",
@@ -871,7 +1167,10 @@
    "type": "interview",
    "question": "What causes training-serving skew and how do you prevent it?",
    "answer": "• Different code paths for features offline vs online, different data sources, time-travel bugs, changed upstream schemas, preprocessing mismatch.\n• Prevent: one feature definition shared by both paths (feature store), log the features actually served and train on those logs, monitor feature distributions online vs offline.",
-   "key_concept": "Probe — \"Log and wait\" (training on served features) removes skew but delays new features until enough logs accumulate."
+   "key_concept": "Probe — \"Log and wait\" (training on served features) removes skew but delays new features until enough logs accumulate.",
+   "refs": [
+    "rules-ml"
+   ]
   },
   {
    "id": "DATA-02",
@@ -880,7 +1179,10 @@
    "type": "interview",
    "question": "What does a feature store's point-in-time join guarantee?",
    "answer": "• For each training example at time t, features take the values they had at t, never later values. Prevents temporal leakage.\n• Feature stores also provide an offline store for training, a low-latency online store for serving, and shared definitions.",
-   "key_concept": "Probe — Aggregates like \"clicks in the last 7 days\" must be computed as of each example's timestamp, which is expensive; streaming systems maintain them incrementally."
+   "key_concept": "Probe — Aggregates like \"clicks in the last 7 days\" must be computed as of each example's timestamp, which is expensive; streaming systems maintain them incrementally.",
+   "refs": [
+    "feast-pit"
+   ]
   },
   {
    "id": "DATA-03",
@@ -889,7 +1191,10 @@
    "type": "interview",
    "question": "With implicit feedback, where do negatives come from, and what bias does in-batch sampling create?",
    "answer": "• Options: random items, in-batch items, impressed-but-not-engaged items (strong negatives, but biased by the old system), hard negatives mined from near misses.\n• In-batch negatives appear in proportion to popularity, so popular items get over-penalized.\n• logQ correction: subtract log(sampling probability) of each item from its logit during training (Yi et al. 2019, YouTube).",
-   "key_concept": "Probe — Too-hard negatives can be false negatives (relevant items the user simply did not see); mix random and hard negatives."
+   "key_concept": "Probe — Too-hard negatives can be false negatives (relevant items the user simply did not see); mix random and hard negatives.",
+   "refs": [
+    "yi-logq"
+   ]
   },
   {
    "id": "DATA-04",
@@ -898,7 +1203,10 @@
    "type": "interview",
    "question": "Conversions arrive up to 30 days after a click; chargebacks months after a transaction. How do you train?",
    "answer": "• Waiting for mature labels makes the model stale; training immediately mislabels pending positives as negatives.\n• Approaches: wait a fixed window and accept staleness; delayed-feedback models that estimate the probability a conversion is still coming; train on fast proxy labels and correct later; importance weighting.",
-   "key_concept": "Probe — For fraud, combine fast signals (user reports, rule hits) with slow chargebacks, and monitor with mature labels."
+   "key_concept": "Probe — For fraud, combine fast signals (user reports, rule hits) with slow chargebacks, and monitor with mature labels.",
+   "refs": [
+    "chapelle-delay"
+   ]
   },
   {
    "id": "DATA-05",
@@ -907,7 +1215,11 @@
    "type": "interview",
    "question": "Options for a feature with millions of values, and the leakage risk in target encoding.",
    "answer": "• One-hot (sparse; fine for linear models), hashing, learned embeddings, frequency encoding, target encoding.\n• Target encoding uses the label mean per category, so you must compute it out-of-fold or with time-based splits plus smoothing toward the global mean, or it leaks.",
-   "key_concept": "Probe — Rare categories: smoothing with a prior count, or bucket into \"other.\""
+   "key_concept": "Probe — Rare categories: smoothing with a prior count, or bucket into \"other.\"",
+   "refs": [
+    "target-enc",
+    "hashing"
+   ]
   },
   {
    "id": "DATA-06",
@@ -916,7 +1228,10 @@
    "type": "interview",
    "question": "You need labels for harmful content at scale. How do you get them?",
    "answer": "• Human raters with clear guidelines and agreement metrics; expert review for hard policies.\n• Active learning: label the examples the model is least sure about or that matter most.\n• Weak supervision: heuristics and rules combined probabilistically; user reports as noisy labels; LLM-assisted labeling validated against humans.",
-   "key_concept": "Probe — Measure label quality with inter-rater agreement (Cohen's kappa) and audit sets; noisy labels set a ceiling on model quality."
+   "key_concept": "Probe — Measure label quality with inter-rater agreement (Cohen's kappa) and audit sets; noisy labels set a ceiling on model quality.",
+   "refs": [
+    "snorkel"
+   ]
   },
   {
    "id": "REC-01",
@@ -930,7 +1245,11 @@
    "interval_days": 3,
    "ease_factor": 2.5,
    "reps": 1,
-   "note": "Definitions muddy"
+   "note": "Definitions muddy",
+   "refs": [
+    "bandits",
+    "nflx-artwork"
+   ]
   },
   {
    "id": "REC-02",
@@ -939,7 +1258,10 @@
    "type": "interview",
    "question": "Why do large recommenders use multiple stages? Sketch them with rough sizes.",
    "answer": "• Catalog of millions, latency budget around 100 to 200 ms, so cheap models first, expensive later.\n• Candidate generation (multiple sources: two-tower ANN, co-visitation, trending, follows) to thousands, then an optional light pre-ranker to hundreds, then a heavy ranker to dozens, then re-ranking for diversity, freshness, business rules.",
-   "key_concept": "Probe — Each stage should be trained and evaluated knowing what the next stage does; a retriever optimized alone can feed the ranker poor candidates."
+   "key_concept": "Probe — Each stage should be trained and evaluated knowing what the next stage does; a retriever optimized alone can feed the ranker poor candidates.",
+   "refs": [
+    "yt-dnn"
+   ]
   },
   {
    "id": "REC-03",
@@ -948,7 +1270,10 @@
    "type": "interview",
    "question": "How is a two-tower model trained and served, and what is its main limitation?",
    "answer": "• User tower and item tower each produce an embedding; score = dot product.\n• Training: in-batch sampled softmax with logQ correction, or other negatives.\n• Serving: precompute item embeddings offline into an ANN index; compute the user embedding online and retrieve nearest items.\n• Limitation: no feature interaction between user and item before the dot product, so it cannot capture fine-grained crosses. That is the ranker's job.",
-   "key_concept": "Probe — Item embeddings go stale as the item tower retrains; you must rebuild the index in sync with the user tower version."
+   "key_concept": "Probe — Item embeddings go stale as the item tower retrains; you must rebuild the index in sync with the user tower version.",
+   "refs": [
+    "yi-logq"
+   ]
   },
   {
    "id": "REC-04",
@@ -957,7 +1282,11 @@
    "type": "interview",
    "question": "Compare HNSW, IVF, and product quantization.",
    "answer": "• HNSW: layered proximity graph; excellent recall and latency; memory-heavy; slower to build and update.\n• IVF: cluster vectors with k-means, search only the nearest clusters (nprobe trades recall for speed).\n• PQ: split vectors into subvectors and quantize each to a codebook; huge memory savings, approximate distances. IVF-PQ is common at billion scale.",
-   "key_concept": "Probe — Measure recall@K of the ANN against exact search; tune nprobe or efSearch to the latency budget."
+   "key_concept": "Probe — Measure recall@K of the ANN against exact search; tune nprobe or efSearch to the latency budget.",
+   "refs": [
+    "hnsw",
+    "faiss"
+   ]
   },
   {
    "id": "REC-05",
@@ -966,7 +1295,10 @@
    "type": "interview",
    "question": "How does matrix factorization work for implicit feedback?",
    "answer": "• Approximate the user-item matrix as U V^T; each user and item gets a latent vector.\n• Implicit ALS: treat all unobserved entries as weak negatives with confidence weights; alternate closed-form solves for U and V.\n• Limits: cold start, cannot use side features easily, which motivated factorization machines and two-tower models.",
-   "key_concept": "Probe — Two-tower with only ID features is essentially matrix factorization trained with a softmax loss."
+   "key_concept": "Probe — Two-tower with only ID features is essentially matrix factorization trained with a softmax loss.",
+   "refs": [
+    "als"
+   ]
   },
   {
    "id": "REC-06",
@@ -975,7 +1307,10 @@
    "type": "interview",
    "question": "Strategies for new users and new items.",
    "answer": "• New users: popularity and trending by context (locale, device, time), onboarding questions, session-based models that adapt within minutes, bandits.\n• New items: content features (text, image, audio embeddings) in the item tower, creator history, boosted exploration traffic.",
-   "key_concept": "Probe — Measure cold-start performance as its own slice; global metrics hide it."
+   "key_concept": "Probe — Measure cold-start performance as its own slice; global metrics hide it.",
+   "refs": [
+    "yt-dnn"
+   ]
   },
   {
    "id": "REC-07",
@@ -984,7 +1319,14 @@
    "type": "interview",
    "question": "Wide & Deep, DCN, DLRM, and multi-task models.",
    "answer": "• Wide & Deep: linear model on crossed features (memorization) plus a deep net (generalization).\n• DCN: explicit cross layers learn bounded-degree feature interactions efficiently.\n• DLRM: embeddings for sparse features, MLP for dense, pairwise dot-product interactions.\n• Multi-task: shared bottom or MMoE and PLE (experts with per-task gates) predict click, watch time, like, share together, reducing negative transfer.",
-   "key_concept": "Probe — Sequence features from user history (attention over recent items, as in DIN) often give the largest gains in modern rankers."
+   "key_concept": "Probe — Sequence features from user history (attention over recent items, as in DIN) often give the largest gains in modern rankers.",
+   "refs": [
+    "widedeep",
+    "dcn",
+    "dlrm",
+    "mmoe",
+    "din"
+   ]
   },
   {
    "id": "REC-08",
@@ -993,7 +1335,10 @@
    "type": "interview",
    "question": "How do you combine predicted click, watch time, likes, and hides into one ranking score?",
    "answer": "• Weighted value model: score = sum of w_i * prediction_i (negative weights for hides and reports).\n• Tune weights with online experiments, Bayesian optimization, or by aligning with a long-term metric.\n• Calibrated predictions make the weights meaningful.",
-   "key_concept": "Probe — Weight changes shift creator and content ecosystems; treat them as product decisions with guardrails, not just a tuning task."
+   "key_concept": "Probe — Weight changes shift creator and content ecosystems; treat them as product decisions with guardrails, not just a tuning task.",
+   "refs": [
+    "yt-mtl"
+   ]
   },
   {
    "id": "REC-09",
@@ -1002,7 +1347,11 @@
    "type": "interview",
    "question": "How do position bias and feedback loops corrupt training data, and how do you fix them?",
    "answer": "• Items shown higher get clicked more regardless of relevance. Training on that teaches the model its own past choices (feedback loop, popularity bias).\n• Fixes: add position as a training feature and set it to a fixed value at serving; a separate shallow position tower; inverse propensity weighting with estimated examination probabilities; randomized exploration traffic.",
-   "key_concept": "Probe — Estimate position effects with small randomization experiments (swap adjacent items)."
+   "key_concept": "Probe — Estimate position effects with small randomization experiments (swap adjacent items).",
+   "refs": [
+    "joachims-ips",
+    "yt-mtl"
+   ]
   },
   {
    "id": "REC-10",
@@ -1011,7 +1360,13 @@
    "type": "interview",
    "question": "How do transformers model user histories? What is the generative recommendation idea (HSTU)?",
    "answer": "• SASRec: causal self-attention over the item sequence predicts the next item. BERT4Rec: masked-item prediction, bidirectional.\n• Generative recommenders (Meta's HSTU): treat user actions as tokens in a long sequence and train a large sequence model for retrieval and ranking; shows LLM-like scaling with compute.\n• Semantic IDs (TIGER-style): represent items as short code sequences so a model can generate item IDs.",
-   "key_concept": "Probe — Costs: very long user sequences make serving expensive; you need caching of user-state encodings and efficient attention."
+   "key_concept": "Probe — Costs: very long user sequences make serving expensive; you need caching of user-state encodings and efficient attention.",
+   "refs": [
+    "sasrec",
+    "bert4rec",
+    "hstu",
+    "tiger"
+   ]
   },
   {
    "id": "REC-11",
@@ -1020,7 +1375,10 @@
    "type": "interview",
    "question": "Key ideas from \"Deep Neural Networks for YouTube Recommendations\" (2016).",
    "answer": "• Candidate generation as extreme multiclass classification with sampled softmax; serving via nearest neighbor search on the learned embeddings.\n• \"Example age\" feature lets the model learn freshness preferences and remove a bias toward old content.\n• Ranking with weighted logistic regression: positives weighted by watch time so the odds approximate expected watch time.\n• Predict the next watch rather than a randomly held-out watch, which respects asymmetric consumption patterns.",
-   "key_concept": "Probe — Why watch time, not CTR? CTR rewards clickbait; watch time better reflects satisfaction."
+   "key_concept": "Probe — Why watch time, not CTR? CTR rewards clickbait; watch time better reflects satisfaction.",
+   "refs": [
+    "yt-dnn"
+   ]
   },
   {
    "id": "REC-12",
@@ -1029,7 +1387,12 @@
    "type": "interview",
    "question": "What makes recommendations at Netflix different, and what techniques fit?",
    "answer": "• Small catalog relative to user-generated platforms, long-form content, subscription business: the goal is long-term member satisfaction and retention, not ad impressions.\n• Page construction: choosing rows and their order, not just ranking a single list.\n• Artwork personalization with contextual bandits; interleaving to compare rankers; long-term holdouts.",
-   "key_concept": "Probe — How do you get a training signal for retention, which is slow and sparse? Proxy metrics validated against retention, and causal analysis of which engagement predicts staying."
+   "key_concept": "Probe — How do you get a training signal for retention, which is slow and sparse? Proxy metrics validated against retention, and causal analysis of which engagement predicts staying.",
+   "refs": [
+    "nflx-recsys",
+    "nflx-artwork",
+    "nflx-interleave"
+   ]
   },
   {
    "id": "REC-13",
@@ -1038,7 +1401,11 @@
    "type": "interview",
    "question": "How do you add diversity without killing relevance?",
    "answer": "• Maximal Marginal Relevance: greedily pick items maximizing lambda * relevance - (1 - lambda) * max similarity to already picked items.\n• Determinantal point processes: probabilistic model favoring diverse sets.\n• Rules: caps per creator or genre, freshness quotas, deduplication.",
-   "key_concept": "Probe — Measure the relevance cost of diversity online; often diversity improves long-term engagement even if it lowers immediate CTR."
+   "key_concept": "Probe — Measure the relevance cost of diversity online; often diversity improves long-term engagement even if it lowers immediate CTR.",
+   "refs": [
+    "mmr",
+    "dpp"
+   ]
   },
   {
    "id": "ADS-01",
@@ -1047,7 +1414,11 @@
    "type": "interview",
    "question": "How are ads ranked, and why must pCTR be calibrated?",
    "answer": "• Expected value per impression: eCPM ≈ bid x pCTR (x pCVR for conversion bids) x 1000, often plus quality terms.\n• Second-price style auctions (GSP): the winner pays roughly the minimum needed to keep its position.\n• The probability is multiplied by money, so miscalibration directly misprices ads and misallocates budget; ranking quality alone is not enough.",
-   "key_concept": "Probe — Overpredicting pCTR for one advertiser segment makes them win and overpay, a fairness and revenue problem. Monitor calibration by segment."
+   "key_concept": "Probe — Overpredicting pCTR for one advertiser segment makes them win and overpay, a fairness and revenue problem. Monitor calibration by segment.",
+   "refs": [
+    "gsp",
+    "fb-ads"
+   ]
   },
   {
    "id": "ADS-02",
@@ -1056,7 +1427,11 @@
    "type": "interview",
    "question": "FM, FFM, and why crosses matter.",
    "answer": "• CTR depends on interactions (user segment x ad category x time). Manual crosses explode in number.\n• Factorization machines: model every pairwise interaction as the dot product of learned latent vectors, so sparse crosses still generalize.\n• FFM: a separate latent vector per field pair; stronger, more parameters.\n• Deep successors: DeepFM, DCN, DLRM.",
-   "key_concept": "Probe — Embedding tables for ad and user IDs can reach terabytes; sharding and caching drive system design."
+   "key_concept": "Probe — Embedding tables for ad and user IDs can reach terabytes; sharding and caching drive system design.",
+   "refs": [
+    "fm",
+    "dlrm"
+   ]
   },
   {
    "id": "ADS-03",
@@ -1065,7 +1440,10 @@
    "type": "interview",
    "question": "You keep all clicks but only 10% of non-clicks. How do you fix predicted probabilities?",
    "answer": "• With negative sampling rate w (0.1), the model's p is inflated. Corrected q = p / (p + (1 - p) / w).\n• Equivalent: add log(w) to the logit.",
-   "key_concept": "Probe — Verify with the calibration ratio on unsampled holdout traffic."
+   "key_concept": "Probe — Verify with the calibration ratio on unsampled holdout traffic.",
+   "refs": [
+    "fb-ads"
+   ]
   },
   {
    "id": "ADS-04",
@@ -1074,7 +1452,10 @@
    "type": "interview",
    "question": "Why do ads models retrain continuously, and what are the risks?",
    "answer": "• New ads, campaigns, and trends appear constantly; stale models lose accuracy fast.\n• Online or incremental training (hourly, streaming) warm-started from the previous model.\n• Risks: bad data or a logging bug corrupts the model quickly; feedback loops; delayed conversions (DATA-04).\n• Safeguards: validation gates before each push, automatic rollback, calibration monitors.",
-   "key_concept": "Probe — Use a fixed evaluation window and a holdout against the previous model to block regressions."
+   "key_concept": "Probe — Use a fixed evaluation window and a holdout against the previous model to block regressions.",
+   "refs": [
+    "fb-ads"
+   ]
   },
   {
    "id": "ADS-05",
@@ -1083,7 +1464,11 @@
    "type": "interview",
    "question": "Which offline and online metrics?",
    "answer": "• Offline: normalized entropy or log loss, calibration ratio overall and by segment, AUC.\n• Online: revenue, CTR, advertiser ROI and conversions, user experience guardrails (hide rate, session length), auction health (price, fill).",
-   "key_concept": "Probe — Budget effects interfere across A/B arms; use budget-split experiments."
+   "key_concept": "Probe — Budget effects interfere across A/B arms; use budget-split experiments.",
+   "refs": [
+    "fb-ads",
+    "kohavi"
+   ]
   },
   {
    "id": "SRCH-01",
@@ -1092,7 +1477,10 @@
    "type": "interview",
    "question": "What does BM25 score, and what do its parameters do?",
    "answer": "• Sum over query terms of IDF(term) x tf (k1 + 1) / (tf + k1 (1 - b + b x doc_len / avg_len)).\n• IDF rewards rare terms; k1 saturates term frequency so repetition gives diminishing returns; b normalizes for document length.",
-   "key_concept": "Probe — Why keep BM25 alongside dense retrieval? Exact matches (product codes, names, rare terms) where embeddings are weak."
+   "key_concept": "Probe — Why keep BM25 alongside dense retrieval? Exact matches (product codes, names, rare terms) where embeddings are weak.",
+   "refs": [
+    "bm25"
+   ]
   },
   {
    "id": "SRCH-02",
@@ -1101,7 +1489,11 @@
    "type": "interview",
    "question": "Tradeoffs between bi-encoders and cross-encoders, and how do you fuse lexical and dense results?",
    "answer": "• Bi-encoder: query and document embedded separately; documents precomputed; fast ANN retrieval; less accurate.\n• Cross-encoder: query and document together through one transformer; much more accurate; too slow for more than tens or hundreds of candidates, so use it to rerank.\n• Hybrid fusion: Reciprocal Rank Fusion, score = sum of 1 / (k + rank) across retrievers (k around 60), or a learned combination.",
-   "key_concept": "Probe — ColBERT-style late interaction sits between them: per-token embeddings with cheap max-sim matching."
+   "key_concept": "Probe — ColBERT-style late interaction sits between them: per-token embeddings with cheap max-sim matching.",
+   "refs": [
+    "rrf",
+    "colbert"
+   ]
   },
   {
    "id": "SRCH-03",
@@ -1110,7 +1502,10 @@
    "type": "interview",
    "question": "Pointwise vs pairwise vs listwise. What is LambdaMART?",
    "answer": "• Pointwise: predict a relevance score per document (regression or classification).\n• Pairwise: learn which of two documents should rank higher (RankNet).\n• Listwise: optimize a list-level metric directly or a surrogate (ListNet, softmax losses).\n• LambdaMART: gradient-boosted trees with lambda gradients, pairwise gradients weighted by the change in NDCG from swapping the pair. A strong classic baseline.",
-   "key_concept": "Probe — Labels: human relevance judgments vs click logs (biased by position, REC-09)."
+   "key_concept": "Probe — Labels: human relevance judgments vs click logs (biased by position, REC-09).",
+   "refs": [
+    "lambdamart"
+   ]
   },
   {
    "id": "SRCH-04",
@@ -1119,7 +1514,10 @@
    "type": "interview",
    "question": "What happens to a query before retrieval, and how do you evaluate search?",
    "answer": "• Normalization, spell correction, tokenization, intent and category classification, entity recognition, query expansion and rewriting (now often with LLMs).\n• Offline: NDCG and MRR on human-judged query sets. Online: click-through, successful-session rate, time to success, abandonment, reformulation rate.",
-   "key_concept": "Probe — Zero-result and low-result queries are their own failure slice; track and fix with expansion."
+   "key_concept": "Probe — Zero-result and low-result queries are their own failure slice; track and fix with expansion.",
+   "refs": [
+    "irbook"
+   ]
   },
   {
    "id": "SRCH-05",
@@ -1128,7 +1526,10 @@
    "type": "interview",
    "question": "How would you build image search (\"find similar\") and text-to-video search?",
    "answer": "• Visual: embed images with a contrastively trained encoder; ANN index; rerank; optionally detect and crop the object of interest first.\n• Text-to-video: CLIP-style joint text-image or text-video embeddings, plus text from titles, transcripts, and OCR; hybrid with BM25 on metadata.\n• Train on engagement pairs (query, clicked result) with contrastive loss and hard negatives.",
-   "key_concept": "Probe — Video is long; embed frames or segments and aggregate, or index segments so results can jump to a timestamp."
+   "key_concept": "Probe — Video is long; embed frames or segments and aggregate, or index segments so results can jump to a timestamp.",
+   "refs": [
+    "clip"
+   ]
   },
   {
    "id": "FRD-01",
@@ -1137,7 +1538,10 @@
    "type": "interview",
    "question": "What makes fraud detection different from typical classification?",
    "answer": "• Adversaries adapt to your model (concept drift on purpose); labels are delayed and incomplete; extreme imbalance; asymmetric costs; real-time latency (decide before authorization).\n• Typical stack: rules for known patterns and fast response, ML score, graph signals, human review queue, feedback into labels.",
-   "key_concept": "Probe — Rules are not a legacy embarrassment; they patch new attacks in hours while a model retrains over days."
+   "key_concept": "Probe — Rules are not a legacy embarrassment; they patch new attacks in hours while a model retrains over days.",
+   "refs": [
+    "fraud-survey"
+   ]
   },
   {
    "id": "FRD-02",
@@ -1146,7 +1550,10 @@
    "type": "interview",
    "question": "How do graph features help catch fraud rings?",
    "answer": "• Accounts share devices, IPs, cards, addresses. Build an entity graph; features like connected component size, number of flagged neighbors, velocity of new links.\n• Graph neural networks learn from neighborhoods; label propagation spreads known fraud labels.",
-   "key_concept": "Probe — Graph features are costly to compute in real time; precompute offline and update incrementally with streaming."
+   "key_concept": "Probe — Graph features are costly to compute in real time; precompute offline and update incrementally with streaming.",
+   "refs": [
+    "fraud-survey"
+   ]
   },
   {
    "id": "FRD-03",
@@ -1155,7 +1562,11 @@
    "type": "interview",
    "question": "When labels are scarce, what can you use?",
    "answer": "• Isolation forest: anomalies get isolated in fewer random splits.\n• Autoencoders: high reconstruction error means unusual.\n• Density or distance methods; statistical thresholds on velocity features.",
-   "key_concept": "Probe — Anomalous is not the same as fraudulent; use anomaly scores as features or to prioritize review, then learn from reviewer labels."
+   "key_concept": "Probe — Anomalous is not the same as fraudulent; use anomaly scores as features or to prioritize review, then learn from reviewer labels.",
+   "refs": [
+    "iforest",
+    "sk-outlier"
+   ]
   },
   {
    "id": "FRD-04",
@@ -1164,7 +1575,10 @@
    "type": "interview",
    "question": "Design considerations for a harmful content classifier on posts with text, images, and video.",
    "answer": "• Multimodal fusion: late fusion (separate models, combine scores) is simpler and modular; early fusion (joint model) captures cross-modal meaning (benign image plus hateful caption).\n• Multi-task heads per policy (violence, hate, nudity, spam) sharing a backbone.\n• Operating points per policy and region; route borderline cases to human review; appeals provide labels.\n• Metrics: precision and recall at the operating point, prevalence (share of views that are violating), reviewer load.",
-   "key_concept": "Probe — Prevalence measured by sampling views is the metric leadership tracks; it captures what users actually see."
+   "key_concept": "Probe — Prevalence measured by sampling views is the metric leadership tracks; it captures what users actually see.",
+   "refs": [
+    "meta-prevalence"
+   ]
   },
   {
    "id": "FRD-05",
@@ -1173,7 +1587,10 @@
    "type": "interview",
    "question": "How do you set the decision threshold from business costs?",
    "answer": "• Flag if p x cost_of_miss > (1 - p) x cost_of_false_alarm, so threshold p* = C_FP / (C_FP + C_FN). Requires calibrated p.\n• Add constraints like review capacity: take the top N by score per hour.",
-   "key_concept": "Probe — Costs vary per transaction (amount at risk), so the threshold can vary per transaction too."
+   "key_concept": "Probe — Costs vary per transaction (amount at risk), so the threshold can vary per transaction too.",
+   "refs": [
+    "elkan"
+   ]
   },
   {
    "id": "PROD-01",
@@ -1182,7 +1599,10 @@
    "type": "interview",
    "question": "Covariate shift vs label shift vs concept drift. How do you detect each?",
    "answer": "• Covariate shift: P(x) changes, P(y | x) stays. Label (prior) shift: P(y) changes, P(x | y) stays. Concept drift: P(y | x) changes (fraudsters adapt).\n• Detect: input feature distributions (PSI, KL, KS tests), prediction distribution, calibration on fresh labels, business metrics.",
-   "key_concept": "Probe — Concept drift is invisible in inputs; you need labels, which are often delayed, so watch proxies and prediction score shifts."
+   "key_concept": "Probe — Concept drift is invisible in inputs; you need labels, which are often delayed, so watch proxies and prediction score shifts.",
+   "refs": [
+    "shift-book"
+   ]
   },
   {
    "id": "PROD-02",
@@ -1191,7 +1611,10 @@
    "type": "interview",
    "question": "How do you roll out a new model safely?",
    "answer": "• Offline validation gates, then shadow mode (score live traffic, take no action, compare), then canary on a small slice, then A/B test, then gradual ramp with automatic rollback triggers.\n• Version models and features together in a registry.",
-   "key_concept": "Probe — Shadow mode cannot measure user response, only agreement, latency, and errors."
+   "key_concept": "Probe — Shadow mode cannot measure user response, only agreement, latency, and errors.",
+   "refs": [
+    "mlops-google"
+   ]
   },
   {
    "id": "PROD-03",
@@ -1200,7 +1623,10 @@
    "type": "interview",
    "question": "When do you use each?",
    "answer": "• Batch: precompute predictions on a schedule (daily recommendations, email); cheap, stale.\n• Online: compute per request; fresh, uses request context; latency and cost constraints.\n• Streaming: update features or predictions from event streams in near real time (session features, fraud velocity).\n• Common hybrid: batch candidates or embeddings, online ranking with streaming features.",
-   "key_concept": "Probe — Cost of online serving scales with traffic; caching and request deduplication matter."
+   "key_concept": "Probe — Cost of online serving scales with traffic; caching and request deduplication matter.",
+   "refs": [
+    "mlops-google"
+   ]
   },
   {
    "id": "PROD-04",
@@ -1209,7 +1635,11 @@
    "type": "interview",
    "question": "Your ranker is too slow for a 50 ms p99 budget. Options?",
    "answer": "• Distillation to a smaller model, quantization, pruning, fewer candidates, a pre-ranking stage, caching features and embeddings, batching on GPU, hardware choice, early-exit models.\n• Profile first: often feature fetching, not model compute, dominates latency.",
-   "key_concept": "Probe — Optimize p99, not average; tail latency comes from slow feature stores and fan-out."
+   "key_concept": "Probe — Optimize p99, not average; tail latency comes from slow feature stores and fan-out.",
+   "refs": [
+    "tail",
+    "distill"
+   ]
   },
   {
    "id": "PROD-05",
@@ -1218,7 +1648,11 @@
    "type": "interview",
    "question": "How often should you retrain, and how do you decide?",
    "answer": "• Measure decay: evaluate an old model on successively newer data to see how fast quality drops.\n• Options: scheduled retrains, trigger on drift or metric drop, continuous training (ads).\n• Each retrain needs validation gates and comparison against the current production model.",
-   "key_concept": "Probe — Retraining on data shaped by your own model reinforces its biases; keep exploration traffic."
+   "key_concept": "Probe — Retraining on data shaped by your own model reinforces its biases; keep exploration traffic.",
+   "refs": [
+    "mlops-google",
+    "tech-debt"
+   ]
   },
   {
    "id": "PROD-06",
@@ -1227,7 +1661,11 @@
    "type": "interview",
    "question": "Engagement dropped 5% after a model launch. Walk through debugging.",
    "answer": "• Confirm it is real: experiment validity (SRM), dashboards, seasonality.\n• Localize: which segments, platforms, regions; correlate with launch time; compare against holdout.\n• Check pipeline: feature freshness and nulls, training-serving skew, upstream schema changes, model version actually served, latency increases causing timeouts and fallbacks.\n• Check the model: calibration, score distribution shift, candidate set changes.\n• Roll back first if impact is serious, then investigate.",
-   "key_concept": "Probe — Staff signal: talk about preventing recurrence (automated checks, alerts, postmortem), not just the fix."
+   "key_concept": "Probe — Staff signal: talk about preventing recurrence (automated checks, alerts, postmortem), not just the fix.",
+   "refs": [
+    "sre-postmortem",
+    "srm"
+   ]
   },
   {
    "id": "DIST-01",
@@ -1236,7 +1674,10 @@
    "type": "interview",
    "question": "How does data-parallel training work, and what is ring all-reduce?",
    "answer": "• Each worker holds a full model copy, processes a different shard of the batch, then gradients are averaged across workers.\n• Ring all-reduce: workers pass chunks around a ring (reduce-scatter then all-gather); bandwidth per worker stays roughly constant as workers grow.",
-   "key_concept": "Probe — Overlap gradient communication with the backward pass by bucketing gradients."
+   "key_concept": "Probe — Overlap gradient communication with the backward pass by bucketing gradients.",
+   "refs": [
+    "horovod"
+   ]
   },
   {
    "id": "DIST-02",
@@ -1245,7 +1686,10 @@
    "type": "interview",
    "question": "What do ZeRO stages 1, 2, 3 shard?",
    "answer": "• Stage 1: optimizer states. Stage 2: plus gradients. Stage 3 (and FSDP): plus parameters, gathered layer by layer just in time.\n• Memory per GPU falls roughly with the number of GPUs, at the cost of more communication.",
-   "key_concept": "Probe — Offloading to CPU or NVMe extends this further at the cost of speed."
+   "key_concept": "Probe — Offloading to CPU or NVMe extends this further at the cost of speed.",
+   "refs": [
+    "zero"
+   ]
   },
   {
    "id": "DIST-03",
@@ -1254,7 +1698,11 @@
    "type": "interview",
    "question": "When do you need them, and what are their costs?",
    "answer": "• Tensor parallelism: split individual matrix multiplies across GPUs; needs very fast interconnect, so usually within a node.\n• Pipeline parallelism: split layers into stages across devices; micro-batches reduce idle \"bubbles.\"\n• 3D parallelism combines data, tensor, and pipeline; add expert parallelism for MoE and sequence or context parallelism for long contexts.",
-   "key_concept": "Probe — Pipeline bubble fraction is roughly (stages - 1) / (micro-batches + stages - 1), so more micro-batches shrink it."
+   "key_concept": "Probe — Pipeline bubble fraction is roughly (stages - 1) / (micro-batches + stages - 1), so more micro-batches shrink it.",
+   "refs": [
+    "megatron",
+    "gpipe"
+   ]
   },
   {
    "id": "DIST-04",
@@ -1263,7 +1711,11 @@
    "type": "interview",
    "question": "Estimate memory to train a 7B model with Adam in mixed precision.",
    "answer": "• Per parameter: 2 bytes bf16 weights + 2 bytes gradients + 12 bytes fp32 master weights, momentum, variance = about 16 bytes.\n• 7B x 16 bytes ≈ 112 GB before activations, so it needs sharding (ZeRO or FSDP) across GPUs.\n• Activations scale with batch x sequence x hidden x layers; reduce with activation checkpointing (recompute in backward).\n• Inference needs only weights (about 14 GB in bf16) plus the KV cache.",
-   "key_concept": "Probe — LoRA fine-tuning needs no gradient or optimizer state for the frozen base weights, which is why it fits on far less hardware. It still stores activations for the backward pass, so activation memory does not shrink."
+   "key_concept": "Probe — LoRA fine-tuning needs no gradient or optimizer state for the frozen base weights, which is why it fits on far less hardware. It still stores activations for the backward pass, so activation memory does not shrink.",
+   "refs": [
+    "zero",
+    "lora"
+   ]
   },
   {
    "id": "DIST-05",
@@ -1272,7 +1724,10 @@
    "type": "interview",
    "question": "What is gradient accumulation, and how should the learning rate change with batch size?",
    "answer": "• Accumulate gradients over several micro-batches before one optimizer step, to simulate a larger batch without more memory.\n• Linear scaling rule: multiply LR by the batch-size factor, with warmup; breaks down at very large batches (critical batch size).",
-   "key_concept": "Probe — BatchNorm statistics still use the micro-batch, which can hurt; another reason LayerNorm suits large-model training."
+   "key_concept": "Probe — BatchNorm statistics still use the micro-batch, which can hurt; another reason LayerNorm suits large-model training.",
+   "refs": [
+    "goyal"
+   ]
   },
   {
    "id": "DIST-06",
@@ -1281,7 +1736,10 @@
    "type": "interview",
    "question": "How do you train a model whose embedding tables do not fit on one device?",
    "answer": "• Hybrid parallelism: shard embedding tables across devices (model parallel, row- or table-wise), replicate the dense layers (data parallel); all-to-all communication exchanges embedding lookups.\n• Cache hot embeddings; ID access follows a power law.",
-   "key_concept": "Probe — Sharding strategy is a load-balancing problem; skewed tables create hot devices."
+   "key_concept": "Probe — Sharding strategy is a load-balancing problem; skewed tables create hot devices.",
+   "refs": [
+    "dlrm"
+   ]
   },
   {
    "id": "DL-10",
@@ -1291,7 +1749,10 @@
    "question": "A two-layer MLP: h = ReLU(W1 x + b1), logits z = W2 h + b2, loss = softmax cross-entropy against a one-hot y. Derive every gradient.",
    "answer": "• dL/dz = p - y, where p = softmax(z).\n• dL/dW2 = (p - y) h^T. dL/db2 = p - y.\n• dL/dh = W2^T (p - y). Through the ReLU: dL/da = dL/dh masked to the positions where a = W1 x + b1 is positive.\n• dL/dW1 = (dL/da) x^T. dL/db1 = dL/da.\n• For a batch, average over examples; with rows as examples the weight gradients become H^T (P - Y) / N and X^T (dL/dA) / N for weights stored as (in, out).\n• Shape check: every gradient has the shape of the thing it is the gradient of.",
    "key_concept": "Probe — How do you test a hand-written backward pass? Numerical gradient check: compare against (L(w + eps) - L(w - eps)) / (2 eps) for a few random entries, in float64. Practical ML coding rounds reward doing this unprompted.",
-   "added": "2026-11-13"
+   "added": "2026-11-13",
+   "refs": [
+    "cs231n"
+   ]
   },
   {
    "id": "LLM-23",
@@ -1301,7 +1762,11 @@
    "question": "You are asked to implement causal multi-head self-attention from scratch. What are the shapes, and where do bugs hide?",
    "answer": "• Input (B, T, C). Project to Q, K, V, then reshape each to (B, heads, T, C / heads).\n• Scores = Q K^T / sqrt(head_dim), shape (B, heads, T, T). Apply the causal mask before the softmax by setting positions j > i to negative infinity.\n• Softmax over the last axis, multiply by V, move heads back and reshape to (B, T, C), then the output projection.\n• Usual bugs: masking after the softmax, softmax over the wrong axis, a mask that is transposed (so tokens see the future and training loss looks too good), reshaping without first swapping the head and time axes, and forgetting to mask padding.\n• Test: changing a later token must not change the outputs at earlier positions.",
    "key_concept": "Probe — Your training loss falls to near zero in a few hundred steps on a language-modelling task. What do you suspect first? Leakage of the future through the mask, or targets that are not shifted by one position.",
-   "added": "2026-11-13"
+   "added": "2026-11-13",
+   "refs": [
+    "attention",
+    "nanogpt"
+   ]
   },
   {
    "id": "LLM-24",
@@ -1311,7 +1776,10 @@
    "question": "How does an LLM agent with tools work, how does it fail, and how do you evaluate it?",
    "answer": "• Loop: the model reads the conversation plus tool descriptions, emits either an answer or a structured tool call; the harness runs the tool and appends the result; repeat until the model answers or a step limit is hit.\n• Failure modes: wrong tool or malformed arguments, loops and wasted steps, errors compounding over long tasks (per-step reliability multiplies), context filling with tool output, and prompt injection through tool results or retrieved documents.\n• Mitigations: clear tool descriptions and schemas, returning errors the model can act on, trimming or summarising tool output, step and cost limits, confirmation before irreversible actions, and treating tool output as data, not instructions.\n• Evaluation: end-to-end task success on realistic tasks with checkable end states, run several times because outcomes vary; also cost, steps and latency per task, and a review of failed transcripts.",
    "key_concept": "Probe — A task needs 20 steps and each step succeeds 95% of the time. How often does the task succeed with no recovery? 0.95^20 is about 36%. That is why agents need to detect and recover from their own errors, and why evaluating single steps overstates end-to-end quality.",
-   "added": "2026-11-13"
+   "added": "2026-11-13",
+   "refs": [
+    "agents"
+   ]
   },
   {
    "id": "STAT-06",
@@ -1321,7 +1789,10 @@
    "question": "Control: 10,000 users, 1,000 convert. Treatment: 10,000 users, 1,080 convert. Is the lift significant at 5%, and what is the 95% interval?",
    "answer": "• Rates: 10.0% and 10.8%. Difference = 0.8 percentage points (an 8% relative lift).\n• Standard error of the difference = sqrt(p1 (1 - p1) / n1 + p2 (1 - p2) / n2) = sqrt(0.1 x 0.9 / 10000 + 0.108 x 0.892 / 10000) ≈ sqrt(0.000009 + 0.00000963) ≈ 0.00432.\n• z = 0.008 / 0.00432 ≈ 1.85, below 1.96, so not significant at 5% two-sided (p ≈ 0.064).\n• 95% interval: 0.008 ± 1.96 x 0.00432 ≈ (-0.05, +1.65) percentage points. It includes zero.",
    "key_concept": "Probe — What do you tell the product manager? The data are consistent with anything from no effect to a 1.6-point lift. If a lift of this size would matter, the test was underpowered: about 16 x 0.1 x 0.9 / 0.008^2 ≈ 22,500 users per arm are needed for 80% power, so run it longer.",
-   "added": "2026-11-13"
+   "added": "2026-11-13",
+   "refs": [
+    "kohavi"
+   ]
   },
   {
    "id": "EXP-09",
@@ -1331,7 +1802,10 @@
    "question": "You cannot run an A/B test. Name the main ways to estimate a causal effect from observational data and what each assumes.",
    "answer": "• Difference-in-differences: compare the change over time in a treated group with the change in an untreated group. Assumes the two would have moved in parallel without the treatment.\n• Propensity methods (matching, inverse propensity weighting): model the probability of treatment given covariates and balance the groups on it. Assumes no unmeasured confounders and that every kind of unit had some chance of either treatment.\n• Instrumental variables: use something that changes treatment but affects the outcome only through it (for example a randomised nudge). Assumes that exclusion holds; estimates the effect for those the instrument moves.\n• Regression discontinuity: compare units just either side of a threshold that assigns treatment. Assumes nothing else changes at the threshold; estimates a local effect.\n• Synthetic control: build a weighted mix of untreated units that tracked the treated unit before the change.",
    "key_concept": "Probe — Which assumption can you test? Parallel trends and balance can be checked on pre-treatment data; no unmeasured confounding cannot be. Say so, and run a placebo or sensitivity analysis. Netflix publishes heavily on causal inference, so expect this where an A/B test is impractical.",
-   "added": "2026-11-13"
+   "added": "2026-11-13",
+   "refs": [
+    "mixtape"
+   ]
   },
   {
    "id": "REC-14",
@@ -1341,7 +1815,11 @@
    "question": "Compare the direct method, inverse propensity scoring, self-normalised IPS and doubly robust estimation for evaluating a new recommendation policy on logged data.",
    "answer": "• Direct method: fit a reward model and average its predictions under the new policy. Low variance, biased wherever the reward model is wrong.\n• IPS: average of reward x (new policy probability / logging probability) over logged actions. Unbiased if propensities are correct and the logging policy gave every action the new one can take some probability; variance explodes when weights are large.\n• Self-normalised IPS: divide by the sum of the weights instead of n. Slightly biased, much lower variance. Clipping weights makes the same trade.\n• Doubly robust: direct-method estimate plus an IPS-weighted correction of its residuals. Consistent if either the reward model or the propensities are right, and usually lower variance than IPS.",
    "key_concept": "Probe — Why do these struggle for ranked lists? The action is a whole slate, so the exact logged slate has a tiny propensity. Practical answers are slate estimators with position-level assumptions, small action spaces, or interleaving and A/B tests for the final call.",
-   "added": "2026-11-13"
+   "added": "2026-11-13",
+   "refs": [
+    "dr",
+    "snips"
+   ]
   },
   {
    "id": "DIVE-01",
@@ -1443,5 +1921,561 @@
    "key_concept": "Probe — Interviewers keep asking \"why\" until you reach the edge of what you know. Saying \"I don't know, here is how I would find out\" at that edge is the right answer.",
    "added": "2026-11-13"
   }
- ]
+ ],
+ "sources": {
+  "adam": [
+   "Adam: A Method for Stochastic Optimization — Kingma and Ba (2014)",
+   "https://arxiv.org/abs/1412.6980"
+  ],
+  "adamw": [
+   "Decoupled Weight Decay Regularization (AdamW) — Loshchilov and Hutter (2017)",
+   "https://arxiv.org/abs/1711.05101"
+  ],
+  "agents": [
+   "Building effective agents — Anthropic (2024)",
+   "https://www.anthropic.com/research/building-effective-agents"
+  ],
+  "alibi": [
+   "Train Short, Test Long (ALiBi) — Press, Smith, Lewis (2021)",
+   "https://arxiv.org/abs/2108.12409"
+  ],
+  "als": [
+   "Collaborative Filtering for Implicit Feedback Datasets — Hu, Koren, Volinsky (ICDM 2008)",
+   "http://yifanhu.net/PUB/cf.pdf"
+  ],
+  "amp": [
+   "Train With Mixed Precision — NVIDIA Deep Learning Performance documentation",
+   "https://docs.nvidia.com/deeplearning/performance/mixed-precision-training/index.html"
+  ],
+  "attention": [
+   "Attention Is All You Need — Vaswani et al. (2017)",
+   "https://arxiv.org/abs/1706.03762"
+  ],
+  "bandits": [
+   "A Contextual-Bandit Approach to Personalized News Article Recommendation (LinUCB) — Li et al. (2010)",
+   "https://arxiv.org/abs/1003.0146"
+  ],
+  "batchnorm": [
+   "Batch Normalization — Ioffe and Szegedy (2015)",
+   "https://arxiv.org/abs/1502.03167"
+  ],
+  "bert": [
+   "BERT — Devlin et al. (2018)",
+   "https://arxiv.org/abs/1810.04805"
+  ],
+  "bert4rec": [
+   "BERT4Rec — Sun et al. (2019)",
+   "https://arxiv.org/abs/1904.06690"
+  ],
+  "beyer-nn": [
+   "When Is \"Nearest Neighbor\" Meaningful? — Beyer et al. (ICDT 1999)",
+   "https://link.springer.com/chapter/10.1007/3-540-49257-7_15"
+  ],
+  "bh": [
+   "Controlling the False Discovery Rate — Benjamini and Hochberg (JRSS B, 1995)",
+   "https://www.jstor.org/stable/2346101"
+  ],
+  "bm25": [
+   "The Probabilistic Relevance Framework: BM25 and Beyond — Robertson and Zaragoza (2009)",
+   "https://dl.acm.org/doi/10.1561/1500000019"
+  ],
+  "bpe": [
+   "Neural Machine Translation of Rare Words with Subword Units (BPE) — Sennrich et al. (2015)",
+   "https://arxiv.org/abs/1508.07909"
+  ],
+  "cai": [
+   "Constitutional AI: Harmlessness from AI Feedback — Bai et al. (Anthropic, 2022)",
+   "https://arxiv.org/abs/2212.08073"
+  ],
+  "chapelle-delay": [
+   "Modeling Delayed Feedback in Display Advertising — Chapelle (KDD 2014)",
+   "https://dl.acm.org/doi/10.1145/2623330.2623634"
+  ],
+  "chinchilla": [
+   "Training Compute-Optimal Large Language Models (Chinchilla) — Hoffmann et al. (2022)",
+   "https://arxiv.org/abs/2203.15556"
+  ],
+  "clip": [
+   "Learning Transferable Visual Models From Natural Language Supervision (CLIP) — Radford et al. (2021)",
+   "https://arxiv.org/abs/2103.00020"
+  ],
+  "codex": [
+   "Evaluating Large Language Models Trained on Code (pass@k) — Chen et al. (2021)",
+   "https://arxiv.org/abs/2107.03374"
+  ],
+  "colbert": [
+   "ColBERT — Khattab and Zaharia (2020)",
+   "https://arxiv.org/abs/2004.12832"
+  ],
+  "cpc": [
+   "Representation Learning with Contrastive Predictive Coding (InfoNCE) — van den Oord et al. (2018)",
+   "https://arxiv.org/abs/1807.03748"
+  ],
+  "cs231n": [
+   "CS231n: Backpropagation and neural network notes — Stanford",
+   "https://cs231n.github.io/optimization-2/"
+  ],
+  "cuped": [
+   "Improving the Sensitivity of Online Controlled Experiments by Utilizing Pre-Experiment Data (CUPED) — Deng et al. (WSDM 2013)",
+   "https://www.exp-platform.com/Documents/2013-02-CUPED-ImprovingSensitivityOfControlledExperiments.pdf"
+  ],
+  "davis-pr": [
+   "The Relationship Between Precision-Recall and ROC Curves — Davis and Goadrich (ICML 2006)",
+   "https://dl.acm.org/doi/10.1145/1143844.1143874"
+  ],
+  "dcn": [
+   "Deep & Cross Network for Ad Click Predictions — Wang et al. (2017)",
+   "https://arxiv.org/abs/1708.05123"
+  ],
+  "delta": [
+   "Applying the Delta Method in Metric Analytics — Deng, Knoeble, Lu (2018)",
+   "https://arxiv.org/abs/1803.06336"
+  ],
+  "din": [
+   "Deep Interest Network for Click-Through Rate Prediction (GAUC) — Zhou et al. (2017)",
+   "https://arxiv.org/abs/1706.06978"
+  ],
+  "distill": [
+   "Distilling the Knowledge in a Neural Network — Hinton, Vinyals, Dean (2015)",
+   "https://arxiv.org/abs/1503.02531"
+  ],
+  "dlbook": [
+   "Deep Learning — Goodfellow, Bengio, Courville (2016)",
+   "https://www.deeplearningbook.org/"
+  ],
+  "dlrm": [
+   "Deep Learning Recommendation Model for Personalization and Recommendation Systems (DLRM) — Naumov et al. (2019)",
+   "https://arxiv.org/abs/1906.00091"
+  ],
+  "double-descent": [
+   "Deep Double Descent — Nakkiran et al. (2019)",
+   "https://arxiv.org/abs/1912.02292"
+  ],
+  "dpo": [
+   "Direct Preference Optimization — Rafailov et al. (2023)",
+   "https://arxiv.org/abs/2305.18290"
+  ],
+  "dpp": [
+   "Determinantal Point Processes for Machine Learning — Kulesza and Taskar (2012)",
+   "https://arxiv.org/abs/1207.6083"
+  ],
+  "dr": [
+   "Doubly Robust Policy Evaluation and Learning — Dudík, Langford, Li (2011)",
+   "https://arxiv.org/abs/1103.4601"
+  ],
+  "dropout": [
+   "Dropout: A Simple Way to Prevent Neural Networks from Overfitting — Srivastava et al. (JMLR 2014)",
+   "https://jmlr.org/papers/v15/srivastava14a.html"
+  ],
+  "elkan": [
+   "The Foundations of Cost-Sensitive Learning — Elkan (IJCAI 2001)",
+   "https://cseweb.ucsd.edu/~elkan/rescale.pdf"
+  ],
+  "esl": [
+   "The Elements of Statistical Learning, 2nd ed. — Hastie, Tibshirani, Friedman (2009)",
+   "https://hastie.su.domains/ElemStatLearn/"
+  ],
+  "faiss": [
+   "Billion-scale similarity search with GPUs (Faiss, IVF and PQ) — Johnson, Douze, Jégou (2017)",
+   "https://arxiv.org/abs/1702.08734"
+  ],
+  "fb-ads": [
+   "Practical Lessons from Predicting Clicks on Ads at Facebook — He et al. (ADKDD 2014)",
+   "https://research.facebook.com/publications/practical-lessons-from-predicting-clicks-on-ads-at-facebook/"
+  ],
+  "feast-pit": [
+   "Point-in-time joins — Feast documentation",
+   "https://docs.feast.dev/getting-started/concepts/point-in-time-joins"
+  ],
+  "flash": [
+   "FlashAttention — Dao et al. (2022)",
+   "https://arxiv.org/abs/2205.14135"
+  ],
+  "fm": [
+   "Factorization Machines — Rendle (ICDM 2010)",
+   "https://ieeexplore.ieee.org/document/5694074"
+  ],
+  "focal": [
+   "Focal Loss for Dense Object Detection — Lin et al. (2017)",
+   "https://arxiv.org/abs/1708.02002"
+  ],
+  "fpp": [
+   "Forecasting: Principles and Practice, 3rd ed. (accuracy measures) — Hyndman and Athanasopoulos",
+   "https://otexts.com/fpp3/accuracy.html"
+  ],
+  "fraud-survey": [
+   "Statistical Fraud Detection: A Review — Bolton and Hand (Statistical Science, 2002)",
+   "https://projecteuclid.org/journals/statistical-science/volume-17/issue-3/Statistical-Fraud-Detection-A-Review/10.1214/ss/1042727940.full"
+  ],
+  "gekhman": [
+   "Does Fine-Tuning LLMs on New Knowledge Encourage Hallucinations? — Gekhman et al. (2024)",
+   "https://arxiv.org/abs/2405.05904"
+  ],
+  "gelu": [
+   "Gaussian Error Linear Units (GELUs) — Hendrycks and Gimpel (2016)",
+   "https://arxiv.org/abs/1606.08415"
+  ],
+  "glorot": [
+   "Understanding the difficulty of training deep feedforward neural networks — Glorot and Bengio (AISTATS 2010)",
+   "https://proceedings.mlr.press/v9/glorot10a.html"
+  ],
+  "glu": [
+   "GLU Variants Improve Transformer (SwiGLU) — Shazeer (2020)",
+   "https://arxiv.org/abs/2002.05202"
+  ],
+  "goyal": [
+   "Accurate, Large Minibatch SGD (linear scaling rule) — Goyal et al. (2017)",
+   "https://arxiv.org/abs/1706.02677"
+  ],
+  "gpipe": [
+   "GPipe: Efficient Training of Giant Neural Networks using Pipeline Parallelism — Huang et al. (2018)",
+   "https://arxiv.org/abs/1811.06965"
+  ],
+  "gptq": [
+   "GPTQ — Frantar et al. (2022)",
+   "https://arxiv.org/abs/2210.17323"
+  ],
+  "gqa": [
+   "GQA: Training Generalized Multi-Query Transformer Models — Ainslie et al. (2023)",
+   "https://arxiv.org/abs/2305.13245"
+  ],
+  "gsp": [
+   "Internet Advertising and the Generalized Second-Price Auction — Edelman, Ostrovsky, Schwarz (AER, 2007)",
+   "https://www.aeaweb.org/articles?id=10.1257/aer.97.1.242"
+  ],
+  "guo-calib": [
+   "On Calibration of Modern Neural Networks — Guo et al. (2017)",
+   "https://arxiv.org/abs/1706.04599"
+  ],
+  "hallu-survey": [
+   "Survey of Hallucination in Natural Language Generation — Ji et al. (2022)",
+   "https://arxiv.org/abs/2202.03629"
+  ],
+  "hashing": [
+   "Feature Hashing for Large Scale Multitask Learning — Weinberger et al. (2009)",
+   "https://arxiv.org/abs/0902.2206"
+  ],
+  "he-init": [
+   "Delving Deep into Rectifiers (He initialisation) — He et al. (2015)",
+   "https://arxiv.org/abs/1502.01852"
+  ],
+  "hnsw": [
+   "Efficient and robust approximate nearest neighbor search using HNSW graphs — Malkov and Yashunin (2016)",
+   "https://arxiv.org/abs/1603.09320"
+  ],
+  "horovod": [
+   "Horovod: fast and easy distributed deep learning in TensorFlow (ring all-reduce) — Sergeev and Del Balso (2018)",
+   "https://arxiv.org/abs/1802.05799"
+  ],
+  "hstu": [
+   "Actions Speak Louder than Words: Trillion-Parameter Sequential Transducers for Generative Recommendations (HSTU) — Zhai et al. (2024)",
+   "https://arxiv.org/abs/2402.17152"
+  ],
+  "iforest": [
+   "Isolation Forest — Liu, Ting, Zhou (ICDM 2008)",
+   "https://ieeexplore.ieee.org/document/4781136"
+  ],
+  "instructgpt": [
+   "Training language models to follow instructions with human feedback — Ouyang et al. (2022)",
+   "https://arxiv.org/abs/2203.02155"
+  ],
+  "irbook": [
+   "Introduction to Information Retrieval — Manning, Raghavan, Schütze (2008)",
+   "https://nlp.stanford.edu/IR-book/"
+  ],
+  "joachims-ips": [
+   "Unbiased Learning-to-Rank with Biased Feedback — Joachims, Swaminathan, Schnabel (2016)",
+   "https://arxiv.org/abs/1608.04468"
+  ],
+  "judge": [
+   "Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena — Zheng et al. (2023)",
+   "https://arxiv.org/abs/2306.05685"
+  ],
+  "kaminskas": [
+   "Diversity, Serendipity, Novelty, and Coverage — Kaminskas and Bridge (ACM TiiS, 2016)",
+   "https://dl.acm.org/doi/10.1145/2926720"
+  ],
+  "kaplan": [
+   "Scaling Laws for Neural Language Models — Kaplan et al. (2020)",
+   "https://arxiv.org/abs/2001.08361"
+  ],
+  "keskar": [
+   "On Large-Batch Training for Deep Learning — Keskar et al. (2016)",
+   "https://arxiv.org/abs/1609.04836"
+  ],
+  "kohavi": [
+   "Trustworthy Online Controlled Experiments — Kohavi, Tang, Xu (2020)",
+   "https://experimentguide.com/"
+  ],
+  "label-smoothing": [
+   "When Does Label Smoothing Help? — Müller, Kornblith, Hinton (2019)",
+   "https://arxiv.org/abs/1906.02629"
+  ],
+  "lambdamart": [
+   "From RankNet to LambdaRank to LambdaMART: An Overview — Burges (Microsoft Research, 2010)",
+   "https://www.microsoft.com/en-us/research/publication/from-ranknet-to-lambdarank-to-lambdamart-an-overview/"
+  ],
+  "layernorm": [
+   "Layer Normalization — Ba, Kiros, Hinton (2016)",
+   "https://arxiv.org/abs/1607.06450"
+  ],
+  "lightgbm": [
+   "LightGBM: A Highly Efficient Gradient Boosting Decision Tree — Ke et al. (NeurIPS 2017)",
+   "https://papers.nips.cc/paper/2017/hash/6449f44a102fde848669bdd9eb6b76fa-Abstract.html"
+  ],
+  "lora": [
+   "LoRA: Low-Rank Adaptation of Large Language Models — Hu et al. (2021)",
+   "https://arxiv.org/abs/2106.09685"
+  ],
+  "lost-middle": [
+   "Lost in the Middle: How Language Models Use Long Contexts — Liu et al. (2023)",
+   "https://arxiv.org/abs/2307.03172"
+  ],
+  "lstm": [
+   "Long Short-Term Memory — Hochreiter and Schmidhuber (Neural Computation, 1997)",
+   "https://direct.mit.edu/neco/article/9/8/1735/6109/Long-Short-Term-Memory"
+  ],
+  "mamba": [
+   "Mamba: Linear-Time Sequence Modeling with Selective State Spaces — Gu and Dao (2023)",
+   "https://arxiv.org/abs/2312.00752"
+  ],
+  "medusa": [
+   "Medusa: Simple LLM Inference Acceleration Framework — Cai et al. (2024)",
+   "https://arxiv.org/abs/2401.10774"
+  ],
+  "megatron": [
+   "Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism — Shoeybi et al. (2019)",
+   "https://arxiv.org/abs/1909.08053"
+  ],
+  "meta-prevalence": [
+   "Prevalence — Meta Transparency Center",
+   "https://transparency.meta.com/policies/improving/prevalence-metric/"
+  ],
+  "mirage": [
+   "Are Emergent Abilities of Large Language Models a Mirage? — Schaeffer et al. (2023)",
+   "https://arxiv.org/abs/2304.15004"
+  ],
+  "mixtape": [
+   "Causal Inference: The Mixtape — Cunningham (2021)",
+   "https://mixtape.scunning.com/"
+  ],
+  "mlops-google": [
+   "MLOps: Continuous delivery and automation pipelines in machine learning — Google Cloud Architecture Center",
+   "https://cloud.google.com/architecture/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning"
+  ],
+  "mmoe": [
+   "Modeling Task Relationships in Multi-task Learning with Multi-gate Mixture-of-Experts — Ma et al. (KDD 2018)",
+   "https://dl.acm.org/doi/10.1145/3219819.3220007"
+  ],
+  "mmr": [
+   "The Use of MMR, Diversity-Based Reranking — Carbonell and Goldstein (SIGIR 1998)",
+   "https://dl.acm.org/doi/10.1145/290941.291025"
+  ],
+  "monosemantic": [
+   "Towards Monosemanticity: Decomposing Language Models With Dictionary Learning — Anthropic (2023)",
+   "https://transformer-circuits.pub/2023/monosemantic-features/index.html"
+  ],
+  "msprt": [
+   "Always Valid Inference: Continuous Monitoring of A/B Tests — Johari et al. (2015)",
+   "https://arxiv.org/abs/1512.04922"
+  ],
+  "nanogpt": [
+   "nanoGPT: model.py (a reference causal self-attention implementation) — Karpathy",
+   "https://github.com/karpathy/nanoGPT/blob/master/model.py"
+  ],
+  "ndcg": [
+   "Cumulated Gain-Based Evaluation of IR Techniques — Järvelin and Kekäläinen (ACM TOIS, 2002)",
+   "https://dl.acm.org/doi/10.1145/582415.582418"
+  ],
+  "nflx-artwork": [
+   "Artwork Personalization at Netflix — Netflix Technology Blog (2017)",
+   "https://netflixtechblog.com/artwork-personalization-c589f074ad76"
+  ],
+  "nflx-interleave": [
+   "Innovating Faster on Personalization Algorithms at Netflix Using Interleaving — Netflix Technology Blog (2017)",
+   "https://netflixtechblog.com/interleaving-in-online-experiments-at-netflix-a04ee392ec55"
+  ],
+  "nflx-recsys": [
+   "The Netflix Recommender System: Algorithms, Business Value, and Innovation — Gomez-Uribe and Hunt (ACM TMIS, 2015)",
+   "https://dl.acm.org/doi/10.1145/2843948"
+  ],
+  "ng-jordan": [
+   "On Discriminative vs. Generative Classifiers — Ng and Jordan (NeurIPS 2001)",
+   "https://papers.nips.cc/paper/2001/hash/7b7a53e239400a13bd6be6c91c4f6c4e-Abstract.html"
+  ],
+  "nucleus": [
+   "The Curious Case of Neural Text Degeneration (nucleus sampling) — Holtzman et al. (2019)",
+   "https://arxiv.org/abs/1904.09751"
+  ],
+  "pascanu": [
+   "On the difficulty of training recurrent neural networks (gradient clipping) — Pascanu et al. (2012)",
+   "https://arxiv.org/abs/1211.5063"
+  ],
+  "qlora": [
+   "QLoRA — Dettmers et al. (2023)",
+   "https://arxiv.org/abs/2305.14314"
+  ],
+  "rag": [
+   "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks — Lewis et al. (2020)",
+   "https://arxiv.org/abs/2005.11401"
+  ],
+  "resnet": [
+   "Deep Residual Learning for Image Recognition — He et al. (2015)",
+   "https://arxiv.org/abs/1512.03385"
+  ],
+  "rf": [
+   "Random Forests — Breiman (Machine Learning, 2001)",
+   "https://link.springer.com/article/10.1023/A:1010933404324"
+  ],
+  "rope": [
+   "RoFormer: Rotary Position Embedding — Su et al. (2021)",
+   "https://arxiv.org/abs/2104.09864"
+  ],
+  "rrf": [
+   "Reciprocal Rank Fusion Outperforms Condorcet and Individual Rank Learning Methods — Cormack, Clarke, Büttcher (SIGIR 2009)",
+   "https://dl.acm.org/doi/10.1145/1571941.1572114"
+  ],
+  "rules-ml": [
+   "Rules of Machine Learning (training-serving skew) — Zinkevich, Google",
+   "https://developers.google.com/machine-learning/guides/rules-of-ml"
+  ],
+  "saito-pr": [
+   "The Precision-Recall Plot Is More Informative than the ROC Plot on Imbalanced Datasets — Saito and Rehmsmeier (PLOS ONE, 2015)",
+   "https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0118432"
+  ],
+  "sasrec": [
+   "Self-Attentive Sequential Recommendation (SASRec) — Kang and McAuley (2018)",
+   "https://arxiv.org/abs/1808.09781"
+  ],
+  "sgdr": [
+   "SGDR: Stochastic Gradient Descent with Warm Restarts (cosine schedule) — Loshchilov and Hutter (2016)",
+   "https://arxiv.org/abs/1608.03983"
+  ],
+  "shap": [
+   "A Unified Approach to Interpreting Model Predictions (SHAP) — Lundberg and Lee (2017)",
+   "https://arxiv.org/abs/1705.07874"
+  ],
+  "shift-book": [
+   "Dataset Shift in Machine Learning — Quiñonero-Candela et al. (MIT Press, 2009)",
+   "https://mitpress.mit.edu/9780262545877/dataset-shift-in-machine-learning/"
+  ],
+  "sk-calib": [
+   "Probability calibration — scikit-learn user guide",
+   "https://scikit-learn.org/stable/modules/calibration.html"
+  ],
+  "sk-cv": [
+   "Cross-validation — scikit-learn user guide",
+   "https://scikit-learn.org/stable/modules/cross_validation.html"
+  ],
+  "sk-kmeans": [
+   "Clustering: K-means — scikit-learn user guide",
+   "https://scikit-learn.org/stable/modules/clustering.html"
+  ],
+  "sk-metrics": [
+   "Metrics and scoring — scikit-learn user guide",
+   "https://scikit-learn.org/stable/modules/model_evaluation.html"
+  ],
+  "sk-outlier": [
+   "Novelty and outlier detection — scikit-learn user guide",
+   "https://scikit-learn.org/stable/modules/outlier_detection.html"
+  ],
+  "sk-pca": [
+   "Decomposing signals in components (PCA) — scikit-learn user guide",
+   "https://scikit-learn.org/stable/modules/decomposition.html"
+  ],
+  "sk-perm": [
+   "Permutation feature importance — scikit-learn user guide",
+   "https://scikit-learn.org/stable/modules/permutation_importance.html"
+  ],
+  "sk-pitfalls": [
+   "Common pitfalls and recommended practices (data leakage) — scikit-learn",
+   "https://scikit-learn.org/stable/common_pitfalls.html"
+  ],
+  "smoothquant": [
+   "SmoothQuant — Xiao et al. (2022)",
+   "https://arxiv.org/abs/2211.10438"
+  ],
+  "snips": [
+   "The Self-Normalized Estimator for Counterfactual Learning — Swaminathan and Joachims (NeurIPS 2015)",
+   "https://papers.nips.cc/paper/2015/hash/39027dfad5138c9ca0c474d71db915c3-Abstract.html"
+  ],
+  "snorkel": [
+   "Snorkel: Rapid Training Data Creation with Weak Supervision — Ratner et al. (2017)",
+   "https://arxiv.org/abs/1711.10160"
+  ],
+  "specdec": [
+   "Fast Inference from Transformers via Speculative Decoding — Leviathan et al. (2022)",
+   "https://arxiv.org/abs/2211.17192"
+  ],
+  "sre-postmortem": [
+   "Postmortem Culture: Learning from Failure — Site Reliability Engineering (Google)",
+   "https://sre.google/sre-book/postmortem-culture/"
+  ],
+  "srm": [
+   "Diagnosing Sample Ratio Mismatch in Online Controlled Experiments — Fabijan et al. (KDD 2019)",
+   "https://dl.acm.org/doi/10.1145/3292500.3330722"
+  ],
+  "superposition": [
+   "Toy Models of Superposition — Elhage et al. (Anthropic, 2022)",
+   "https://arxiv.org/abs/2209.10652"
+  ],
+  "switch": [
+   "Switch Transformers (mixture of experts) — Fedus, Zoph, Shazeer (2021)",
+   "https://arxiv.org/abs/2101.03961"
+  ],
+  "tabular": [
+   "Why do tree-based models still outperform deep learning on tabular data? — Grinsztajn et al. (2022)",
+   "https://arxiv.org/abs/2207.08815"
+  ],
+  "tail": [
+   "The Tail at Scale — Dean and Barroso (CACM, 2013)",
+   "https://research.google/pubs/the-tail-at-scale/"
+  ],
+  "target-enc": [
+   "A Preprocessing Scheme for High-Cardinality Categorical Attributes — Micci-Barreca (SIGKDD Explorations, 2001)",
+   "https://dl.acm.org/doi/10.1145/507533.507538"
+  ],
+  "tech-debt": [
+   "Hidden Technical Debt in Machine Learning Systems — Sculley et al. (NeurIPS 2015)",
+   "https://papers.nips.cc/paper/2015/hash/86df7dcfd896fcaf2674f757a2463eba-Abstract.html"
+  ],
+  "tiger": [
+   "Recommender Systems with Generative Retrieval (TIGER) — Rajput et al. (2023)",
+   "https://arxiv.org/abs/2305.05065"
+  ],
+  "vit": [
+   "An Image is Worth 16x16 Words (ViT) — Dosovitskiy et al. (2020)",
+   "https://arxiv.org/abs/2010.11929"
+  ],
+  "vllm": [
+   "Efficient Memory Management for LLM Serving with PagedAttention (vLLM) — Kwon et al. (2023)",
+   "https://arxiv.org/abs/2309.06180"
+  ],
+  "widedeep": [
+   "Wide & Deep Learning for Recommender Systems — Cheng et al. (2016)",
+   "https://arxiv.org/abs/1606.07792"
+  ],
+  "xgboost": [
+   "XGBoost: A Scalable Tree Boosting System — Chen and Guestrin (2016)",
+   "https://arxiv.org/abs/1603.02754"
+  ],
+  "yi-logq": [
+   "Sampling-Bias-Corrected Neural Modeling for Large Corpus Item Recommendations — Yi et al. (RecSys 2019)",
+   "https://research.google/pubs/sampling-bias-corrected-neural-modeling-for-large-corpus-item-recommendations/"
+  ],
+  "yt-dnn": [
+   "Deep Neural Networks for YouTube Recommendations — Covington, Adams, Sargin (RecSys 2016)",
+   "https://research.google/pubs/deep-neural-networks-for-youtube-recommendations/"
+  ],
+  "yt-mtl": [
+   "Recommending What Video to Watch Next: A Multitask Ranking System — Zhao et al. (RecSys 2019)",
+   "https://research.google/pubs/recommending-what-video-to-watch-next-a-multitask-ranking-system/"
+  ],
+  "zero": [
+   "ZeRO: Memory Optimizations Toward Training Trillion Parameter Models — Rajbhandari et al. (2019)",
+   "https://arxiv.org/abs/1910.02054"
+  ]
+ },
+ "sources_note": "References chosen on 2026-11-13 from the standard literature. They have not yet been opened and compared with each card: verified is false until a card has been checked against its sources.",
+ "verified": false
 }
