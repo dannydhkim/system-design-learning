@@ -185,7 +185,7 @@ bosses and topic 0C.1.
 
 ## Structure
 
-- `index.html`, `css/`, `js/` — the game. Content lives in `js/data/` (`m0.js` … `m8.js`, one file per module, and `bosses.js`); add a topic by adding one object.
+- `index.html`, `css/`, `js/` — the game. Content lives in `js/data/` (`m0.js` … `m9.js`, one file per module, and `bosses.js`); add a topic by adding one object.
   The checkers read the list of content files from `index.html`, so a new module file only has to be added there.
 - `js/data/sources.js` — the source registry cited by every topic and question
 - `tools/check-content.mjs` — answer-key checks (Node 18+, no dependencies)

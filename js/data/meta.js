@@ -28,5 +28,5 @@ SD.mods = {
   '6': { title: 'Case Studies', icon: '🏛️' },
   '7': { title: 'ML Case Studies', icon: '🧪' },
   '8': { title: 'Applied ML Design', icon: '📐' },
-  '9': { title: 'ML Fundamentals & Theory', icon: '🧮', locked: ['Generalization and regularization', 'Linear and logistic models', 'Trees and ensembles', 'Optimization', 'Neural networks', 'Probability and statistics for ML', 'Unsupervised learning', 'Transformers from first principles'] }
+  '9': { title: 'ML Fundamentals & Theory', icon: '🧮' }
 };
