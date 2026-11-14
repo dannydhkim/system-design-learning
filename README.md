@@ -163,7 +163,8 @@ node tools/check-shuffle.mjs           # the correct option turns up in all four
 
 ## Content status
 
-Every item in `curriculum.md` has a topic: 90 topics across nine modules, plus four boss fights.
+Every item in `curriculum.md` has a topic: 98 topics across ten modules, plus four boss fights. The Review page also
+holds a 145-card staff MLE interview deck (`questions/ml-interview-deck.json`) whose cards are checked against their sources.
 
 | Module | Topics | What it covers |
 |---|---|---|
@@ -176,6 +177,7 @@ Every item in `curriculum.md` has a topic: 90 topics across nine modules, plus f
 | 6 Case studies | 7 | Discord, Uber, Netflix, Spotify, Twitter/X, Stripe, WhatsApp, each from what its own engineers published |
 | 7 ML case studies | 10 | Recommendations, inference platform, search ranking, fraud, RAG Q&A, moderation, feature platform, LLM serving, notifications, autonomous-driving data |
 | 8 Applied ML design | 8 | The modelling half of an ML design round: the round itself, problem framing, metrics, data and labels, features, model selection, offline and online evaluation |
+| 9 ML fundamentals & theory | 8 | Generalization and regularization, linear and logistic models, trees and ensembles, optimization, neural networks, probability and statistics, unsupervised learning, transformers from first principles |
 
 A case study's lab runs the interview framework on that problem in four parts: pick the clarifying questions
 worth asking, size the system, order its request path or sort its design decisions, then draw the design and
