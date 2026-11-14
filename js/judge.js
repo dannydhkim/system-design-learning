@@ -94,7 +94,39 @@
     return Promise.reject(new Error('Add an API key in Settings, or download the offline judge there.'));
   }
 
+  // A fixed test: 9 answers to 3 cards, one right, one partly right and one wrong for each, so the owner can see how
+  // well the judge that would grade their cards agrees with the intended verdicts. The same set was used on 2026-11-14
+  // to test the offline models (Qwen3 0.6B: 2-3 of 9; Qwen3 1.7B: 5 of 9).
+  var TEST = [
+    { q: 'Define bias and variance. Which way does a linear model lean versus a deep net?', a: '• Bias: error from a model too simple to capture the true pattern.\n• Variance: error from sensitivity to the particular training sample.\n• Linear regression: high bias, low variance. Deep nets: low bias, high variance.',
+      c: ['Bias is error from an overly simple model, variance is sensitivity to which training sample you got. Linear models are high bias low variance, deep nets are low bias high variance.',
+        'Bias is when the model is too simple and underfits. Linear models have high bias.',
+        'Bias means the model is unfair to some groups, and variance is how spread out the data is.'] },
+    { q: 'Why does L1 regularization give exact zeros and L2 does not?', a: '• L1 adds lambda*sum|w|, L2 adds lambda*sum(w^2).\n• L1 gradient is a constant push lambda*sign(w) until the weight hits exactly 0; L2 gradient 2*lambda*w shrinks as w shrinks, so it never reaches 0.',
+      c: ['L1 penalty has a constant gradient lambda times sign of w, so it keeps pushing until the weight is exactly zero. L2 gradient is proportional to w so it gets weaker near zero and never quite gets there.',
+        'L1 uses absolute values and L2 uses squares, so L1 is sparse.',
+        'L2 gives exact zeros because squaring small numbers makes them zero, L1 does not.'] },
+    { q: 'What is a sample ratio mismatch in an A/B test and what do you do about it?', a: '• The observed split of users between arms differs from the designed split (e.g. 50/50) by more than chance, checked with a chi-squared test.\n• It signals a bug in assignment, logging or filtering; results are untrustworthy until the cause is found.',
+      c: ['SRM is when the actual traffic split differs significantly from the intended one, which you test with chi-squared. It means something is broken in assignment or logging, so you should not trust the results until you find the cause.',
+        'It is when the groups are not the same size. You should check it.',
+        'SRM is when your conversion rate is lower than expected, so you increase the sample size until it is significant.'] }
+  ];
+  var EXPECT = ['correct', 'partial', 'incorrect'];
+  // Runs the test through gradeAny (the same path a flashcard uses). onEach(k, expected, verdict or 'error', judge name).
+  // Resolves to { right, total, rows }.
+  function selfTest(onEach) {
+    var rows = [], k = 0, jobs = [];
+    TEST.forEach(function (t) { t.c.forEach(function (ans, i) { jobs.push({ card: { q: t.q, a: t.a, key: '' }, ans: ans, want: EXPECT[i] }); }); });
+    return jobs.reduce(function (p, j) {
+      return p.then(function () {
+        return gradeAny(j.card, j.ans).then(function (out) { return { got: out.verdict, by: out.by }; }, function (e) { return { got: 'error', err: e.message }; })
+          .then(function (r) { rows.push({ want: j.want, got: r.got, by: r.by, err: r.err }); if (onEach) onEach(k++, j.want, r.got, r.by || r.err); });
+      });
+    }, Promise.resolve()).then(function () { return { right: rows.filter(function (r) { return r.got === r.want; }).length, total: rows.length, rows: rows }; });
+  }
+
   SD.judge = {
+    selfTest: selfTest,
     MODEL: MODEL,
     conf: conf,
     ready: function () { return !!conf().key || !!local(); },

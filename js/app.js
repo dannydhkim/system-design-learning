@@ -360,6 +360,23 @@
       h('p', { class: 'muted' }, 'On flashcards, a small Claude model (' + jc.model + ') compares what you typed or dictated with the reference answer and says what you covered, missed or got wrong. You still pick the grade. It needs your own Claude API key from platform.claude.com; the key is stored only in this browser, is sent only to api.anthropic.com, and is never written to the progress file. Paste it on each device. With no connection (or no key), the offline judge below grades instead, if you have downloaded it.'),
       h('div', { class: 'fields' }, h('label', { class: 'field' }, h('span', {}, 'Claude API key'), jkey)),
       h('label', { class: 'check' }, jauto, ' Check my answer automatically when I reveal a card'),
+      (function () {
+        var out = h('div', { class: 'muted' });
+        var b = h('button', { class: 'btn mini', onclick: function () {
+          if (!J.ready()) { SD.toast('Add an API key first (or download the offline judge).'); return; }
+          b.disabled = true; clear(out); out.appendChild(document.createTextNode('Testing… 0 / 9'));
+          var lines = [];
+          J.selfTest(function (k, want, got, who) { lines.push((got === want ? '✓ ' : '✗ ') + 'expected ' + want + ', judge said ' + got + (got === 'error' ? ' (' + who + ')' : '')); clear(out); out.appendChild(document.createTextNode('Testing… ' + (k + 1) + ' / 9')); })
+            .then(function (r) {
+              b.disabled = false; clear(out);
+              var who = (r.rows.filter(function (x) { return x.by; })[0] || {}).by || 'the judge';
+              out.appendChild(h('b', {}, who + ': ' + r.right + ' of ' + r.total + ' verdicts matched. '));
+              out.appendChild(document.createTextNode(r.right >= 8 ? 'Good enough to trust as a first opinion.' : r.right >= 6 ? 'Usable as a hint; check it against the answer.' : 'Not reliable: grade yourself.'));
+              out.appendChild(h('ul', { class: 'points' }, lines.map(function (l) { return h('li', {}, l); })));
+            });
+        } }, 'Test the judge on 9 sample answers');
+        return h('div', {}, b, out);
+      })(),
       h('p', { class: 'muted' }, jc.calls ? 'Used so far on this device: ' + jc.calls + ' check' + (jc.calls === 1 ? '' : 's') + ', ' + SD.fmt(jc.inTok) + ' input and ' + SD.fmt(jc.outTok) + ' output tokens' + (spent != null ? ', about $' + spent.toFixed(4) + ' at list price.' : '.') : 'Nothing has been sent yet. Expect well under a tenth of a cent per card at list price; this page shows the running total.'),
       h('p', { class: 'muted' }, 'Dictation (the 🎙 button on a card) is separate and free: the browser transcribes your speech. It works in Chrome, Edge and Safari, with a connection.')));
 
