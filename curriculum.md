@@ -141,6 +141,19 @@ The modelling half of an ML design interview: what applied-ML rounds at large co
 - [ ] 8.7 Training and offline evaluation — splits, losses, sampling, calibration
 - [ ] 8.8 Online evaluation and iteration — launch decisions, offline-online gaps, feedback loops
 
+## Module 9: ML Fundamentals & Theory
+
+The theory questions senior and staff ML interviews probe: why models generalize, how the classic models and optimizers work, the deep-learning toolkit, the statistics behind evaluation, unsupervised learning, and transformers from first principles.
+
+- [ ] 9.1 Generalization and regularization — bias and variance, L1 and L2, dropout, double descent
+- [ ] 9.2 Linear and logistic models — least squares, maximum likelihood, cross-entropy, convexity
+- [ ] 9.3 Trees and ensembles — splits, bagging, random forests, gradient boosting
+- [ ] 9.4 Optimization — SGD, momentum, Adam and AdamW, schedules, batch size
+- [ ] 9.5 Neural networks — backpropagation, activations, initialization, normalization, residuals
+- [ ] 9.6 Probability and statistics for ML — Bayes, MLE and MAP, tests, intervals, the bootstrap
+- [ ] 9.7 Unsupervised learning — k-means, PCA, anomaly detection, contrastive embeddings
+- [ ] 9.8 Transformers from first principles — attention, positions, tokens, FLOPs, scaling laws
+
 ## Breakscale Challenges Progress
 
 - [ ] Challenge 1: Hold the line (p99 < 200ms)
