@@ -286,3 +286,13 @@ details > summary { cursor: pointer; color: var(--muted); font-size: .92rem; mar
 .grade.suggested { box-shadow: 0 0 0 3px var(--accent); }
 .btn.rec { border-color: var(--bad); color: var(--bad); }
 .speak { vertical-align: middle; font-size: .9rem; font-weight: normal; margin-left: 4px; text-transform: none; letter-spacing: 0; }
+/* Ranked ladder (js/ladder.js) */
+.meter.rank { text-decoration: none; color: inherit; }
+.rank.t0, .tier.t0, .ladder.t0 { --tc: #9aa3b5; } .rank.t1, .tier.t1, .ladder.t1 { --tc: #c9894f; } .rank.t2, .tier.t2, .ladder.t2 { --tc: #c8d1e0; }
+.rank.t3, .tier.t3, .ladder.t3 { --tc: #e7b93c; } .rank.t4, .tier.t4, .ladder.t4 { --tc: #4fd1c5; } .rank.t5, .tier.t5, .ladder.t5 { --tc: #b48cff; }
+.meter.rank b { color: var(--tc); }
+.rankbig { font-size: 1.6rem; font-weight: 700; color: var(--tc); margin: 4px 0 8px; } .rankbig small { color: var(--muted); font-size: .9rem; font-weight: 400; }
+.ladder .track { height: 8px; border-radius: 4px; background: rgba(255,255,255,.08); overflow: hidden; margin-bottom: 8px; }
+.ladder .track .fill { height: 100%; background: var(--tc, #4fd1c5); }
+.tiers { display: flex; flex-wrap: wrap; gap: 6px; } .tier { padding: 3px 8px; border-radius: 12px; border: 1px solid rgba(255,255,255,.12); font-size: .85rem; opacity: .55; }
+.tier.past { opacity: .85; } .tier.on { opacity: 1; border-color: var(--tc); color: var(--tc); font-weight: 600; }

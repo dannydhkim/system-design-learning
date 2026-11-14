@@ -4,7 +4,7 @@
 // tools/check-sw.mjs, and `node tools/check-sw.mjs --write` rewrites them after any file changes. A new VERSION is
 // what makes installed copies pick up a deploy: the browser sees sw.js changed, downloads the new files into a fresh
 // cache, and the page offers a reload (js/app.js). Progress is not stored here; it lives in localStorage.
-const VERSION = '2a86439767fd';
+const VERSION = '84f671909f7e';
 const FILES = [
   './',
   'js/data/meta.js',
@@ -21,6 +21,8 @@ const FILES = [
   'js/data/bosses.js',
   'js/vendor/breakscale-sim.js',
   'js/core.js',
+  'js/audio.js',
+  'js/ladder.js',
   'js/sync.js',
   'js/local-ai.js',
   'js/judge.js',
@@ -38,7 +40,41 @@ const FILES = [
   'icons/icon-maskable-512.png',
   'questions/module-1-foundations.json',
   'questions/module-5-ml-systems.json',
-  'questions/ml-interview-deck.json'
+  'questions/ml-interview-deck.json',
+  'audio/music/study.mp3',
+  'audio/music/arcade.mp3',
+  'audio/music/boss.mp3',
+  'audio/sfx/ok.mp3',
+  'audio/sfx/ok2.mp3',
+  'audio/sfx/bad.mp3',
+  'audio/sfx/coin.mp3',
+  'audio/sfx/tick.mp3',
+  'audio/sfx/hit.mp3',
+  'audio/sfx/boom.mp3',
+  'audio/sfx/laser.mp3',
+  'audio/sfx/levelup.mp3',
+  'audio/sfx/win.mp3',
+  'audio/sfx/lose.mp3',
+  'audio/sfx/rankup.mp3',
+  'audio/sfx/quest.mp3',
+  'audio/voice/prepare_yourself.mp3',
+  'audio/voice/fight.mp3',
+  'audio/voice/combo.mp3',
+  'audio/voice/multi_kill.mp3',
+  'audio/voice/combo_breaker.mp3',
+  'audio/voice/flawless_victory.mp3',
+  'audio/voice/winner.mp3',
+  'audio/voice/you_lose.mp3',
+  'audio/voice/final_round.mp3',
+  'audio/voice/game_over.mp3',
+  'audio/voice/level_up.mp3',
+  'audio/voice/new_highscore.mp3',
+  'audio/voice/objective_achieved.mp3',
+  'audio/voice/congratulations.mp3',
+  'audio/voice/hurry_up.mp3',
+  'audio/voice/time_over.mp3',
+  'audio/voice/power_up.mp3',
+  'audio/voice/mission_completed.mp3'
 ];
 const CACHE = 'sdq-' + VERSION;
 // While developing on localhost the network copy wins, so an edit shows up on reload; the cache is only the fallback.

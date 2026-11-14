@@ -36,6 +36,7 @@
     hud.appendChild(h('div', { class: 'meters' },
       cs.icon ? h('a', { class: 'meter cloud ' + cs.cls, href: '#/settings', title: 'Cloud sync: ' + cs.word, 'aria-label': 'Cloud sync: ' + cs.word }, cs.icon) : null,
       h('div', { class: 'lvl', title: lv.into + ' / ' + lv.span + ' XP to next level' }, h('b', {}, 'Lv ' + lv.level), h('span', { class: 'ltitle' }, lv.title), h('div', { class: 'track' }, fill)),
+      (function () { var r = SD.ladder.now(); return h('a', { class: 'meter rank t' + r.tier, href: '#/stats', title: 'Ranked ladder: ' + r.label + ' · ' + r.rp + ' RP' + (r.span ? ' (' + r.into + ' / ' + r.span + ' to the next division)' : ''), 'aria-label': 'Rank ' + r.label }, r.icon + ' ', h('b', {}, r.label)); })(),
       h('div', { class: 'meter', title: 'Daily streak' }, '🔥 ', h('b', {}, SD.streakNow())),
       h('div', { class: 'meter' + (s.combo >= 5 ? ' hot' : ''), title: 'Correct answers in a row' }, '⚡ ', h('b', {}, s.combo))));
   }
@@ -271,6 +272,13 @@
       stat('Lv ' + lv.level, lv.title), stat(SD.fmt(s.xp), 'XP'), stat('🔥 ' + SD.streakNow(), 'day streak (best ' + s.streak.best + ')'), stat('⚡ ' + s.bestCombo, 'best answer streak'),
       stat(known.length + ' / ' + Object.keys(SD.cards).length, 'cards learned'), stat(mature, 'cards with 3+ week interval'), stat(right + wrong ? Math.round(right / (right + wrong) * 100) + '%' : '—', 'accuracy'), stat(s.counts.reviews || 0, 'reviews done')));
 
+    var rk = SD.ladder.now(), pk = SD.ladder.peak(), rfill = h('div', { class: 'fill' }); rfill.style.width = Math.round(rk.pct * 100) + '%';
+    main.appendChild(h('div', { class: 'card ladder t' + rk.tier }, h('div', { class: 'label' }, 'Ranked ladder'),
+      h('div', { class: 'rankbig' }, rk.icon + ' ' + rk.label, h('small', {}, ' ' + rk.rp + ' RP')),
+      rk.span ? h('div', { class: 'track' }, rfill) : null,
+      h('p', { class: 'muted' }, (rk.span ? (rk.span - rk.into) + ' RP to the next division. ' : 'Top tier. ') + 'Peak: ' + pk.label + '. A right answer is +' + SD.ladder.RP.right + ' RP (+' + SD.ladder.RP.streakBonus + ' every ' + SD.ladder.RP.streakEvery + ' in a row), a wrong one ' + SD.ladder.RP.wrong + '; a boss win (80+) is +' + SD.ladder.RP.bossWin + ', a loss (under 60) ' + SD.ladder.RP.bossLoss + '; an arcade high score +' + SD.ladder.RP.highScore + '. You can drop a division but never a tier.'),
+      h('div', { class: 'tiers' }, SD.ladder.TIERS.map(function (t, k) { return h('span', { class: 'tier t' + k + (k === rk.tier ? ' on' : k < rk.tier ? ' past' : '') }, t.icon + ' ' + t.name); }))));
+
     main.appendChild(h('h3', {}, 'Last 5 weeks'));
     var cal = h('div', { class: 'cal' }), t = SD.today();
     for (var i = 34; i >= 0; i--) { var d = SD.addDays(t, -i), xp = s.days[d] || 0; cal.appendChild(h('div', { class: 'day l' + (xp === 0 ? 0 : xp < 50 ? 1 : xp < 150 ? 2 : 3), title: d + ': ' + xp + ' XP' })); }
@@ -302,9 +310,18 @@
     var s = SD.state;
     main.appendChild(h('h1', {}, '⚙️ Settings'));
 
-    var snd = h('input', { type: 'checkbox' }); snd.checked = !!s.settings.sound;
-    snd.addEventListener('change', function () { s.settings.sound = snd.checked; SD.save(); });
-    main.appendChild(h('div', { class: 'card' }, h('label', { class: 'check' }, snd, ' Sound effects')));
+    function toggle(key, label) {
+      var c = h('input', { type: 'checkbox' }); c.checked = !!s.settings[key];
+      c.addEventListener('change', function () { s.settings[key] = c.checked; SD.save(); SD.audio.refresh(); if (c.checked && key === 'voice') SD.audio.say('prepare_yourself'); if (c.checked && key === 'sound') SD.audio.play('coin'); });
+      return h('label', { class: 'check' }, c, ' ' + label);
+    }
+    var mv = h('input', { type: 'range', min: '0', max: '100', value: String(Math.round(s.settings.musicVol * 100)), 'aria-label': 'Music volume' });
+    mv.addEventListener('input', function () { s.settings.musicVol = +mv.value / 100; SD.audio.refresh(); });
+    mv.addEventListener('change', function () { SD.save(); });
+    main.appendChild(h('div', { class: 'card' }, h('div', { class: 'label' }, 'Sound'),
+      toggle('sound', 'Sound effects'), toggle('voice', 'Announcer (streaks, rank-ups, boss fights, high scores)'), toggle('music', 'Music (study, arcade and boss themes)'),
+      h('label', { class: 'field' }, h('span', {}, 'Music volume'), mv),
+      h('p', { class: 'muted' }, 'All sounds and music are free CC0 assets (Kenney.nl and OpenGameArt, listed in audio/CREDITS.md) and work offline.')));
 
     var status = SD.sync.server === 'ok' ? '✓ Also saving to progress/progress.json in this folder (serve.py is running). That file is a local backup and stays out of git.'
       : SD.sync.server === 'retrying' ? '⚠ The local save server stopped answering. Progress is kept in this browser and will be written to progress/progress.json once the server is back.'
@@ -468,6 +485,7 @@
     else if (v === 'stats') viewStats();
     else if (v === 'settings') viewSettings();
     else viewMap();
+    SD.audio.music((v === 'arcade' || v === 'boss') && id ? v : 'study');
     drawHud();
     window.scrollTo(0, 0);
     main.focus({ preventScroll: true });

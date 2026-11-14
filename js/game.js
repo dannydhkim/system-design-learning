@@ -6,7 +6,8 @@
   function endScreen(el, o) {
     var isHigh = SD.setHigh(o.key, o.score);
     var xp = SD.award(Math.min(150, o.xp), { flat: true });   // capped so the arcade cannot outpace real study
-    if (isHigh && o.score > 0) { SD.confetti(); SD.beep('win'); }
+    if (isHigh && o.score > 0) { SD.confetti(); SD.beep('win'); if (SD.audio) SD.audio.say('new_highscore'); if (SD.ladder) SD.ladder.add(SD.ladder.RP.highScore); }
+    else if (SD.audio) SD.audio.say(o.timeUp ? 'time_over' : 'game_over');
     clear(el);
     el.appendChild(h('div', { class: 'result' },
       h('div', { class: 'label' }, o.title),
@@ -27,7 +28,9 @@
   // Stop any running clock when the player navigates away.
   var activeTimer = null;
   SD.stopTimers = function () { if (activeTimer) { clearInterval(activeTimer); activeTimer = null; } };
-  function every(ms, fn) { SD.stopTimers(); activeTimer = setInterval(fn, ms); }
+  function every(ms, fn) { SD.stopTimers(); activeTimer = setInterval(fn, ms); if (SD.audio) SD.audio.say('fight'); }
+  // Calls "hurry up" once when a game clock drops under five seconds.
+  function hurry(left, st) { if (left <= 5000 && left > 0 && !st.hurried) { st.hurried = true; if (SD.audio) { SD.audio.say('hurry_up'); SD.audio.play('tick'); } } }
 
   SD.arcade = {
     /* ----- Estimation Sprint: 90 seconds of back-of-envelope maths. The clock pauses while you read the working. ----- */
@@ -36,7 +39,7 @@
       var bar = timerBar(), hud = h('div', { class: 'gamehud' }), body = h('div', {});
       clear(el); el.appendChild(bar.el); el.appendChild(hud); el.appendChild(body);
       function paint() { bar.set(left / 90000, Math.ceil(left / 1000) + 's'); clear(hud); hud.appendChild(h('span', {}, 'Score ', h('b', {}, SD.fmt(score)))); hud.appendChild(h('span', {}, 'Streak ', h('b', {}, '⚡' + streak))); }
-      function finish() { SD.stopTimers(); endScreen(el, { key: 'sprint', title: 'Estimation Sprint', score: score, xp: Math.round(score / 25), detail: right + ' of ' + n + ' correct · best streak ' + bestStreak, review: missed, again: function () { SD.arcade.sprint(el); } }); }
+      function finish() { SD.stopTimers(); endScreen(el, { timeUp: left <= 0, key: 'sprint', title: 'Estimation Sprint', score: score, xp: Math.round(score / 25), detail: right + ' of ' + n + ' correct · best streak ' + bestStreak, review: missed, again: function () { SD.arcade.sprint(el); } }); }
       function next() {
         if (left <= 0) return finish();
         var p = L.genEstimate(); running = true;
@@ -48,7 +51,8 @@
           SD.save(); paint();
         });
       }
-      every(100, function () { if (!running) return; left -= 100; paint(); if (left <= 0) { running = false; finish(); } });
+      var st = {};
+      every(100, function () { if (!running) return; left -= 100; paint(); hurry(left, st); if (left <= 0) { running = false; finish(); } });
       paint(); next();
     },
 
@@ -106,7 +110,7 @@
       var bar = timerBar(), hud = h('div', { class: 'gamehud' }), body = h('div', {});
       clear(el); el.appendChild(bar.el); el.appendChild(hud); el.appendChild(body);
       function paint() { bar.set(left / 60000, Math.ceil(left / 1000) + 's'); clear(hud); hud.appendChild(h('span', {}, 'Score ', h('b', {}, SD.fmt(score)))); hud.appendChild(h('span', {}, 'Streak ', h('b', {}, '⚡' + streak))); }
-      function finish() { SD.stopTimers(); endScreen(el, { key: 'rush', title: 'Sort Rush', score: score, xp: Math.round(score / 2), detail: 'Best streak this run: ' + bestStreak, review: missed, again: function () { SD.arcade.rush(el); } }); }
+      function finish() { SD.stopTimers(); endScreen(el, { timeUp: true, key: 'rush', title: 'Sort Rush', score: score, xp: Math.round(score / 2), detail: 'Best streak this run: ' + bestStreak, review: missed, again: function () { SD.arcade.rush(el); } }); }
       function next(user) {
         if (left <= 0) return finish();
         if (i >= pool.length) { pool = shuffle(pool); i = 0; }
@@ -129,7 +133,8 @@
         body.appendChild(h('div', { class: 'opts buckets' }, btns));
         if (refocus) btns[0].focus();
       }
-      every(100, function () { if (locked) return; left -= 100; paint(); if (left <= 0) { locked = true; finish(); } });
+      var st = {};
+      every(100, function () { if (locked) return; left -= 100; paint(); hurry(left, st); if (left <= 0) { locked = true; finish(); } });
       paint(); next();
     }
   };
@@ -157,6 +162,7 @@
       paintSteps(); clear(foot);
       if (i >= boss.phases.length) return finish();
       var p = boss.phases[i], shown = false;
+      if (SD.audio) SD.audio.say(i === 0 ? 'fight' : i === boss.phases.length - 1 ? 'final_round' : null);
       clear(body);
       body.appendChild(h('h2', {}, 'Phase ' + (i + 1) + ': ' + p.name));
       var mountEl = h('div', {}); body.appendChild(mountEl);
@@ -176,7 +182,9 @@
       delete runs[boss.id];
       var isHigh = SD.setHigh('boss.' + boss.id, total);
       var xp = SD.award(SD.replayXp(total, replay ? prevBest : null), { flat: true });   // a replay pays in full only for beating the best
-      if (total >= 80) { SD.confetti(); SD.beep('win'); }
+      if (total >= 80) { SD.confetti(); SD.beep('win'); if (SD.audio) { SD.audio.play('boom'); SD.audio.say(total >= 100 ? 'flawless_victory' : 'winner'); } }
+      else if (total < 60 && SD.audio) { SD.audio.play('lose'); SD.audio.say('you_lose'); }
+      if (SD.ladder) SD.ladder.add(total >= 80 ? SD.ladder.RP.bossWin : total < 60 ? SD.ladder.RP.bossLoss : 0);
       clear(body); clear(foot);
       var weakest = boss.phases.map(function (p, k) { return [p.name, scores[k] || 0]; }).sort(function (a, b) { return a[1] - b[1]; })[0];
       body.appendChild(h('div', { class: 'result' },

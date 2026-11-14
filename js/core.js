@@ -65,8 +65,10 @@ window.SD = window.SD || {};
     setTimeout(function () { layer.remove(); }, 2200);
   };
   var actx;
+  // Short sound for an event. Plays the sound files in audio/ (js/audio.js); the synthesized tones are the fallback.
   SD.beep = function (kind) {
     if (!SD.state || !SD.state.settings.sound) return;
+    if (SD.audio) return SD.audio.play(kind);
     try {
       actx = actx || new (window.AudioContext || window.webkitAudioContext)();
       var notes = { ok: [660, 880], bad: [220, 180], win: [523, 659, 784, 1047], tick: [520] }[kind] || [440];
@@ -117,7 +119,8 @@ window.SD = window.SD || {};
       quests: { date: null, prog: {}, done: {} },
       runs: {},   // a boss fight left part-way: boss id -> { i: next phase, scores: [0..1 per phase done], ms: time spent }
       tally: {},  // what each device has added to the running totals (see "Running totals" below)
-      settings: { sound: true }
+      ladder: { rp: 0, peak: 0 },   // ranked ladder (js/ladder.js)
+      settings: { sound: true, voice: true, music: false, musicVol: 1 }
     };
   }
   function isObj(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
@@ -256,6 +259,11 @@ window.SD = window.SD || {};
     s.quests = { date: str(q.date), prog: only(q.prog, num), done: only(q.done, num) };
     if (!isObj(s.settings)) s.settings = b.settings;
     if (typeof s.settings.sound !== 'boolean') s.settings.sound = true;
+    if (typeof s.settings.voice !== 'boolean') s.settings.voice = true;
+    if (typeof s.settings.music !== 'boolean') s.settings.music = false;
+    s.settings.musicVol = Math.min(1, Math.max(0, num(s.settings.musicVol) == null ? 1 : num(s.settings.musicVol)));
+    var lad = isObj(s.ladder) ? s.ladder : b.ladder, rp = Math.max(0, num(lad.rp) || 0);
+    s.ladder = { rp: rp, peak: Math.max(rp, num(lad.peak) || 0) };
     return fixTally(s);
   }
   SD.normalize = normalize;
@@ -301,6 +309,7 @@ window.SD = window.SD || {};
     var s = (cmp(n.streak.last, o.streak.last) || cmp(n.streak.count, o.streak.count)) >= 0 ? n.streak : o.streak;
     m.streak = { count: s.count, best: Math.max(n.streak.best, o.streak.best), last: s.last };
     m.hi = maxMap(n.hi, o.hi);
+    m.ladder = { rp: n.ladder.rp, peak: Math.max(n.ladder.peak, o.ladder.peak) };
     m.tally = eachKey(n.tally, o.tally, mergeTally);
     m.badges = eachKey(n.badges, o.badges, earlier);
     m.cards = eachKey(n.cards, o.cards, newerCard);
@@ -455,6 +464,7 @@ window.SD = window.SD || {};
       s.streak.last = t;
       s.streak.best = Math.max(s.streak.best, s.streak.count);
       if (s.streak.count > 1) SD.toast('🔥 ' + s.streak.count + '-day streak!', 'gold');
+      if (SD.audio) SD.audio.say('prepare_yourself');   // first answer of the day
     }
     if (s.quests.date !== t) s.quests = { date: t, prog: {}, done: {} };
   }
@@ -473,7 +483,8 @@ window.SD = window.SD || {};
     if (!q.done[id] && q.prog[id] >= def.goal) {
       q.done[id] = 1;
       gain(40);
-      SD.toast('✅ Quest complete: ' + def.text + ' (+40 XP)', 'gold'); SD.beep('win');
+      SD.toast('✅ Quest complete: ' + def.text + ' (+40 XP)', 'gold'); SD.beep('quest');
+      if (SD.audio) SD.audio.say('objective_achieved');
     }
   }
 
@@ -498,17 +509,25 @@ window.SD = window.SD || {};
     if (opts.count) count(opts.count);
     if (opts.quest) bumpQuest(opts.quest, 1);
     var after = SD.levelInfo(s.xp);
-    if (after.level > before) { SD.toast('⬆️ Level ' + after.level + ' — ' + after.title, 'gold'); SD.confetti(); SD.beep('win'); }
+    if (after.level > before) { SD.toast('⬆️ Level ' + after.level + ' — ' + after.title, 'gold'); SD.confetti(); SD.beep('levelup'); if (SD.audio) SD.audio.say('level_up'); }
     checkBadges(); SD.save();
     return earned;
   };
   // Record a right/wrong answer: drives the combo (win streak) and per-topic accuracy.
   SD.hit = function (correct, topicId) {
     var s = SD.state;
+    var broke = !correct && s.combo >= 3;
     if (correct) { s.combo++; s.bestCombo = Math.max(s.bestCombo, s.combo); if (s.combo === 5 || s.combo === 10 || s.combo % 25 === 0) SD.toast('⚡ ' + s.combo + ' in a row!', 'gold'); }
     else s.combo = 0;
     if (topicId) tallyHit(topicId, correct);
-    SD.beep(correct ? 'ok' : 'bad');
+    SD.beep(correct ? (s.combo >= 3 ? 'ok2' : 'ok') : 'bad');
+    if (SD.audio) {
+      if (correct && s.combo === 3) SD.audio.say('combo');
+      else if (correct && s.combo === 5) SD.audio.say('multi_kill');
+      else if (correct && s.combo >= 10 && s.combo % 10 === 0) SD.audio.say('power_up');
+      else if (broke) SD.audio.say('combo_breaker');
+    }
+    if (SD.ladder) { var R = SD.ladder.RP; SD.ladder.add((correct ? R.right : R.wrong) + (correct && s.combo % R.streakEvery === 0 ? R.streakBonus : 0)); }
   };
   SD.topicState = function (id) {
     var t = SD.state.topics[id];
