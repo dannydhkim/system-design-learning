@@ -340,14 +340,50 @@
     var jauto = h('input', { type: 'checkbox' }); jauto.checked = jc.auto;
     jauto.addEventListener('change', function () { J.setConf('auto', jauto.checked); });
     main.appendChild(h('div', { class: 'card' }, h('div', { class: 'label' }, 'Answer judge (optional)'),
-      h('p', { class: 'muted' }, 'On flashcards, a small Claude model (' + jc.model + ') compares what you typed or dictated with the reference answer and says what you covered, missed or got wrong. You still pick the grade. It needs your own Claude API key from platform.claude.com; the key is stored only in this browser, is sent only to api.anthropic.com, and is never written to the progress file. Paste it on each device.'),
+      h('p', { class: 'muted' }, 'On flashcards, a small Claude model (' + jc.model + ') compares what you typed or dictated with the reference answer and says what you covered, missed or got wrong. You still pick the grade. It needs your own Claude API key from platform.claude.com; the key is stored only in this browser, is sent only to api.anthropic.com, and is never written to the progress file. Paste it on each device. With no connection (or no key), the offline judge below grades instead, if you have downloaded it.'),
       h('div', { class: 'fields' }, h('label', { class: 'field' }, h('span', {}, 'Claude API key'), jkey)),
       h('label', { class: 'check' }, jauto, ' Check my answer automatically when I reveal a card'),
       h('p', { class: 'muted' }, jc.calls ? 'Used so far on this device: ' + jc.calls + ' check' + (jc.calls === 1 ? '' : 's') + ', ' + SD.fmt(jc.inTok) + ' input and ' + SD.fmt(jc.outTok) + ' output tokens' + (spent != null ? ', about $' + spent.toFixed(4) + ' at list price.' : '.') : 'Nothing has been sent yet. Expect well under a tenth of a cent per card at list price; this page shows the running total.'),
-      h('p', { class: 'muted' }, 'Dictation (the 🎙 button on a card) is separate and free: the browser transcribes your speech. It works in Chrome, Edge and Safari.')));
+      h('p', { class: 'muted' }, 'Dictation (the 🎙 button on a card) is separate and free: the browser transcribes your speech. It works in Chrome, Edge and Safari, with a connection.')));
+
+    // Offline models
+    var offline = h('div', { class: 'card' });
+    main.appendChild(offline);
+    drawOffline(offline);
 
     main.appendChild(h('div', { class: 'card pitfall' }, h('div', { class: 'label' }, 'Danger zone'),
       h('button', { class: 'btn', onclick: function () { if (confirm('Erase all progress, streaks and high scores? This cannot be undone.' + everywhere)) { SD.resetState(); SD.cloud.ackReset(); SD.toast('Progress reset'); route(); } } }, 'Reset all progress')));
+  }
+
+  // The offline-models card: download or remove the small grading model and the Whisper dictation model (js/local-ai.js).
+  function drawOffline(card) {
+    var A = SD.localAI;
+    clear(card);
+    card.appendChild(h('div', { class: 'label' }, 'Offline grading and dictation (optional)'));
+    card.appendChild(h('p', { class: 'muted' }, 'With no connection, flashcards can still be graded and dictated by small models that run in this browser. Each is a one-time download from huggingface.co (the model) and cdn.jsdelivr.net (the library and runtime), kept in this browser afterwards; nothing you type or say leaves the device. The offline judge is much less reliable than Claude: treat its verdict as a hint. When online with an API key, Claude grades and the browser dictates, as before.'));
+    function row(kind, title, planP, note) {
+      var box = h('div', { class: 'fb' }), d = A.info(kind);
+      card.appendChild(box);
+      if (d) {
+        box.appendChild(h('div', {}, h('b', {}, '✓ ' + title + ': '), d.name + ' (about ' + SD.fmt(d.mb) + ' MB, ' + (d.device === 'webgpu' ? 'runs on the GPU' : 'runs on the CPU') + '), downloaded ' + d.at + '.'));
+        box.appendChild(h('button', { class: 'btn mini', onclick: function () { if (confirm('Delete the ' + title.toLowerCase() + ' from this browser?')) A.remove(kind).then(function () { drawOffline(card); }); } }, 'Remove'));
+        return;
+      }
+      planP.then(function (spec) {
+        var btn = h('button', { class: 'btn', onclick: function () {
+          btn.disabled = true; btn.textContent = 'Downloading… 0%';
+          A.download(kind, function (f) { btn.textContent = 'Downloading… ' + Math.floor(f * 100) + '%'; }).then(function () {
+            SD.toast(title + ' ready offline'); drawOffline(card);
+          }, function (e) { btn.disabled = false; btn.textContent = 'Download failed — try again'; SD.toast(title + ': ' + (e && e.message || e)); });
+        } }, 'Download ' + spec.name + ' (about ' + SD.fmt(spec.mb) + ' MB)');
+        box.appendChild(h('div', {}, h('b', {}, title + ': '), note(spec)));
+        box.appendChild(btn);
+      });
+    }
+    row('judge', 'Offline judge', A.judgePlan(), function (s) {
+      return s.device === 'webgpu' ? 'this device has WebGPU, so it gets ' + s.name + ' on the GPU' + (s.mb < 1000 ? ' (the smallest model, chosen for phones).' : '.') : 'this browser has no WebGPU, so it gets the smallest model, ' + s.name + ', on the CPU; grading takes a while.';
+    });
+    row('asr', 'Offline dictation', Promise.resolve(A.ASR), function () { return 'used when there is no connection or the browser has no speech recognition; your answer is recorded, then transcribed when you stop.'; });
   }
 
   // The cloud sync card. Redrawn when the sync status changes, unless the owner is typing in one of its fields.

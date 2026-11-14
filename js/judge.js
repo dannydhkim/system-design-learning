@@ -3,6 +3,7 @@
 // Off until an API key is pasted in Settings. The key lives in localStorage['sdq.judge'], never in the progress file,
 // and is sent only to api.anthropic.com. The judge compares what was typed or dictated with the card's reference
 // answer and returns a verdict; the player still chooses the grade. Nothing is sent unless a card is being checked.
+// With no connection or no key, SD.judge.grade uses the offline model instead when it has been downloaded (js/local-ai.js).
 (function (SD) {
   'use strict';
   var KEY = 'sdq.judge', MODEL = 'claude-haiku-5-5';
@@ -78,12 +79,27 @@
       });
   }
 
+  // Which judge answers: Claude when there is a key and a connection; otherwise the offline model, if it has been
+  // downloaded on this device (js/local-ai.js). If Claude cannot be reached, the offline model is tried instead.
+  function local() { return SD.localAI && SD.localAI.ready('judge'); }
+  function gradeAny(card, answer) {
+    var online = navigator.onLine !== false;
+    if (conf().key && (online || !local())) {
+      return grade(card, answer).then(function (out) { out.by = 'Claude (' + conf().model + ')'; return out; }, function (e) {
+        if (local() && /Could not reach/.test(e.message)) return SD.localAI.grade(card, answer);
+        throw e;
+      });
+    }
+    if (local()) return SD.localAI.grade(card, answer);
+    return Promise.reject(new Error('Add an API key in Settings, or download the offline judge there.'));
+  }
+
   SD.judge = {
     MODEL: MODEL,
     conf: conf,
-    ready: function () { return !!conf().key; },
+    ready: function () { return !!conf().key || !!local(); },
     setConf: function (k, v) { var c = read(); c[k] = typeof v === 'string' ? v.trim() : v; write(c); },
-    grade: grade,
+    grade: gradeAny,
     // Estimated spend so far in US dollars, from the token counts the API reported; null for a model with no known price.
     spend: function () { var c = conf(), p = PRICE[c.model]; return p ? (c.inTok * p[0] + c.outTok * p[1]) / 1e6 : null; },
     // The grade button a verdict suggests: 0 again · 1 hard · 2 good.

@@ -63,29 +63,66 @@
   };
 
   /* ================= Recall (flashcards with spaced repetition) ================= */
-  // A dictation button for a text box, or null where the browser has no speech recognition. The browser does the
-  // transcription (Chrome and Safari; it costs nothing). Returns { button, stop }.
+  // A dictation button for a text box, or null where neither way of transcribing is available. With a connection, the
+  // browser transcribes (Chrome, Edge and Safari; it costs nothing). Without one, or in a browser with no speech
+  // recognition, the offline Whisper model does, if it has been downloaded in Settings (js/local-ai.js): the answer is
+  // recorded, then transcribed when dictation stops. Returns { button, stop }.
   L.dictate = function (ta) {
     var Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!Rec) return null;
-    var rec = null, on = false, base = '';
-    var btn = h('button', { class: 'btn', type: 'button', 'aria-pressed': 'false', onclick: function () { if (on) stop(); else start(); } }, '🎙 Dictate');
-    function label() { btn.textContent = on ? '⏹ Stop dictating' : '🎙 Dictate'; btn.setAttribute('aria-pressed', on ? 'true' : 'false'); btn.classList.toggle('rec', on); }
+    var canLocal = function () { return SD.localAI && SD.localAI.ready('asr') && navigator.mediaDevices && window.MediaRecorder; };
+    if (!Rec && !canLocal()) return null;
+    var rec = null, media = null, on = false, busy = false, base = '', done = null;
+    var btn = h('button', { class: 'btn', type: 'button', 'aria-pressed': 'false', onclick: function () { if (busy) return; if (on) stop(); else start(); } }, '🎙 Dictate');
+    function label() {
+      btn.textContent = busy ? '⏳ Transcribing…' : on ? '⏹ Stop dictating' : '🎙 Dictate';
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false'); btn.classList.toggle('rec', on); btn.disabled = busy;
+    }
     function start() {
+      base = ta.value ? ta.value.replace(/\s*$/, ' ') : '';
+      if (Rec && (navigator.onLine !== false || !canLocal())) return startBrowser();
+      if (canLocal()) return startLocal();
+      SD.toast('Dictation needs a connection, or the offline dictation model from Settings.');
+    }
+    function startBrowser() {
       try {
         rec = new Rec(); rec.continuous = true; rec.interimResults = true; rec.lang = 'en-US';
-        base = ta.value ? ta.value.replace(/\s*$/, ' ') : '';
         rec.onresult = function (e) {
           var fin = '', interim = '';
           for (var i = 0; i < e.results.length; i++) { if (e.results[i].isFinal) fin += e.results[i][0].transcript; else interim += e.results[i][0].transcript; }
           ta.value = base + fin + interim;
         };
-        rec.onerror = function (e) { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') SD.toast('Microphone access was refused. Allow it for this site to dictate.'); };
-        rec.onend = function () { on = false; label(); };
+        rec.onerror = function (e) {
+          if (e.error === 'not-allowed' || e.error === 'service-not-allowed') SD.toast('Microphone access was refused. Allow it for this site to dictate.');
+          else if (e.error === 'network' && canLocal()) SD.toast('The browser\'s speech service could not be reached. Press 🎙 again to use offline dictation.');
+        };
+        rec.onend = function () { rec = null; on = false; label(); };
         rec.start(); on = true; label();
       } catch (e) { on = false; label(); }
     }
-    function stop() { if (rec) try { rec.stop(); } catch (e) { /* already stopped */ } on = false; label(); }
+    function startLocal() {
+      navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+        var chunks = [];
+        media = new MediaRecorder(stream);
+        media.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+        media.onstop = function () {
+          stream.getTracks().forEach(function (t) { t.stop(); });
+          media = null; on = false; busy = true; label();
+          done = SD.localAI.transcribe(new Blob(chunks, { type: chunks[0] ? chunks[0].type : 'audio/webm' })).then(function (text) {
+            if (text) ta.value = base + text;
+          }, function (e) { SD.toast('Offline dictation failed: ' + e.message); }).then(function () { busy = false; done = null; label(); });
+        };
+        media.start(); on = true; label();
+      }, function () { SD.toast('Microphone access was refused. Allow it for this site to dictate.'); });
+    }
+    // Resolves once any recording has been transcribed into the text box.
+    function stop() {
+      if (rec) try { rec.stop(); } catch (e) { /* already stopped */ }
+      if (media && media.state !== 'inactive') {
+        return new Promise(function (ok) { var m = media; m.addEventListener('stop', function () { setTimeout(function () { (done || Promise.resolve()).then(ok); }, 0); }); m.stop(); });
+      }
+      on = false; label();
+      return done || Promise.resolve();
+    }
     return { button: btn, stop: stop };
   };
   // verified: the date the card was compared with the text of these sources, if it has been (see tools/check-deck.mjs).
@@ -104,7 +141,9 @@
     box.className = 'fb ' + (out.verdict === 'correct' ? 'good' : 'bad') + ' verdict';
     box.appendChild(h('div', {}, h('b', {}, '🤖 ' + name + '. '), out.feedback || ''));
     [list('Covered:', out.covered), list('Missing:', out.missing), list('Wrong:', out.wrong)].forEach(function (x) { if (x) box.appendChild(x); });
-    box.appendChild(h('div', { class: 'muted' }, 'Probe: ' + { answered: 'answered', partly: 'partly answered', not_answered: 'not answered' }[out.probe] + '. A small model graded this; you choose the grade.'));
+    var probe = { answered: 'answered', partly: 'partly answered', not_answered: 'not answered' }[out.probe];
+    var who = /^Claude/.test(out.by || '') ? (out.by || 'A small model') + ' graded this' : 'The offline model (' + (out.by || 'small model') + ') graded this; it is much less reliable than Claude';
+    box.appendChild(h('div', { class: 'muted' }, (probe ? 'Probe: ' + probe + '. ' : '') + who + '. You choose the grade.'));
   }
 
   L.recall = function (el, spec, ctx) {
@@ -124,7 +163,11 @@
       if (mic) mic.stop();
       mic = L.dictate(ta);
       var reveal = h('button', { class: 'btn primary', onclick: function () {
-        if (mic) { mic.stop(); mic.button.remove(); }
+        if (!mic) return showAnswer();
+        reveal.disabled = true;
+        mic.stop().then(function () { mic.button.remove(); showAnswer(); });
+      } }, 'Reveal answer');
+      function showAnswer() {
         reveal.remove(); ta.readOnly = true;
         var mine = ta.value.trim(), verdict = h('div', { class: 'fb verdict', role: 'status' });
         function check() {
@@ -156,7 +199,7 @@
           } }, name, h('small', {}, g === 0 ? 'repeat now' : SD.srs.label(st, g)));
         })));
         answerBox.querySelector('.grade').focus();   // the reveal button that had focus is gone
-      } }, 'Reveal answer');
+      }
       el.appendChild(h('div', { class: 'qcount' }, 'Card ' + (done + 1) + ' of ' + total + (st ? '' : ' · new')));
       el.appendChild(h('h3', { class: 'question' }, c.q));
       el.appendChild(ta); el.appendChild(h('div', { class: 'row wrap' }, mic ? mic.button : null, reveal)); el.appendChild(answerBox);

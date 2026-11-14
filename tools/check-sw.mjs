@@ -5,7 +5,7 @@
 // sw.js lists every file the app needs offline, and a VERSION that fingerprints their contents. An installed copy of
 // the app only notices a deploy when sw.js itself changes, so a stale list or VERSION means devices keep running old
 // code, or miss a file with no connection. This fails when
-//   · a script, stylesheet, icon, the manifest or a card deck the app loads is missing from the list
+//   · a script, stylesheet, icon, the manifest, a card deck or a library loaded on demand (js/vendor/…) is missing from the list
 //   · the list names a file that does not exist, or one the app no longer loads
 //   · VERSION does not match the contents of the listed files
 //   · the manifest or index.html points at an icon that does not exist
@@ -38,6 +38,7 @@ else {
 for (const f of need.filter((f) => f.endsWith('.js'))) {
   if (!exists(f)) continue;
   for (const m of read(f).matchAll(/['"]((?:questions)\/[\w.-]+\.json)['"]/g)) need.push(m[1]);
+  for (const m of read(f).matchAll(/['"](js\/vendor\/[\w.-]+\.js)['"]/g)) need.push(m[1]);   // libraries loaded with import()
 }
 const expected = [...new Set(need)];
 for (const f of expected) if (f !== './' && !exists(f)) errors.push(f + ': loaded by the app but the file does not exist');
