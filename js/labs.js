@@ -63,6 +63,26 @@
   };
 
   /* ================= Recall (flashcards with spaced repetition) ================= */
+  // A 🔊 button that reads text aloud with the browser's own speech synthesis (free; works offline wherever the system
+  // has a voice installed). Pressing it again, or any other 🔊 button, stops the current reading. Null where the
+  // browser cannot speak.
+  L.speakButton = function (getText) {
+    var S = window.speechSynthesis;
+    if (!S || !window.SpeechSynthesisUtterance) return null;
+    var btn = h('button', { class: 'btn mini speak', type: 'button', title: 'Read aloud', 'aria-label': 'Read aloud', onclick: function () {
+      var mine = btn.classList.contains('rec');
+      S.cancel();
+      document.querySelectorAll('.speak.rec').forEach(function (b) { b.classList.remove('rec'); b.textContent = '🔊'; });
+      if (mine) return;
+      // Bullets and arrows read badly; speak them as pauses.
+      var u = new SpeechSynthesisUtterance(String(getText() || '').replace(/[•→]/g, '. ').replace(/\s+/g, ' '));
+      u.lang = 'en-US';
+      u.onend = u.onerror = function () { btn.classList.remove('rec'); btn.textContent = '🔊'; };
+      btn.classList.add('rec'); btn.textContent = '⏹';
+      S.speak(u);
+    } }, '🔊');
+    return btn;
+  };
   // A dictation button for a text box, or null where neither way of transcribing is available. With a connection, the
   // browser transcribes (Chrome, Edge and Safari; it costs nothing). Without one, or in a browser with no speech
   // recognition, the offline Whisper model does, if it has been downloaded in Settings (js/local-ai.js): the answer is
@@ -139,7 +159,7 @@
     function list(title, items) { return items.length ? h('div', {}, h('b', {}, title + ' '), items.join(' · ')) : null; }
     clear(box);
     box.className = 'fb ' + (out.verdict === 'correct' ? 'good' : 'bad') + ' verdict';
-    box.appendChild(h('div', {}, h('b', {}, '🤖 ' + name + '. '), out.feedback || ''));
+    box.appendChild(h('div', {}, h('b', {}, '🤖 ' + name + '. '), out.feedback || '', ' ', L.speakButton(function () { return name.replace(/^\W+/, '') + '. ' + (out.feedback || '') + (out.missing.length ? ' Missing: ' + out.missing.join(', ') + '.' : '') + (out.wrong.length ? ' Wrong: ' + out.wrong.join(', ') + '.' : ''); })));
     [list('Covered:', out.covered), list('Missing:', out.missing), list('Wrong:', out.wrong)].forEach(function (x) { if (x) box.appendChild(x); });
     var probe = { answered: 'answered', partly: 'partly answered', not_answered: 'not answered' }[out.probe];
     var who = /^Claude/.test(out.by || '') ? (out.by || 'A small model') + ' graded this' : 'The offline model (' + (out.by || 'small model') + ') graded this; it is much less reliable than Claude';
@@ -149,7 +169,7 @@
   L.recall = function (el, spec, ctx) {
     var queue = spec.ids.slice(), again = {}, done = 0, total = queue.length, good = 0;
     var mic = null;
-    SD.onLeave(function () { if (mic) mic.stop(); });
+    SD.onLeave(function () { if (mic) mic.stop(); if (window.speechSynthesis) speechSynthesis.cancel(); });
     function show(graded) {
       var refocus = graded && SD.ownsFocus(el);
       clear(el);
@@ -161,6 +181,7 @@
       var answerBox = h('div', {});
       var ta = h('textarea', { class: 'ta', rows: 3, placeholder: 'Answer from memory first — type it, or say it out loud. Then reveal.' });
       if (mic) mic.stop();
+      if (window.speechSynthesis) speechSynthesis.cancel();
       mic = L.dictate(ta);
       var reveal = h('button', { class: 'btn primary', onclick: function () {
         if (!mic) return showAnswer();
@@ -188,7 +209,7 @@
           answerBox.appendChild(verdict);
           if (SD.judge.conf().auto) check(); else { verdict.appendChild(h('button', { class: 'btn mini', onclick: check }, '🤖 Check my answer')); }
         }
-        answerBox.appendChild(h('div', { class: 'answer' }, h('div', { class: 'label' }, 'Answer'), c.a, c.key ? h('div', { class: 'keyc' }, '💡 ' + c.key) : null, c.note ? h('div', { class: 'keyc' }, '📝 Your note from an earlier review: ' + c.note) : null, sourceLinks(c.refs, c.verified)));
+        answerBox.appendChild(h('div', { class: 'answer' }, h('div', { class: 'label' }, 'Answer ', L.speakButton(function () { return c.a + (c.key ? ' ' + c.key : ''); })), c.a, c.key ? h('div', { class: 'keyc' }, '💡 ' + c.key) : null, c.note ? h('div', { class: 'keyc' }, '📝 Your note from an earlier review: ' + c.note) : null, sourceLinks(c.refs, c.verified)));
         answerBox.appendChild(h('div', { class: 'label' }, 'How well did you recall it?'));
         answerBox.appendChild(h('div', { class: 'grades' }, ['Again', 'Hard', 'Good', 'Easy'].map(function (name, g) {
           return h('button', { class: 'btn grade g' + g, onclick: function () {
@@ -201,7 +222,7 @@
         answerBox.querySelector('.grade').focus();   // the reveal button that had focus is gone
       }
       el.appendChild(h('div', { class: 'qcount' }, 'Card ' + (done + 1) + ' of ' + total + (st ? '' : ' · new')));
-      el.appendChild(h('h3', { class: 'question' }, c.q));
+      el.appendChild(h('h3', { class: 'question' }, c.q, ' ', L.speakButton(function () { return c.q; })));
       el.appendChild(ta); el.appendChild(h('div', { class: 'row wrap' }, mic ? mic.button : null, reveal)); el.appendChild(answerBox);
       if (refocus) reveal.focus();
     }

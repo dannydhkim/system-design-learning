@@ -285,3 +285,4 @@ details > summary { cursor: pointer; color: var(--muted); font-size: .92rem; mar
 .verdict { white-space: normal; border-color: var(--line); } .verdict > div { margin: 3px 0; }
 .grade.suggested { box-shadow: 0 0 0 3px var(--accent); }
 .btn.rec { border-color: var(--bad); color: var(--bad); }
+.speak { vertical-align: middle; font-size: .9rem; font-weight: normal; margin-left: 4px; text-transform: none; letter-spacing: 0; }
