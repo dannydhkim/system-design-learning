@@ -13,14 +13,11 @@
   var KEY = 'sdq.localai', LIB_CACHE = 'sdq-localai';
   var LIB = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.2/dist/transformers.min.js';
   var LIB_SHA256 = 'i1oxcfiHa6srGCCn1l64dijj0wu16oW53TmOdus03ss=';   // base64 SHA-256 of that file, as published on npm
-  // Model choices. The judge uses WebGPU where the browser has it: a 1.7B model on a desktop-class device, the smallest
-  // (0.6B) on a phone. Without WebGPU it runs on the CPU (WebAssembly) with the 0.6B model, which is slow but works.
-  // Sizes are the files' sizes on huggingface.co on 2026-11-14, rounded.
-  var JUDGE = {
-    big: { id: 'onnx-community/Qwen3-1.7B-ONNX', name: 'Qwen3 1.7B', dtype: 'q4f16', device: 'webgpu', mb: 1430 },
-    small: { id: 'onnx-community/Qwen3-0.6B-ONNX', name: 'Qwen3 0.6B', dtype: 'q4f16', device: 'webgpu', mb: 570 },
-    cpu: { id: 'onnx-community/Qwen3-0.6B-ONNX', name: 'Qwen3 0.6B', dtype: 'q8', device: 'wasm', mb: 620 }
-  };
+  // The offline judge: Qwen3 1.7B on WebGPU, offered only on desktop-class devices with WebGPU. In a test on 2026-11-14
+  // (9 answers to 3 cards, run on the CPU at 8-bit) it labelled every correct answer correct and never called a wrong one
+  // correct, but confused "partial" with the other two, so it is a rough hint. The 0.6B model scored at chance (2-3 of 9)
+  // and is not offered. Sizes are the files' sizes on huggingface.co on 2026-11-14, rounded.
+  var JUDGE = { id: 'onnx-community/Qwen3-1.7B-ONNX', name: 'Qwen3 1.7B', dtype: 'q4f16', device: 'webgpu', mb: 1430 };
   // Whisper base (English) at 8-bit, on the CPU: about 77 MB, and fast enough for spoken answers of a minute or two.
   var ASR = { id: 'onnx-community/whisper-base.en', name: 'Whisper base (English)', dtype: 'q8', device: 'wasm', mb: 80 };
 
@@ -68,8 +65,8 @@
     if (navigator.userAgentData && typeof navigator.userAgentData.mobile === 'boolean') return navigator.userAgentData.mobile;
     return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
   }
-  // The judge model this device would download: resolves to one of JUDGE's entries.
-  function judgePlan() { return hasWebGPU().then(function (g) { return !g ? JUDGE.cpu : isPhone() ? JUDGE.small : JUDGE.big; }); }
+  // The judge model this device would download, or null where none is offered (no WebGPU, or a phone).
+  function judgePlan() { return hasWebGPU().then(function (g) { return g && !isPhone() ? JUDGE : null; }); }
 
   // Creates (or returns) the pipeline for 'judge' or 'asr'. onProgress gets a number 0..1 while files download.
   function pipe(kind, spec, onProgress) {
@@ -95,13 +92,8 @@
   function download(kind, onProgress) {
     var plan = kind === 'judge' ? judgePlan() : Promise.resolve(ASR);
     return plan.then(function (spec) {
-      // If the 1.7B model cannot be loaded (not enough memory for its 1.4 GB file, say), fall back to the 0.6B one.
-      var load = pipe(kind, spec, onProgress).then(null, function (e) {
-        if (spec !== JUDGE.big) throw e;
-        spec = JUDGE.small;
-        return purge(JUDGE.big.id).then(function () { return pipe(kind, spec, onProgress); });
-      });
-      return load.then(function () {
+      if (!spec) throw new Error('the offline judge needs WebGPU on a laptop or desktop');
+      return pipe(kind, spec, onProgress).then(function () {
         var s = read(); s[kind] = { id: spec.id, name: spec.name, dtype: spec.dtype, device: spec.device, mb: spec.mb, at: new Date().toISOString().slice(0, 10) }; write(s);
         // Ask the browser not to evict the cached models under storage pressure (it may still say no).
         if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {});
@@ -127,23 +119,14 @@
   }
 
   /* ---------- grading ---------- */
-  var SYSTEM = 'You grade a candidate\'s answer to a machine-learning interview flashcard against a reference answer. ' +
-    'Judge substance, not wording. "correct": the core idea and most key points are right and nothing is wrong. "partial": the core idea is there but important points are missing or one thing is wrong. "incorrect": the core idea is missing or wrong. ' +
-    'Reply with JSON only, no other text, in exactly this form: {"verdict": "correct" | "partial" | "incorrect", "covered": [short phrases], "missing": [short phrases], "wrong": [short phrases], "feedback": "one sentence"}';
+  // A short, plain prompt: in testing it worked better for a small model than asking for JSON with lists.
+  var SYSTEM = 'Compare the candidate answer with the reference answer. Decide:\ncorrect = it states the main points of the reference and says nothing false.\npartial = it is on the right track but leaves out important points.\nincorrect = it is wrong, or it says something false.\nReply in exactly two lines:\nVERDICT: correct, partial or incorrect\nFEEDBACK: one short sentence naming the most important thing missing or wrong.';
   function parse(text) {
-    var t = String(text || '').replace(/<think>[\s\S]*?<\/think>/g, ''), out = null, i = t.indexOf('{'), j = t.lastIndexOf('}');
-    if (i >= 0 && j > i) try { out = JSON.parse(t.slice(i, j + 1)); } catch (e) { out = null; }
-    if (!out || typeof out !== 'object') {
-      var m = t.match(/\b(correct|partial|incorrect)\b/i);   // a reply that is not valid JSON may still name the verdict
-      if (!m) throw new Error('The offline model returned no verdict. Grade this card by hand.');
-      out = { verdict: m[1].toLowerCase(), feedback: '' };
-    }
-    out.verdict = String(out.verdict || '').toLowerCase();
-    if (['correct', 'partial', 'incorrect'].indexOf(out.verdict) < 0) throw new Error('The offline model returned no verdict. Grade this card by hand.');
-    ['covered', 'missing', 'wrong'].forEach(function (k) { out[k] = Array.isArray(out[k]) ? out[k].filter(function (x) { return typeof x === 'string' && x; }).slice(0, 5) : []; });
-    out.feedback = typeof out.feedback === 'string' ? out.feedback : '';
-    delete out.probe;   // the small model is not asked about the probe
-    return out;
+    var t = String(text || '').replace(/<think>[\s\S]*?<\/think>/g, '');
+    var v = (t.match(/VERDICT:\s*\**\s*(incorrect|partial|correct)/i) || t.match(/\b(incorrect|partial|correct)\b/i) || [])[1];
+    if (!v) throw new Error('The offline model returned no verdict. Grade this card by hand.');
+    var f = (t.match(/FEEDBACK:\s*(.+)/i) || [])[1] || '';
+    return { verdict: v.toLowerCase(), feedback: f.trim().slice(0, 300), covered: [], missing: [], wrong: [] };
   }
   function grade(card, answer) {
     var d = read().judge;
@@ -151,7 +134,7 @@
     return pipe('judge', d).then(function (p) {
       var user = 'Question:\n' + card.q + '\n\nReference answer:\n' + card.a + '\n\nCandidate answer (may be a rough voice transcript; ignore filler words):\n' + answer;
       return p([{ role: 'system', content: SYSTEM }, { role: 'user', content: user }], {
-        max_new_tokens: 320, do_sample: false, tokenizer_encode_kwargs: { enable_thinking: false }
+        max_new_tokens: 80, do_sample: false, tokenizer_encode_kwargs: { enable_thinking: false }
       });
     }).then(function (res) {
       var msgs = res && res[0] && res[0].generated_text, last = Array.isArray(msgs) ? msgs[msgs.length - 1] : null;

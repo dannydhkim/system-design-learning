@@ -370,6 +370,7 @@
         return;
       }
       planP.then(function (spec) {
+        if (!spec) { box.appendChild(h('div', {}, h('b', {}, title + ': '), note(null))); return; }
         var btn = h('button', { class: 'btn', onclick: function () {
           btn.disabled = true; btn.textContent = 'Downloading… 0%';
           A.download(kind, function (f) { btn.textContent = 'Downloading… ' + Math.floor(f * 100) + '%'; }).then(function () {
@@ -381,7 +382,7 @@
       });
     }
     row('judge', 'Offline judge', A.judgePlan(), function (s) {
-      return s.device === 'webgpu' ? 'this device has WebGPU, so it gets ' + s.name + ' on the GPU' + (s.mb < 1000 ? ' (the smallest model, chosen for phones).' : '.') : 'this browser has no WebGPU, so it gets the smallest model, ' + s.name + ', on the CPU; grading takes a while.';
+      return s ? 'runs on this device\'s GPU (WebGPU). Expect a rough hint: in testing it never called a wrong answer correct, but it often misjudged partly right ones.' : 'not offered on this device: it needs WebGPU on a laptop or desktop. Smaller models that fit a phone graded no better than chance in testing.';
     });
     row('asr', 'Offline dictation', Promise.resolve(A.ASR), function () { return 'used when there is no connection or the browser has no speech recognition; your answer is recorded, then transcribed when you stop.'; });
   }
