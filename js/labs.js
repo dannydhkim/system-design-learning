@@ -316,6 +316,154 @@
     ask();
   };
 
+  /* ================= Explain: a written interview answer, marked against the topic's rubric ================= */
+  // spec: {prompt, rubric[], saved, model}. Written only (no dictation): the point is a structured answer you can read
+  // back. A clock starts with the first keystroke. With a Claude key the judge pre-ticks the rubric; you can change it.
+  L.written = function (el, spec, ctx) {
+    var TARGET = 180, timer = null;
+    function words(s) { return (s.trim().match(/\S+/g) || []).length; }
+    SD.onLeave(function () { clearInterval(timer); });
+    function write() {
+      clear(el);
+      var ta = h('textarea', { class: 'ta', rows: 9, placeholder: 'Write the answer you would give in the interview: lead with the main point, then the reasons, then a trade-off. 4–8 sentences.' });
+      var wc = h('span', { class: 'muted' }, '0 words'), clock = h('span', { class: 'clock' }, '0:00'), t0 = null, warn = h('div', { class: 'muted' });
+      ta.addEventListener('input', function () {
+        wc.textContent = words(ta.value) + ' words';
+        if (t0 == null && ta.value.trim()) {
+          t0 = Date.now();
+          timer = setInterval(function () {
+            if (!clock.isConnected) return clearInterval(timer);
+            var sec = Math.floor((Date.now() - t0) / 1000);
+            clock.textContent = Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); clock.classList.toggle('over', sec > TARGET);
+          }, 500);
+        }
+      });
+      el.appendChild(h('h3', { class: 'question' }, spec.prompt));
+      el.appendChild(ta);
+      el.appendChild(h('div', { class: 'row wrap' }, clock, h('span', { class: 'muted' }, 'aim for about 3 minutes'), h('span', { class: 'spacer' }), wc));
+      el.appendChild(warn);
+      el.appendChild(h('button', { class: 'btn primary', onclick: function () {
+        if (words(ta.value) < 25) { warn.textContent = 'Give it a real attempt first: at least 25 words.'; return; }
+        clearInterval(timer); mark(ta.value.trim(), t0 ? Math.round((Date.now() - t0) / 1000) : 0);
+      } }, 'Compare with the rubric →'));
+      if (spec.saved) el.appendChild(h('details', { class: 'prev' }, h('summary', {}, 'Your previous answer'), h('p', {}, spec.saved)));
+      ta.focus();
+    }
+    function mark(text, secs) {
+      clear(el);
+      var boxes = [], note = h('div', { class: 'muted', role: 'status' });
+      el.appendChild(h('h3', { class: 'question' }, 'Mark your answer against the rubric'));
+      el.appendChild(h('div', { class: 'yours' }, h('div', { class: 'label' }, 'You wrote (' + words(text) + ' words' + (secs ? ', ' + Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0') : '') + ')'), h('p', {}, text)));
+      el.appendChild(h('div', { class: 'rubric' }, spec.rubric.map(function (r) {
+        var cb = h('input', { type: 'checkbox' }); boxes.push(cb);
+        return h('label', { class: 'check' }, cb, ' ' + r);
+      })));
+      el.appendChild(note);
+      if (SD.judge && SD.judge.online()) {
+        note.textContent = '🤖 The judge is reading your answer…';
+        SD.judge.rubric(spec.prompt, spec.rubric, text).then(function (got) {
+          if (!note.isConnected) return;
+          got.forEach(function (v, i) { if (v) boxes[i].checked = true; });
+          note.textContent = '🤖 The judge ticked ' + got.filter(Boolean).length + ' of ' + got.length + '. Check its marks; change any you disagree with.';
+        }, function (e) { if (note.isConnected) note.textContent = '🤖 ' + e.message + ' Mark it yourself.'; });
+      } else note.textContent = 'Be strict. Tick a point only if your answer actually says it.';
+      el.appendChild(h('button', { class: 'btn primary', onclick: function () {
+        var n = boxes.filter(function (b) { return b.checked; }).length, missed = spec.rubric.filter(function (r, i) { return !boxes[i].checked; });
+        clear(el);
+        el.appendChild(h('div', { class: 'result' }, h('div', { class: 'big' }, n + ' / ' + boxes.length + ' points covered'),
+          missed.length ? h('div', {}, h('p', {}, 'Missing from your answer:'), h('ul', {}, missed.map(function (m) { return h('li', {}, m); }))) : h('p', {}, 'Complete.'),
+          spec.model ? h('div', { class: 'card say' }, h('div', { class: 'label' }, '🎙️ How a strong answer might open'), h('p', {}, '“' + spec.model + '”')) : null));
+        ctx.onDone(n / boxes.length, text);
+      } }, 'Score it'));
+    }
+    write();
+  };
+
+  /* ================= Teach: a spoken conversation with a rubber duck that keeps asking ================= */
+  // spec: {title, followups[], rubric[], terms (text to look for the topic's own words in), saved}. The duck asks you
+  // to teach the topic, then asks about something you said: with a Claude key and a connection the question comes from
+  // the judge model; otherwise the duck picks a technical word out of your answer. Then the topic's own follow-ups.
+  // Questions are read aloud where the browser can speak; answers are meant to be spoken (dictation), typing also works.
+  var COMMON = /^(because|between|through|without|another|something|different|example|important|actually|basically|however|therefore|usually|general|generally|problem|problems|instead|everything|whether|themselves|together|against|already|certain|several|possible|specific|example|examples|whatever|somebody|everyone|sometimes|question|answer|understand|explain|explained|thing|things|really|should|would|could|people|system|systems)$/;
+  function pickTerm(said, terms) {
+    var seen = {}, cands = (said.match(/[A-Za-z][A-Za-z0-9-]{2,}/g) || []).filter(function (w) {
+      var k = w.toLowerCase(); if (seen[k]) return false; seen[k] = 1;
+      return /^[A-Z0-9]{2,6}$/.test(w) || /\d/.test(w) || (w.length >= 8 && !COMMON.test(k));
+    });
+    var hay = (terms || '').toLowerCase(), own = cands.filter(function (w) { return hay.indexOf(w.toLowerCase()) >= 0; });
+    return (own.length ? own : cands)[0] || null;
+  }
+  L.duckTalk = function (el, spec, ctx) {
+    var turns = [], mic = null, canSpeak = !!(window.speechSynthesis && window.SpeechSynthesisUtterance);
+    var aloud = !!(SD.state.settings.sound && canSpeak);
+    SD.onLeave(function () { if (mic) mic.stop(); if (canSpeak) speechSynthesis.cancel(); });
+    function words(s) { return (s.trim().match(/\S+/g) || []).length; }
+    function speak(q) { if (!aloud) return; speechSynthesis.cancel(); var u = new SpeechSynthesisUtterance(q); u.lang = 'en-US'; u.pitch = 1.5; u.rate = 1.05; speechSynthesis.speak(u); }
+    // The question for turn k, as a promise.
+    function question(k) {
+      if (k === 0) return Promise.resolve('Quack. I know nothing about this. Teach me "' + spec.title + '" from scratch: what it is, why it matters, and when I would use it.');
+      if (k === 1) {
+        var said = turns[0].a, term = pickTerm(said, spec.terms);
+        var local = term ? 'Wait. You said "' + term + '". I am a duck. What does that mean in plain words, and why does it matter here?'
+          : 'You lost me a little. Give me one concrete example, with real numbers if you can.';
+        if (!(SD.judge && SD.judge.online())) return Promise.resolve(local);
+        return Promise.race([SD.judge.followup(spec.title, said), new Promise(function (ok, bad) { setTimeout(function () { bad(new Error('slow')); }, 8000); })]).catch(function () { return local; });
+      }
+      return Promise.resolve(spec.followups[k - 2]);
+    }
+    var total = 2 + (spec.followups || []).length;
+    function turn(k) {
+      if (mic) mic.stop();
+      clear(el);
+      turns.forEach(function (t) {
+        el.appendChild(h('div', { class: 'duck past' }, h('div', { class: 'duck-face small' }, '🦆'), h('div', { class: 'bubble' }, t.q)));
+        el.appendChild(h('div', { class: 'reply' }, t.a));
+      });
+      var bubble = h('div', { class: 'bubble' }, '…');
+      el.appendChild(h('div', { class: 'duck' }, h('div', { class: 'duck-face' }, '🦆'), bubble));
+      question(k).then(function (q) {
+        if (!bubble.isConnected) return;
+        clear(bubble); bubble.appendChild(document.createTextNode(q));
+        speak(q);
+        var ta = h('textarea', { class: 'ta', rows: k ? 3 : 5, placeholder: 'Say it out loud (press 🎙), or type. Plain words: the duck knows nothing.' });
+        mic = L.dictate(ta);
+        var warn = h('div', { class: 'muted' });
+        var voice = canSpeak ? h('label', { class: 'check' }, (function () { var c = h('input', { type: 'checkbox' }); c.checked = aloud; c.addEventListener('change', function () { aloud = c.checked; if (!aloud) speechSynthesis.cancel(); else speak(q); }); return c; })(), ' The duck speaks') : null;
+        var send = h('button', { class: 'btn primary', onclick: function () {
+          send.disabled = true;
+          (mic ? mic.stop() : Promise.resolve()).then(function () {
+            if (words(ta.value) < (k ? 4 : 12)) { send.disabled = false; warn.textContent = 'The duck is waiting: say at least ' + (k ? 4 : 12) + ' words.'; return; }
+            if (canSpeak) speechSynthesis.cancel();
+            turns.push({ q: q, a: ta.value.trim() });
+            if (k + 1 < total) turn(k + 1); else grade();
+          });
+        } }, k + 1 < total ? 'Answer the duck →' : 'Finish →');
+        el.appendChild(ta);
+        el.appendChild(h('div', { class: 'row wrap' }, mic ? mic.button : null, send, h('span', { class: 'spacer' }), voice, h('span', { class: 'muted' }, 'Question ' + (k + 1) + ' of ' + total)));
+        el.appendChild(warn);
+        if (k === 0 && spec.saved) el.appendChild(h('details', { class: 'prev' }, h('summary', {}, 'Your previous conversation'), h('p', {}, spec.saved)));
+        if (mic) mic.button.focus(); else ta.focus();
+      });
+    }
+    function grade() {
+      clear(el);
+      var boxes = [];
+      el.appendChild(h('h3', { class: 'question' }, 'How did the teaching go?'));
+      el.appendChild(h('p', { class: 'muted' }, 'This marks how you taught, not what you covered (Explain did that). Be strict.'));
+      el.appendChild(h('div', { class: 'yours' }, turns.map(function (t) { return h('div', {}, h('div', { class: 'label' }, '🦆 ' + t.q), h('p', {}, t.a)); })));
+      el.appendChild(h('div', { class: 'rubric' }, spec.rubric.map(function (r) { var cb = h('input', { type: 'checkbox' }); boxes.push(cb); return h('label', { class: 'check' }, cb, ' ' + r); })));
+      el.appendChild(h('button', { class: 'btn primary', onclick: function () {
+        var n = boxes.filter(function (b) { return b.checked; }).length, missed = spec.rubric.filter(function (r, i) { return !boxes[i].checked; });
+        clear(el);
+        el.appendChild(h('div', { class: 'result' }, h('div', { class: 'big' }, n + ' / ' + boxes.length),
+          missed.length ? h('div', {}, h('p', {}, 'Next time:'), h('ul', {}, missed.map(function (m) { return h('li', {}, m); }))) : h('p', {}, 'You could teach this.')));
+        ctx.onDone(n / boxes.length, turns.map(function (t) { return '🦆 ' + t.q + '\n' + t.a; }).join('\n\n'));
+      } }, 'Score it'));
+    }
+    turn(0);
+  };
+  L._pickTerm = pickTerm;
+
   /* ================= Sort (classify items into buckets) ================= */
   L.sort = function (el, spec, ctx) {
     var items = shuffle(spec.items), i = 0, right = 0, misses = [];

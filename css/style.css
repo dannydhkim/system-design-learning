@@ -296,3 +296,6 @@ details > summary { cursor: pointer; color: var(--muted); font-size: .92rem; mar
 .ladder .track .fill { height: 100%; background: var(--tc, #4fd1c5); }
 .tiers { display: flex; flex-wrap: wrap; gap: 6px; } .tier { padding: 3px 8px; border-radius: 12px; border: 1px solid rgba(255,255,255,.12); font-size: .85rem; opacity: .55; }
 .tier.past { opacity: .85; } .tier.on { opacity: 1; border-color: var(--tc); color: var(--tc); font-weight: 600; }
+.duck.past { opacity: .7; } .duck-face.small { font-size: 1.6rem; animation: none; }
+.reply { margin: 6px 0 14px 52px; padding: 10px 13px; border-radius: 16px 4px 16px 16px; background: rgba(79,209,197,.08); border: 1px solid var(--line); white-space: pre-wrap; }
+.clock.over { color: #e7b93c; }

@@ -7,7 +7,7 @@
   var STATION = {
     learn: ['📖', 'Learn'], recall: ['🧠', 'Recall'], quiz: ['⚡', 'Quiz'], lab: ['🔧', 'Lab'], explain: ['✍️', 'Explain'], duck: ['🦆', 'Teach']
   };
-  var DUCK_RUBRIC = ['I explained it without looking at notes', 'I used an analogy or a concrete example', 'I named a trade-off, or when NOT to use it', 'I answered the follow-ups without hand-waving', 'A new graduate could have followed it'];
+  var DUCK_RUBRIC = ['I spoke it aloud, without looking at notes', 'I used an analogy or a concrete example', 'I defined every technical word the duck asked about in plain words', 'I answered each follow-up directly, without hand-waving', 'A new graduate could have followed it'];
 
   function ring(pct, label, cls) {
     var r = h('div', { class: 'ring ' + (cls || '') }, h('span', {}, label));
@@ -47,7 +47,7 @@
     var hero = h('section', { class: 'hero' });
     hero.appendChild(h('div', { class: 'herocol' },
       h('h1', {}, s.xp ? 'Welcome back.' : 'Learn system design by doing it.'),
-      h('p', {}, 'Each topic has six stations: read it, recall it, get quizzed, manipulate it, write it in your own words, then teach it to a rubber duck. Cards you learn return on a spaced schedule.'),
+      h('p', {}, 'Each topic has six stations: read it, recall it, get quizzed, manipulate it, write the interview answer, then teach it aloud to a rubber duck that asks questions. Cards you learn return on a spaced schedule.'),
       h('div', { class: 'row wrap' },
         nt ? h('a', { class: 'btn primary big', href: '#/topic/' + nt.id + '/' + nextStation(nt) }, '▶ Continue: ' + nt.id + ' ' + nt.title) : h('span', { class: 'btn' }, 'Every built topic mastered 🎓'),
         due ? h('a', { class: 'btn big', href: '#/review' }, '🧠 ' + due + ' card' + (due > 1 ? 's' : '') + ' due') : null)));
@@ -167,9 +167,9 @@
       } });
     }
     else if (station === 'explain') {
-      body.appendChild(h('p', { class: 'brief' }, 'Summarise it in your own words. Writing forces you to find the gaps that re-reading hides.'));
+      body.appendChild(h('p', { class: 'brief' }, 'Write the interview answer: structured, complete, in about three minutes. It is marked on content, against this topic\'s rubric.'));
       var m4 = h('div', {}); body.appendChild(m4);
-      L.teach(m4, { prompt: t.explain[0], rubric: t.explain[1], saved: st.notes.explain }, { onDone: function (score, text) {
+      L.written(m4, { prompt: t.explain[0], rubric: t.explain[1], saved: st.notes.explain, model: t.say }, { onDone: function (score, text) {
         var prev = prevXp(st.explainBest, st.done.explain, 0.5, 20);
         st.notes.explain = text; st.explainBest = Math.max(st.explainBest || 0, score);
         SD.award(SD.replayXp(Math.round(20 * score) + 5, prev), { quest: 'teach' });
@@ -177,9 +177,9 @@
       } });
     }
     else if (station === 'duck') {
-      body.appendChild(h('p', { class: 'brief' }, 'The rubber duck method: teach it to someone who knows nothing. Speak out loud if you can — the duck will push back.'));
+      body.appendChild(h('p', { class: 'brief' }, 'Now say it out loud. The duck knows nothing, asks about the words you use, and then pushes back. It is marked on how clearly you taught, not on coverage.'));
       var m5 = h('div', {}); body.appendChild(m5);
-      L.teach(m5, { duck: true, prompt: 'Teach me "' + t.title + '" from scratch — what it is, why it matters, and when I would use it.', followups: t.duck, rubric: DUCK_RUBRIC, saved: st.notes.duck }, { onDone: function (score, text) {
+      L.duckTalk(m5, { title: t.title, followups: t.duck, rubric: DUCK_RUBRIC, terms: t.points.join(' ') + ' ' + t.title, saved: st.notes.duck }, { onDone: function (score, text) {
         var prev = prevXp(st.duckBest, st.done.duck, 0.6, 25);
         st.notes.duck = text; st.duckBest = Math.max(st.duckBest || 0, score);
         SD.award(SD.replayXp(Math.round(25 * score) + 5, prev), { quest: 'teach' });
