@@ -62,7 +62,8 @@ const listed = JSON.parse(sw.match(fRe)[1].replace(/'/g, '"'));
 for (const f of expected) if (!listed.includes(f)) errors.push('sw.js: ' + f + ' is loaded by the app but not in FILES, so it would be missing offline');
 for (const f of listed) if (!expected.includes(f)) errors.push('sw.js: FILES names ' + f + ', which the app does not load');
 if (sw.match(vRe)[1] !== version) errors.push(`sw.js: VERSION is '${sw.match(vRe)[1]}' but the files now fingerprint as '${version}'. Installed copies would not pick up the change.`);
-if (/skipWaiting\(\)/.test(sw.replace(/addEventListener\('message'[^\n]*/, ''))) errors.push('sw.js: skipWaiting outside the message handler would reload the app under a quiz in progress');
+// The message handler may be one line or a block that ends with a line holding only "});".
+if (/skipWaiting\(\)/.test(sw.replace(/addEventListener\('message'(?:[^\n]*\}\);\n|[\s\S]*?\n\}\);)/, ''))) errors.push('sw.js: skipWaiting outside the message handler would reload the app under a quiz in progress');
 
 if (errors.length) { errors.forEach((e) => console.error('✗ ' + e)); console.error(`\n${errors.length} problem(s). Run: node tools/check-sw.mjs --write`); process.exit(1); }
 console.log(`✓ sw.js lists all ${expected.length} files the app loads; version ${version} matches their contents`);

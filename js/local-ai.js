@@ -5,12 +5,12 @@
 //
 // Nothing is downloaded until the owner presses a button in Settings. A download fetches the library and the ONNX
 // runtime from cdn.jsdelivr.net and the model files from huggingface.co, once. The library is checked against a SHA-256
-// hash before it runs and is kept in Cache Storage ("sdq-localai"); transformers.js keeps them in the browser's Cache
+// hash before it runs and is kept in Cache Storage ("localai-lib"); transformers.js keeps them in the browser's Cache
 // Storage ("transformers-cache"), so they then load with no connection. What has been downloaded on this device is
 // recorded in localStorage['sdq.localai'], never in the progress file.
 (function (SD) {
   'use strict';
-  var KEY = 'sdq.localai', LIB_CACHE = 'sdq-localai';
+  var KEY = 'sdq.localai', LIB_CACHE = 'localai-lib';
   var LIB = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.2/dist/transformers.min.js';
   var LIB_SHA256 = 'i1oxcfiHa6srGCCn1l64dijj0wu16oW53TmOdus03ss=';   // base64 SHA-256 of that file, as published on npm
   // The offline judge: Qwen3 1.7B on WebGPU, offered only on desktop-class devices with WebGPU. In a test on 2026-11-14

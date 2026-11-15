@@ -4,7 +4,7 @@
 // tools/check-sw.mjs, and `node tools/check-sw.mjs --write` rewrites them after any file changes. A new VERSION is
 // what makes installed copies pick up a deploy: the browser sees sw.js changed, downloads the new files into a fresh
 // cache, and the page offers a reload (js/app.js). Progress is not stored here; it lives in localStorage.
-const VERSION = '05195e0c71bb';
+const VERSION = '2c4e6a22fbd3';
 const FILES = [
   './',
   'js/data/meta.js',
@@ -140,12 +140,17 @@ self.addEventListener('install', (e) => {
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys()
-    .then((keys) => Promise.all(keys.filter((k) => k.startsWith('sdq-') && k !== CACHE).map((k) => caches.delete(k))))
+    // Only old copies of the app itself (sdq-<12 hex digits>); other caches, such as the offline-AI library, stay.
+    .then((keys) => Promise.all(keys.filter((k) => /^sdq-[0-9a-f]{12}$/.test(k) && k !== CACHE).map((k) => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 
 // The page asks for this when the owner presses Reload on the "New version ready" notice.
-self.addEventListener('message', (e) => { if (e.data === 'activate') self.skipWaiting(); });
+self.addEventListener('message', (e) => {
+  if (e.data === 'activate') self.skipWaiting();
+  // Settings asks which version this worker is, to compare with the deployed one.
+  if (e.data === 'version' && e.ports && e.ports[0]) e.ports[0].postMessage({ version: VERSION });
+});
 
 self.addEventListener('fetch', (e) => {
   const req = e.request, url = new URL(req.url);

@@ -426,8 +426,75 @@
     main.appendChild(offline);
     drawOffline(offline);
 
+    // App version and updates
+    var upd = h('div', { class: 'card' });
+    main.appendChild(upd);
+    drawUpdate(upd);
+
     main.appendChild(h('div', { class: 'card pitfall' }, h('div', { class: 'label' }, 'Danger zone'),
       h('button', { class: 'btn', onclick: function () { if (confirm('Erase all progress, streaks and high scores? This cannot be undone.' + everywhere)) { SD.resetState(); SD.cloud.ackReset(); SD.toast('Progress reset'); route(); } } }, 'Reset all progress')));
+  }
+
+  // The version card: which version of the app this window runs, the newest deployed one, and a way to fetch it now.
+  // The page learns its own version from the service worker that controls it (sw.js answers 'version'); the newest comes
+  // from sw.js on the site. An older worker that cannot answer shows as "unknown (older)".
+  function drawUpdate(card) {
+    clear(card);
+    card.appendChild(h('div', { class: 'label' }, 'App version and updates'));
+    var line = h('p', { class: 'muted', role: 'status' }, 'Not checked yet.'), acts = h('div', { class: 'row wrap' });
+    card.appendChild(line); card.appendChild(acts);
+    var supported = 'serviceWorker' in navigator && location.protocol !== 'file:';
+    function short(v) { return v ? v.slice(0, 7) : 'unknown (older)'; }
+    function running() {
+      var c = supported && navigator.serviceWorker.controller;
+      if (!c) return Promise.resolve(null);
+      return new Promise(function (ok) {
+        var ch = new MessageChannel(), t = setTimeout(function () { ok(null); }, 1500);
+        ch.port1.onmessage = function (e) { clearTimeout(t); ok((e.data && e.data.version) || null); };
+        c.postMessage('version', [ch.port2]);
+      });
+    }
+    function latest() { return fetch('sw.js', { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (t) { return (t.match(/const VERSION = '([0-9a-f]+)'/) || [])[1] || null; }); }
+    function ready(worker, v) {
+      line.textContent = 'Version ' + short(v) + ' is downloaded and ready. Reloading switches to it; your progress stays.';
+      clear(acts);
+      acts.appendChild(h('button', { class: 'btn primary', onclick: function () { reloading = true; worker.postMessage('activate'); } }, 'Reload now'));
+    }
+    var btn = h('button', { class: 'btn', onclick: check }, 'Check for updates');
+    function idle() { btn.disabled = false; if (!btn.isConnected) acts.insertBefore(btn, acts.firstChild); }
+    function check() {
+      if (!supported) { line.textContent = 'This browser cannot keep an offline copy, so the app is always the latest one from the site.'; return; }
+      btn.disabled = true; line.textContent = 'Checking…';
+      Promise.all([running(), latest().catch(function () { return null; })]).then(function (r) {
+        var run = r[0], now = r[1];
+        if (!now) { line.textContent = 'Could not reach the site. You are offline, or the connection failed. Running version: ' + short(run) + '.'; return idle(); }
+        if (run && run === now) { line.textContent = 'Up to date. Running version ' + short(run) + '.'; return idle(); }
+        return navigator.serviceWorker.getRegistration().then(function (reg) {
+          if (!reg) { line.textContent = 'The offline copy is not installed in this browser. Reload the page to install it.'; return idle(); }
+          if (reg.waiting) { ready(reg.waiting, now); return; }
+          line.textContent = 'Version ' + short(now) + ' is available (running ' + short(run) + '). Downloading about 40 MB…';
+          return reg.update().then(function () {
+            var w = reg.installing || reg.waiting;
+            if (!w) { line.textContent = 'The new version could not be downloaded. Try again on a better connection.'; return idle(); }
+            if (w.state === 'installed') { ready(w, now); return; }
+            w.addEventListener('statechange', function () {
+              if (w.state === 'installed') ready(w, now);
+              else if (w.state === 'redundant') { line.textContent = 'The download failed part-way. Try again on a better connection.'; idle(); }
+            });
+          });
+        });
+      }, function () { line.textContent = 'The check failed. Try again.'; idle(); });
+    }
+    acts.appendChild(btn);
+    var reset = h('button', { class: 'btn mini', onclick: function () {
+      if (navigator.onLine === false) { line.textContent = 'Reset needs a connection: it re-downloads the app.'; return; }
+      if (!confirm('Delete this browser\'s offline copy of the app and download it again? Your progress is not touched.')) return;
+      var undo = navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (x) { return x.unregister(); })); })
+        .then(function () { return caches.keys(); }).then(function (ks) { return Promise.all(ks.filter(function (k) { return /^sdq-[0-9a-f]{12}$/.test(k); }).map(function (k) { return caches.delete(k); })); });
+      undo.then(function () { location.reload(); }, function () { line.textContent = 'The reset failed. Close the app completely and reopen it.'; });
+    } }, 'Reset the offline copy');
+    if (supported) acts.appendChild(reset);
+    if (supported) running().then(function (v) { line.textContent = 'Running version ' + short(v) + '. Press Check for updates to look for a newer one.'; });
   }
 
   // The offline-models card: download or remove the small grading model and the Whisper dictation model (js/local-ai.js).
