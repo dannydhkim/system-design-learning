@@ -120,7 +120,7 @@ window.SD = window.SD || {};
       runs: {},   // a boss fight left part-way: boss id -> { i: next phase, scores: [0..1 per phase done], ms: time spent }
       tally: {},  // what each device has added to the running totals (see "Running totals" below)
       ladder: { rp: 0, peak: 0 },   // ranked ladder (js/ladder.js)
-      settings: { sound: true, voice: true, music: false, musicVol: 1 }
+      settings: { sound: true, voice: true, voiceKind: 'female', music: false, musicVol: 1 }
     };
   }
   function isObj(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
@@ -261,6 +261,7 @@ window.SD = window.SD || {};
     if (typeof s.settings.sound !== 'boolean') s.settings.sound = true;
     if (typeof s.settings.voice !== 'boolean') s.settings.voice = true;
     if (typeof s.settings.music !== 'boolean') s.settings.music = false;
+    if (s.settings.voiceKind !== 'male') s.settings.voiceKind = 'female';
     s.settings.musicVol = Math.min(1, Math.max(0, num(s.settings.musicVol) == null ? 1 : num(s.settings.musicVol)));
     var lad = isObj(s.ladder) ? s.ladder : b.ladder, rp = Math.max(0, num(lad.rp) || 0);
     s.ladder = { rp: rp, peak: Math.max(rp, num(lad.peak) || 0) };
@@ -464,7 +465,6 @@ window.SD = window.SD || {};
       s.streak.last = t;
       s.streak.best = Math.max(s.streak.best, s.streak.count);
       if (s.streak.count > 1) SD.toast('🔥 ' + s.streak.count + '-day streak!', 'gold');
-      if (SD.audio) SD.audio.say('prepare_yourself');   // first answer of the day
     }
     if (s.quests.date !== t) s.quests = { date: t, prog: {}, done: {} };
   }
@@ -516,17 +516,10 @@ window.SD = window.SD || {};
   // Record a right/wrong answer: drives the combo (win streak) and per-topic accuracy.
   SD.hit = function (correct, topicId) {
     var s = SD.state;
-    var broke = !correct && s.combo >= 3;
     if (correct) { s.combo++; s.bestCombo = Math.max(s.bestCombo, s.combo); if (s.combo === 5 || s.combo === 10 || s.combo % 25 === 0) SD.toast('⚡ ' + s.combo + ' in a row!', 'gold'); }
     else s.combo = 0;
     if (topicId) tallyHit(topicId, correct);
     SD.beep(correct ? (s.combo >= 3 ? 'ok2' : 'ok') : 'bad');
-    if (SD.audio) {
-      if (correct && s.combo === 3) SD.audio.say('combo');
-      else if (correct && s.combo === 5) SD.audio.say('multi_kill');
-      else if (correct && s.combo >= 10 && s.combo % 10 === 0) SD.audio.say('power_up');
-      else if (broke) SD.audio.say('combo_breaker');
-    }
     if (SD.ladder) { var R = SD.ladder.RP; SD.ladder.add((correct ? R.right : R.wrong) + (correct && s.combo % R.streakEvery === 0 ? R.streakBonus : 0)); }
   };
   SD.topicState = function (id) {

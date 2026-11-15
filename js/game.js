@@ -28,7 +28,7 @@
   // Stop any running clock when the player navigates away.
   var activeTimer = null;
   SD.stopTimers = function () { if (activeTimer) { clearInterval(activeTimer); activeTimer = null; } };
-  function every(ms, fn) { SD.stopTimers(); activeTimer = setInterval(fn, ms); if (SD.audio) SD.audio.say('fight'); }
+  function every(ms, fn) { SD.stopTimers(); activeTimer = setInterval(fn, ms); if (SD.audio) SD.audio.say('go'); }
   // Calls "hurry up" once when a game clock drops under five seconds.
   function hurry(left, st) { if (left <= 5000 && left > 0 && !st.hurried) { st.hurried = true; if (SD.audio) { SD.audio.say('hurry_up'); SD.audio.play('tick'); } } }
 
@@ -162,7 +162,7 @@
       paintSteps(); clear(foot);
       if (i >= boss.phases.length) return finish();
       var p = boss.phases[i], shown = false;
-      if (SD.audio) SD.audio.say(i === 0 ? 'fight' : i === boss.phases.length - 1 ? 'final_round' : null);
+      if (SD.audio) SD.audio.say(i === 0 ? 'ready' : i === boss.phases.length - 1 ? 'final_round' : null);
       clear(body);
       body.appendChild(h('h2', {}, 'Phase ' + (i + 1) + ': ' + p.name));
       var mountEl = h('div', {}); body.appendChild(mountEl);
@@ -182,8 +182,9 @@
       delete runs[boss.id];
       var isHigh = SD.setHigh('boss.' + boss.id, total);
       var xp = SD.award(SD.replayXp(total, replay ? prevBest : null), { flat: true });   // a replay pays in full only for beating the best
-      if (total >= 80) { SD.confetti(); SD.beep('win'); if (SD.audio) { SD.audio.play('boom'); SD.audio.say(total >= 100 ? 'flawless_victory' : 'winner'); } }
-      else if (total < 60 && SD.audio) { SD.audio.play('lose'); SD.audio.say('you_lose'); }
+      // One jingle and one line for the result; SD.award above may already have played a level-up, which then wins.
+      if (total >= 80) { SD.confetti(); SD.beep('win'); if (SD.audio) SD.audio.say('mission_completed'); }
+      else if (total < 60 && SD.audio) { SD.audio.play('lose'); SD.audio.say('mission_failed'); }
       if (SD.ladder) SD.ladder.add(total >= 80 ? SD.ladder.RP.bossWin : total < 60 ? SD.ladder.RP.bossLoss : 0);
       clear(body); clear(foot);
       var weakest = boss.phases.map(function (p, k) { return [p.name, scores[k] || 0]; }).sort(function (a, b) { return a[1] - b[1]; })[0];

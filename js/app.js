@@ -312,15 +312,21 @@
 
     function toggle(key, label) {
       var c = h('input', { type: 'checkbox' }); c.checked = !!s.settings[key];
-      c.addEventListener('change', function () { s.settings[key] = c.checked; SD.save(); SD.audio.refresh(); if (c.checked && key === 'voice') SD.audio.say('prepare_yourself'); if (c.checked && key === 'sound') SD.audio.play('coin'); });
+      c.addEventListener('change', function () { s.settings[key] = c.checked; SD.save(); SD.audio.refresh(); if (c.checked && key === 'voice') SD.audio.say('ready'); if (c.checked && key === 'sound') SD.audio.play('coin'); });
       return h('label', { class: 'check' }, c, ' ' + label);
     }
     var mv = h('input', { type: 'range', min: '0', max: '100', value: String(Math.round(s.settings.musicVol * 100)), 'aria-label': 'Music volume' });
     mv.addEventListener('input', function () { s.settings.musicVol = +mv.value / 100; SD.audio.refresh(); });
     mv.addEventListener('change', function () { SD.save(); });
+    var vk = h('select', { class: 'num wide', 'aria-label': 'Announcer voice' }, h('option', { value: 'female' }, 'Voice A'), h('option', { value: 'male' }, 'Voice B'));
+    vk.value = s.settings.voiceKind === 'male' ? 'male' : 'female';
+    vk.addEventListener('change', function () { s.settings.voiceKind = vk.value; SD.save(); SD.audio.say('congratulations'); });
     main.appendChild(h('div', { class: 'card' }, h('div', { class: 'label' }, 'Sound'),
-      toggle('sound', 'Sound effects'), toggle('voice', 'Announcer (streaks, rank-ups, boss fights, high scores)'), toggle('music', 'Music (study, arcade and boss themes)'),
+      toggle('sound', 'Sound effects'), toggle('voice', 'Announcer (big moments only: levels, quests, boss results, high scores)'),
+      h('label', { class: 'field' }, h('span', {}, 'Announcer voice'), vk),
+      toggle('music', 'Music (a playlist each for study, arcade and boss fights)'),
       h('label', { class: 'field' }, h('span', {}, 'Music volume'), mv),
+      h('div', { class: 'row' }, h('button', { class: 'btn mini', onclick: function () { SD.audio.skip(); } }, '⏭ Next track')),
       h('p', { class: 'muted' }, 'All sounds and music are free CC0 assets (Kenney.nl and OpenGameArt, listed in audio/CREDITS.md) and work offline.')));
 
     var status = SD.sync.server === 'ok' ? '✓ Also saving to progress/progress.json in this folder (serve.py is running). That file is a local backup and stays out of git.'
