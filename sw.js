@@ -4,7 +4,7 @@
 // tools/check-sw.mjs, and `node tools/check-sw.mjs --write` rewrites them after any file changes. A new VERSION is
 // what makes installed copies pick up a deploy: the browser sees sw.js changed, downloads the new files into a fresh
 // cache, and the page offers a reload (js/app.js). Progress is not stored here; it lives in localStorage.
-const VERSION = 'b1c73dc831e5';
+const VERSION = '05195e0c71bb';
 const FILES = [
   './',
   'js/data/meta.js',
@@ -79,7 +79,6 @@ const FILES = [
   'audio/voice/arcade/prepare_yourself.mp3',
   'audio/voice/arcade/fight.mp3',
   'audio/voice/arcade/combo.mp3',
-  'audio/voice/arcade/multi_kill.mp3',
   'audio/voice/arcade/combo_breaker.mp3',
   'audio/voice/arcade/flawless_victory.mp3',
   'audio/voice/arcade/winner.mp3',

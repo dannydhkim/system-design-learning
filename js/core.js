@@ -520,10 +520,11 @@ window.SD = window.SD || {};
     var was = s.combo;
     if (correct) { s.combo++; s.bestCombo = Math.max(s.bestCombo, s.combo); if (s.combo === 5 || s.combo === 10 || s.combo % 25 === 0) SD.toast('⚡ ' + s.combo + ' in a row!', 'gold'); }
     else s.combo = 0;
-    // Streak callouts (arcade announcer only): 5 in a row, 10 in a row, and losing a streak of 5 or more.
-    if (SD.audio) SD.audio.say(correct ? (s.combo === 5 ? 'streak5' : s.combo === 10 ? 'streak10' : null) : was >= 5 ? 'streakBroken' : null);
+    // Streak callouts (arcade announcer only): 5 in a row, and losing a streak of 5 or more. Every 10 in a row gets a
+    // power-up sound instead of a line.
+    if (SD.audio) SD.audio.say(correct ? (s.combo === 5 ? 'streak5' : null) : was >= 5 ? 'streakBroken' : null);
     if (topicId) tallyHit(topicId, correct);
-    SD.beep(correct ? (s.combo >= 3 ? 'ok2' : 'ok') : 'bad');
+    SD.beep(correct ? (s.combo % 10 === 0 ? 'quest' : s.combo >= 3 ? 'ok2' : 'ok') : 'bad');
     if (SD.ladder) { var R = SD.ladder.RP; SD.ladder.add((correct ? R.right : R.wrong) + (correct && s.combo % R.streakEvery === 0 ? R.streakBonus : 0)); }
   };
   SD.topicState = function (id) {

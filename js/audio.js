@@ -6,12 +6,13 @@
   'use strict';
   var SFX = ['ok', 'ok2', 'bad', 'coin', 'tick', 'hit', 'boom', 'laser', 'levelup', 'win', 'lose', 'rankup', 'quest'];
   // Announcer. Callers name a moment (SD.audio.say('streak5')); the style chosen in Settings decides the line. The
-  // arcade style is a fighting-game announcer and also calls answer streaks; the two calm voices skip those.
+  // arcade style is a fighting-game announcer and also calls answer streaks; the two calm voices skip those. The arcade
+  // recordings are the Kenney voices lowered in pitch with a short arena echo (see audio/CREDITS.md).
   var CALM = { bossStart: 'ready', arcadeStart: 'go', finalPhase: 'final_round', perfect: 'congratulations', bossWin: 'mission_completed',
     bossLose: 'mission_failed', gameOver: 'game_over', timeUp: 'time_over', highScore: 'new_highscore', levelUp: 'level_up',
     quest: 'objective_achieved', promoted: 'congratulations', hurry: 'hurry_up' };
   var LINES = {
-    arcade: { bossStart: 'prepare_yourself', arcadeStart: 'fight', finalPhase: 'final_round', streak5: 'combo', streak10: 'multi_kill',
+    arcade: { bossStart: 'prepare_yourself', arcadeStart: 'fight', finalPhase: 'final_round', streak5: 'combo',
       streakBroken: 'combo_breaker', perfect: 'flawless_victory', bossWin: 'winner', bossLose: 'you_lose', gameOver: 'game_over',
       timeUp: 'time_over', highScore: 'new_highscore', levelUp: 'level_up', quest: 'objective_achieved', promoted: 'congratulations', hurry: 'hurry_up' },
     female: CALM, male: CALM
@@ -51,7 +52,6 @@
     'audio/voice/arcade/prepare_yourself.mp3',
     'audio/voice/arcade/fight.mp3',
     'audio/voice/arcade/combo.mp3',
-    'audio/voice/arcade/multi_kill.mp3',
     'audio/voice/arcade/combo_breaker.mp3',
     'audio/voice/arcade/flawless_victory.mp3',
     'audio/voice/arcade/winner.mp3',
