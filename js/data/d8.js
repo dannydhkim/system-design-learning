@@ -217,3 +217,130 @@ SD.deep["8.5"] = [
   ]
  ]
 ];
+SD.deep["8.6"] = [
+ [
+  "The reason is not modesty; it is debugging. A first ML system has three places to be wrong that have nothing to do with the model. The Rules of ML list them: the features must reach the learning algorithm correctly, the model must learn reasonable weights, and the features must reach the model in the server correctly. Once those three hold, the guide says you have done most of the work. A simple model makes each one checkable, because you can read a logistic regression's weights and see that one is absurd. With a deep model, a broken join and a weak architecture look the same: a disappointing number.\n\nConcretely, the heuristic the guide suggests for ranking apps in a marketplace is install rate or number of installs. It needs no labels pipeline, so it can ship on day one and start producing the logs a model will later train on.\n\n\"Baseline\" then means two things: a metric to beat and a behaviour to compare against. Without it, a new model scoring AUC 0.78 tells you nothing. Is that good? Against a heuristic at 0.76 it is a small win for a lot of serving cost; against 0.60 it is a large one. The guide adds that logistic regression outputs are interpretable as probabilities, which makes mismatches between training and production visible.",
+  [
+   "rules-of-ml"
+  ]
+ ],
+ [
+  "A decision tree splits on one column at a time: \"amount > 500?\", then \"transactions on this card today > 3?\". That fits tables, where each column means something on its own. The 2022 benchmark tested why networks lose there and named three properties a tabular model needs: robustness to uninformative features, preserving the orientation of the data (not mixing columns together), and being able to learn irregular functions. Trees have all three by construction: a useless column is simply never chosen for a split, and a split is a step, not a smooth curve.\n\nMissing values show the practical side. XGBoost adds a default direction to every tree node; a row whose value for that feature is missing goes that way, and the direction is learnt from the data. So \"no purchase history\" can be routed with whichever group it behaves like, without you inventing a fill-in value.\n\nFacebook's hybrid is a way to hand tree-made features to a linear model. Each tree's output is treated as one categorical feature: which leaf did this example land in? A leaf is a conjunction of conditions, so the logistic regression receives ready-made feature combinations. It can then be retrained cheaply as fresh data arrives, which the paper stresses because fresher training data gave more accurate predictions.",
+  [
+   "grinsztajn-tabular",
+   "xgboost-chen",
+   "fb-ads-ctr"
+  ]
+ ],
+ [
+  "The four conditions share one cause: a tree needs a column with a meaning, and these inputs do not have one. A user ID with millions of values is a label, not a quantity; splitting on \"ID > 4,000,000\" means nothing. A deep model instead learns an embedding, a short dense vector per ID, so that similar IDs end up near each other.\n\nThe Wide & Deep paper gives the cleanest account of what that buys and costs. A linear model with crossed features memorises: the cross AND(user installed Netflix, shown Pandora) gets its own weight, learned from how often that exact pair led to an install. It cannot say anything about a pair it never saw. Embeddings generalise to unseen pairs, but the paper warns they can over-generalise and recommend less relevant items when interactions are sparse, because dense embeddings give a nonzero prediction for every pair. Wide & Deep trains both parts jointly: memorised exceptions plus generalisation. The setting was Google Play, with over one billion active users and over one million apps, which is the \"very large data\" condition.\n\nNote the comparison the 3.9% was measured against: a tuned production logistic regression, not a toy. The follow-up question is always \"what was the baseline?\", and here the answer is a strong one.",
+  [
+   "wide-deep"
+  ]
+ ],
+ [
+  "Two-tower is shaped by a serving constraint, not by accuracy. Retrieval must pick a few hundred candidates from millions in milliseconds, so the model is forced into a form where the user and the item never meet until the last step: score = user vector · item vector. Because item vectors do not depend on the user, they are computed once and put in a nearest-neighbour index, and serving becomes one user-tower pass plus a lookup. YouTube's paper states the reduction: scoring becomes a nearest-neighbour search in dot-product space.\n\nThe ranker has only hundreds of items to score, so it can afford interactions. DLRM turns every categorical feature into an embedding, turns the dense features into a vector of the same length with the bottom MLP, then takes the dot product of every pair. With 26 categorical features plus one dense vector, that is 27 × 26 ÷ 2 = 351 interaction values, which the top MLP turns into a click probability.\n\nWhere it bites is memory. Take 4 tables of 50 million rows × 128 float32 values: 50,000,000 × 128 × 4 bytes = 25.6 GB each, 102.4 GB in total, beside an MLP of a few hundred MB. The tables do not fit on one 80 GB GPU, so they are sharded while the MLP is copied.",
+  [
+   "youtube-dnn-recs",
+   "dlrm-naumov"
+  ]
+ ],
+ [
+  "A product wants several predictions per item, and training one model per outcome multiplies serving cost. The obvious saving is a shared-bottom model: common layers, then a small head per task. The MMoE paper starts from the weakness of that design: the prediction quality of common multi-task models is often sensitive to how the tasks relate. If \"click\" and \"liked after watching\" want different things from the shared layers, each update for one task damages the other.\n\nMMoE's change is small. Replace the single shared bottom with several expert networks, and give every task its own gating network, trained for that task, which decides how much of each expert the task uses. Each task's head reads its own mix. Related tasks can learn similar weights and share; unrelated ones can lean on different experts. The sharing pattern is learned instead of fixed.\n\nSequence models address a different gap: counts and averages say what a user likes in general, not what they are doing now. TransAct feeds the last 100 actions, newest first and padded with zeros for users with fewer, through a transformer. The paper says the length of 100 was chosen considering infrastructure cost and latency. The 65× compute is the interview point: Pinterest moved serving from CPU to GPU, and reports that this kept latency and cost neutral.",
+  [
+   "mmoe-ma",
+   "transact-pinterest"
+  ]
+ ],
+ [
+  "Each criterion can be turned into a question that eliminates options. Data volume: 15,000 labelled rows will not train millions of embedding parameters, so trees. Latency: a retrieval stage that must scan millions of items cannot run a model that looks at user and item together, so two-tower. Serving cost: a model with 65 times the computation needs either 65 times the machines or different hardware. Interpretability: if a regulator or an on-call engineer must explain a score, a linear model or a small tree ensemble is the starting point. Cold start: a model keyed only on item IDs has nothing to say about an item added today; one with content features does.\n\n\"What the product does with the score\" is the criterion people skip. If the score only orders a feed, any monotonic transform of it is as good. If it is multiplied by a bid or compared with a threshold, the number itself must be right, which favours models whose outputs are probabilities.\n\nThe Rules of ML give the tie-breaker in its context: the only easy launch decisions are when all metrics get better or at least do not get worse, and if a simple heuristic does a better job on all of them, choose the heuristic. Complexity has to be paid for by a measured gain.",
+  [
+   "rules-of-ml"
+  ]
+ ]
+];
+SD.deep["8.7"] = [
+ [
+  "A random split quietly answers an easier question than the one you care about. Shuffle 18 months of fraud transactions and the model sees examples from month 17 while being tested on month 3. A fraud pattern that began in month 15 is in the training set, so its test examples are easy. In production the next new pattern is not in the training set. That is how a model can score AUC 0.93 on a random split and 0.81 on the month after training: the first number measured memory of the period, the second measured prediction.\n\nYouTube found the same effect inside a single user's history. Hiding one random watch and predicting it from the others lets the model use later watches to guess an earlier one. The paper notes that viewing is asymmetric: episodic series are watched in order, and people discover a genre through its most popular artists before moving to niches. Their fix is to \"roll back\" the history: pick a watch and feed in only the actions taken before it.\n\nTo get several estimates and not just one, scikit-learn's TimeSeriesSplit grows the training window. With 60,000 time-ordered rows and 5 splits, each test fold is 60,000 ÷ (5 + 1) = 10,000 rows; split 1 trains on the first 10,000, split 3 on the first 30,000, and each tests on the next 10,000.",
+  [
+   "youtube-dnn-recs",
+   "sklearn-timeseriessplit"
+  ]
+ ],
+ [
+  "Burges' overview has a picture that explains the whole progression. Take a list of results where a few are relevant. Count the pairs in the wrong order, a relevant result below an irrelevant one: thirteen. Now move the top relevant result down three places and the lowest relevant one up five. The count falls to eleven, so a pairwise loss calls that an improvement. But the user has lost the good result at the top of the page, and a metric like NDCG, which weights the top few positions most, gets worse. The pairwise loss treats every pair alike wherever it sits.\n\nLambdaRank's change is one multiplication. Burges describes each pair's gradient as a force: the more relevant document gets a push up and the other an equal push down. LambdaRank scales that force by |ΔNDCG|, the change in NDCG if the two swapped places with everything else fixed. A swap involving position 1 changes NDCG a lot, so it gets a large push; a swap between positions 40 and 45 hardly registers. NDCG is not differentiable, since it depends on sort order, but this sidesteps the problem by writing down the gradients directly instead of deriving them from a loss.\n\nLambdaMART is the same idea with boosted trees as the model. Pointwise remains the right choice when you need the probability itself.",
+  [
+   "burges-lambdamart"
+  ]
+ ],
+ [
+  "Both corrections undo a distortion that you introduced on purpose. In-batch negatives: for each (user, watched item) pair, the other items in the mini-batch serve as negatives, which is free because their vectors are already computed. But batches are drawn from real traffic, so an item appears as a negative as often as it is popular. A hit video is told \"not this one\" thousands of times more than an obscure one, and the model learns to score it low for everybody. The fix subtracts log(p_j) from item j's logit in the training loss, where p_j is its probability of being in a batch. An item with p = 0.01 gets −log(0.01) = +4.6 and one with p = 0.0001 gets +9.2 (natural logs), so the loss no longer needs to push popular items down merely for showing up often.\n\nDownsampling negatives works on odds. Odds are positives ÷ negatives; keeping a fraction w of negatives shrinks the denominator, which multiplies the odds by 1 ÷ w. True rate 0.1%: odds 0.001 ÷ 0.999 ≈ 0.001. Keep 1% of negatives: odds ≈ 0.1, a rate of 0.1 ÷ 1.1 ≈ 9%, Facebook's \"roughly 10%\". Their formula just reverses it. With w = 0.05 and an output of 0.30: q = 0.30 ÷ (0.30 + 0.70 ÷ 0.05) = 0.30 ÷ 14.3 ≈ 2.1%.",
+  [
+   "yi-two-tower",
+   "fb-ads-ctr"
+  ]
+ ],
+ [
+  "AUC asks one question: if I pick a random positive and a random negative, how often does the positive score higher? Only the order of scores enters. Multiply every score by 0.5 and no pair changes order, so AUC cannot move. Log loss compares the number with the outcome, so it does move. That is the Facebook observation in the key idea.\n\nA worked case shows when it matters. An ad is shown only if $2 × pCTR exceeds a $0.01 reserve, so the cut-off is pCTR = 0.005. A model that over-predicts by 2× reports 0.005 for ads whose true rate is 0.0025, and shows ads worth half the reserve. For ordering one feed, the same model is fine as it is.\n\nWhy are deep networks over-confident? Guo et al. explain that once a network classifies almost all training samples correctly, it can still lower its training loss by making its predictions more extreme, so a high-capacity model drifts towards certainty. Temperature scaling divides the logits by a single number T before the softmax, with T chosen to minimise log loss on a validation set. T above 1 softens the probabilities. Because dividing by T does not change which logit is largest, the predicted class is unchanged and accuracy is exactly the same. It repairs the number and leaves the ranking alone.",
+  [
+   "fb-ads-ctr",
+   "guo-calibration"
+  ]
+ ],
+ [
+  "A global metric is a weighted average, and averages hide. Suppose one country is 2% of traffic and its accuracy halves from 80% to 40%, while everywhere else improves by 1.8 points. The global number moves by 0.98 × 1.8 − 0.02 × 40 = 1.76 − 0.8, about +1 point, and the dashboard shows a win. The ML Test Score paper, the source of the 1%/50% example, says where such failures tend to come from: a fault in collecting training data that caused an important set to be lost or late. So a slice drop is often a pipeline alarm, not a modelling problem. Choose slices before looking: the paper suggests users by country, by frequency of use, or movies by genre.\n\nECE is itself a weighted average, so read it the same way. Worked example on 1,000 held-out ads: 600 predicted 10% and 8% clicked (gap 2 points); 300 predicted 30% and 36% clicked (gap 6); 100 predicted 70% and 55% clicked (gap 15). ECE = 0.6 × 2 + 0.3 × 6 + 0.1 × 15 = 1.2 + 1.8 + 1.5 = 4.5 points.\n\nThe worst bin is off by 15 points yet adds only 1.5. If the high scores are the ones that trigger an action, look at the largest gap too; Guo et al. define that as maximum calibration error.",
+  [
+   "ml-test-score",
+   "guo-calibration"
+  ]
+ ],
+ [
+  "The problem is a missing counterfactual. The log says \"we showed article 7 and the user clicked\". If the new policy would have shown article 12, the log is silent on what would have happened. You cannot fill that in.\n\nReplay does not try. It walks through the logged events and asks the new policy what it would show for each. If the answer matches what was shown, the event is kept and its reward counted; otherwise the event is skipped. The average reward over kept events is the estimate.\n\nWhy is uniform random logging needed? Because then whether an event is kept depends only on a coin with probability 1 ÷ K, not on the user or the context. Li et al. state the result: the retained events have the same distribution as if the new policy had selected them. If the old system had chosen by its own judgement instead, the matches would be concentrated where old and new agree, a flattering sample.\n\nThe price is data. With 20 articles, one visit in 20 matches, so 50,000 usable events need 50,000 × 20 = 1,000,000 logged visits, and that randomised traffic costs users worse recommendations while it is collected. The paper notes the uniform assumption can be relaxed to any randomised logging policy using rejection sampling, at the cost of decreased data efficiency.",
+  [
+   "li-replay"
+  ]
+ ]
+];
+SD.deep["8.8"] = [
+ [
+  "The Bing bug shows how a metric can reward damage. Give users very poor results and they cannot find what they want, so they search again and again: distinct queries per user rise. They also click more on ads, whose relative relevance has gone up, so revenue per user rises too. Both headline numbers improved because the product got worse. Kohavi's later paper puts it sharply: making a search engine worse forces people to issue more queries to find an answer, but, like hiking prices, users will find better alternatives long-term.\n\nThe repair is to choose a metric that damage cannot inflate. Whether people come back, sessions per user, is one; the same authors say distinct queries per session should if anything be minimised, subject to the task being completed.\n\nWhy decide before the test? Because afterwards every result can be argued either way. The Rules of ML illustrate with two systems: A has 1 million daily active users and $4 million revenue a day, B has 2 million users and $2 million. Whichever one you have now, you would hesitate to switch, since there is no explicit ranking of all possible metric values. A written rule, such as \"primary up, no guardrail down by more than X\", turns an argument into a lookup.",
+  [
+   "kohavi-puzzling",
+   "kohavi-at-scale-2013",
+   "rules-of-ml"
+  ]
+ ],
+ [
+  "Look at the actual table from the Wide & Deep paper. Wide (the control): offline AUC 0.726, online gain 0%. Deep: 0.722, +2.9%. Wide & Deep: 0.728, +3.9%. Offline, the deep model is 0.004 worse than the control. Online, over a three-week test with 1% of users in each group, it wins clearly. If the team had used offline AUC as a gate, the deep model would never have been tested.\n\nThe paper's explanation is about what offline data can contain. The impressions and labels in an offline set are fixed: they are whatever the old model chose to show, and how users responded to that. A model that would have shown different apps gets no credit, because there is no label for an app that was never shown. Online, the new model does show those apps and learns from the response. Offline evaluation is an exam whose questions were written by the incumbent.\n\nSo a disagreement should be worked through as a diagnosis, cheapest check first. Is the model seeing the same feature values in serving as in training? Did latency rise enough to cost engagement on its own? Does the offline metric reward something the product does not? Only then conclude that the model found, or lost, something the logs could not show.",
+  [
+   "wide-deep"
+  ]
+ ],
+ [
+  "The two effects are real; the surprise in Kohavi's paper is how rarely an apparent trend is one of them. Feature owners watch a chart of the cumulative effect, and it seems to drift, say from −1.2% on day one to −0.4% on day four. The temptation is to extend the line.\n\nThe explanation is noise plus the way the chart is drawn. With few users, the first days' estimates are wild: the paper computes that the first day's value has a 67% chance of falling outside the 95% confidence bound the experiment ends with, and the second day's a 55% chance. And each cumulative point contains all the earlier days, so consecutive points cannot jump independently; a noisy start that settles toward the true value draws a smooth curve that looks like a trend. The authors could not find a single experiment where a statistically significant result flipped to significant in the other direction.\n\nThe checks in the key idea are the ones the paper gives: plot the delta over time, compute the metric for new users only since they have no habits to break and nothing to find novel, and note that the delta usually stabilises after a week.\n\nReal novelty exists too. Using the Pinterest figures on a base of 20 million: 7% is 1,400,000 extra daily users, 2.5% is 500,000, so week one overstated by 900,000.",
+  [
+   "kohavi-puzzling"
+  ]
+ ],
+ [
+  "Chapelle et al. explain Team-Draft with the image of picking teams for a friendly match. Rankers A and B are the two captains and the documents are the players. In each round a coin decides who picks first; each captain takes their highest-ranked document that is still available, adds it to their team, and it is appended to the list the user sees. The user sees one ordinary results page. A click on a document is a point for the team that picked it.\n\nWhy does this need so much less data than an A/B test? An A/B test compares two different groups of people, and people differ so much in how much they click that the difference between rankers is buried. Interleaving puts both rankers in front of the same person on the same query. The paper states the assumption that replaces \"behaviour changes on an absolute scale\": users can identify the preferred alternative in a direct comparison.\n\nThe practical use is screening. With 12 candidate rankers and traffic for one well-powered A/B test a month, testing each would take a year. At one to two orders of magnitude less data, all 12 can be compared by interleaving and only the winner takes the A/B slot.\n\nThe limit follows from the design: nobody experiences ranker A alone, so there is no A-only revenue, latency or retention to measure.",
+  [
+   "chapelle-interleaving"
+  ]
+ ],
+ [
+  "Adding up the lifts of individual A/B tests overstates the total, for reasons that compound. Each test was read at its most flattering moment, soon after launch. Tests are launched because they cleared a bar, and a noisy estimate that clears a bar is more often an overestimate than an underestimate. And features overlap: two changes that each lift a metric 2% may be reaching the same users. A holdout avoids the arithmetic altogether. One group gets none of it, and the gap between that group and everyone else is the cumulative effect, measured directly. Bing describes its 10% holdout this way: a top-level control, so that the impact of the whole experimentation programme becomes another A/B test.\n\nThe three costs can be put in numbers. Forgone gain: with 20 million users, a 1% holdout is 200,000 people who do not get features the tests say are better. Maintenance: the old code path must keep working for as long as the holdout lasts. Noise: confidence intervals are proportional to 1 ÷ √n, so a 1% arm is √50 ≈ 7 times noisier than a 50% arm; only large or long-running effects show.\n\nHence the practical pattern: holdouts for a few big bets and for the programme as a whole, not for every launch, and a planned end date so the held-out users are eventually released.",
+  [
+   "kohavi-at-scale-2013",
+   "kohavi-puzzling"
+  ]
+ ],
+ [
+  "A recommender only gets labels for what it showed. Items it ranks low are not shown, get no clicks, and so look unpopular in the next training set, which ranks them lower still. The model is marking its own homework. Sculley et al. call this a direct feedback loop and note that the theoretically correct tool is a bandit algorithm, which does not necessarily scale to the action spaces of real systems; the workable mitigations are some randomisation, or isolating part of the data from the model's influence. In practice: a small share of impressions chosen at random, whose labels do not depend on what the model already believed.\n\n\"Check each model before it serves\" has a concrete form in the Wide & Deep paper: each new model is validated against the previous one as a sanity check before it is loaded.\n\nFacebook's example shows why the automatic stop matters for a continuously trained model. A data fault makes the click stream stale, so impressions are joined with no clicks and the trainer receives data with almost zero click rate. It learns to predict near zero. Since an ad's expected value depends on that prediction, fewer ads are shown. Nothing crashed; the model learned faithfully from broken data. The safeguard is anomaly detection that disconnects the trainer when the training distribution changes abruptly.",
+  [
+   "sculley-ml-tech-debt",
+   "wide-deep",
+   "fb-ads-ctr"
+  ]
+ ]
+];

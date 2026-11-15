@@ -265,3 +265,92 @@ SD.deep["9.6"] = [
   ]
  ]
 ];
+SD.deep["9.7"] = [
+ [
+  "Each of Lloyd's two steps is the best possible move with the other half held fixed. Given the centroids, sending a point to its nearest one cannot raise its squared distance. Given the assignment, the mean is the point that minimises the sum of squared distances to a set. So inertia can only fall or stay, and since there are at most k^n ways to assign n points, Arthur and Vassilvitskii conclude the process always terminates.\n\nTerminating is not the same as finding the best answer. Take four points at the corners of a wide rectangle: (0,0), (0,1), (4,0), (4,1), with k = 2. The good solution groups left and right: centroids (0, 0.5) and (4, 0.5), every point 0.5 away, inertia 4 × 0.25 = 1. Now start with centroids (2, 0) and (2, 1), the bottom pair and the top pair. Each point is 2 from its own centroid and √5 ≈ 2.24 from the other, so nobody switches, the means do not move, and the algorithm stops with inertia 4 × 4 = 16. It is like walking downhill in fog: you stop in a hollow, not necessarily the lowest one. That is why the starting centroids matter so much.",
+  [
+   "kmeanspp",
+   "sk-clustering-guide"
+  ]
+ ],
+ [
+  "D² weighting is a compromise between two bad seeding rules. Uniform random seeds often land two centres in one dense cluster and none in another. Always taking the farthest point picks outliers. Squaring the distance and sampling makes far points likely but not certain. Example: one centre is placed and three points remain at distances 1, 2 and 3. Their weights are 1, 4 and 9, so the farthest is chosen with probability 9 ÷ 14 ≈ 64%, the nearest with 1 ÷ 14 ≈ 7%.\n\nThe guarantee is about the seeding alone, before any Lloyd step. For k = 10 it reads E[φ] ≤ 8 × (ln 10 + 2) × φ_OPT = 8 × 4.30 ≈ 34 times optimal. That is a worst case, and the alternative has none: the paper notes that with standard random seeding the ratio to optimal can be unbounded.\n\nThe silhouette of one point compares a, its mean distance to the other points in its own cluster, with b, its mean distance to the points of the next nearest cluster. With a = 2 and b = 8, s = (8 − 2) ÷ 8 = 0.75. If a = b the point sits on a boundary and s = 0; scikit-learn reads values around zero as overlapping clusters.",
+  [
+   "kmeanspp",
+   "sk-clustering-guide"
+  ]
+ ],
+ [
+  "The SVD connection is two lines. Write the centred data as X = UΣWᵀ. Then XᵀX = WΣ²Wᵀ, because UᵀU is the identity. Divide by m − 1 and you have the covariance matrix written as W times a diagonal matrix times Wᵀ. So the columns of W are the directions, and the squared singular values divided by m − 1 are the variances along them. Project the data onto W and the covariance of the result is that diagonal matrix: no off-diagonal terms, hence uncorrelated features. Goodfellow et al. add the caveat that this removes only linear correlation; nonlinear dependence can remain.\n\n\"Variance explained\" is then a ratio. If the covariance eigenvalues are 6, 3 and 1, the first two components keep (6 + 3) ÷ 10 = 90%. Whitening divides each projected coordinate by its standard deviation, here √6 ≈ 2.449, √3 ≈ 1.732 and 1, so every direction has variance 1.\n\nThe centring-without-scaling detail is where it bites. Put income in dollars (standard deviation 20,000, variance 4 × 10⁸) beside number of purchases (standard deviation 2, variance 4). The direction of maximum variance is almost exactly the income axis, and PCA has told you only which column has the biggest units. Standardise the columns first unless the units are comparable.",
+  [
+   "dlbook-ml",
+   "sk-decomposition-guide"
+  ]
+ ],
+ [
+  "Isolation forest works like a game of twenty questions with random questions. Pick a random feature and a random threshold between its minimum and maximum; that splits the data in two. Repeat on each side until every point is alone. An odd point, say a $9,000 transaction among $20 ones, is cut off by one of the first few questions. A typical point sits in a crowd and takes many. The number of splits is the path length, averaged over many trees.\n\nThe score normalises that by c(n), the average path length for n points. For subsamples of 256: H(255) ≈ ln 255 + 0.5772 = 6.1185, so c = 2 × 6.1185 − 2 × 255 ÷ 256 ≈ 10.24. A point with average depth 10.24 scores 2^(−1) = 0.5; depth 5.12 scores 2^(−0.5) ≈ 0.71; depth near zero approaches 1.\n\nSmall subsamples are a feature. Liu et al. report that a small sample makes better trees because it reduces swamping (normal points wrongly flagged because they sit near anomalies) and masking (a dense group of anomalies hiding one another).\n\nChoosing a method is a question about the training data. A year of unlabelled card transactions surely contains fraud, so it is polluted: that is outlier detection, and a one-class SVM would bend its frontier around the fraud. Clean data from a known-good period makes novelty detection possible.",
+  [
+   "sk-outlier-guide",
+   "iforest-liu"
+  ]
+ ],
+ [
+  "InfoNCE is a multiple-choice question: here is an anchor and N candidates, one of which is its true partner; pick it. The loss is ordinary cross-entropy on that choice. At initialisation all scores are equal, the model guesses with probability 1 ÷ N, and the loss is ln N; for N = 1,024 that is ≈ 6.93 nats.\n\nThat gives the bound a concrete reading. I ≥ log N − L, and the loss cannot go below zero, so with 1,024 candidates the most mutual information the bound can certify is ln 1,024 ≈ 6.93 nats however good the model is. An easy quiz cannot show how much you know. More candidates raise the ceiling, which is one reason the numbers are large: SimCLR's batch of 8,192 gives 16,382 negatives per positive pair, and CLIP's 32,768 pairs give 32,768² ≈ 1.07 billion image–text pairings per batch, of which only 32,768 are real.\n\nWhat counts as a \"matching pair\" is the design decision. SimCLR found the combination of random crop and colour distortion crucial for good performance.\n\nTemperature divides the similarity scores before the softmax. Wang and Liu describe a dilemma: a small temperature spreads embeddings uniformly and separates them well, but pursued too far it stops tolerating semantically similar samples, pushing apart two pictures of the same kind of thing because each is the other's negative.",
+  [
+   "cpc",
+   "simclr",
+   "clip",
+   "contrastive-temperature"
+  ]
+ ],
+ [
+  "Start with the grid. Ten distinguishable values on each of 6 features make 10⁶ = 1,000,000 cells. With 100,000 training examples at most 10% of cells contain even one, and real data clumps, so far fewer. A method that answers \"what happened in cases like this one?\" finds, for most queries, that there are no such cases. Each extra feature multiplies the cell count by ten while the data stays the same size.\n\nDistance concentration has a short explanation when coordinates are independent. A squared Euclidean distance is a sum of d per-coordinate terms. The mean of that sum grows like d but its spread only like √d, so the spread relative to the mean shrinks like 1 ÷ √d. With d = 100 every pair of points is about equally far apart, and \"nearest\" stops meaning much.\n\nThe key word is independent. Beyer et al. identify workloads where the effect does not occur, and one they describe is data that falls into clusters with the query inside one of them: its own cluster is clearly closer than the others. Learned embeddings are built to have that structure, so a teammate who says nearest-neighbour search over 256-dimensional embeddings is meaningless is over-applying the result. The honest test is empirical: compare the nearest and farthest distances on your own data.",
+  [
+   "dlbook-ml",
+   "beyer-nn"
+  ]
+ ]
+];
+SD.deep["9.8"] = [
+ [
+  "Think of a library where the lookup is soft. The query is what you are looking for, each key is the label on a shelf, and each value is what the shelf holds. A dictionary returns the one value whose key matches; attention scores every key against the query and returns a blend of all the values, weighted by how well each key matched.\n\nThe √d_k is about keeping the softmax in a useful range. A dot product of two d_k-dimensional vectors is a sum of d_k products. If each component has mean 0 and variance 1, each product has variance 1 and the sum has variance d_k. For d_k = 256 the standard deviation is √256 = 16, so raw scores routinely differ by 16 or more.\n\nSee what the softmax does with that. Two keys with scores 16 and 0: the weights are 1 ÷ (1 + e^(−16)) ≈ 0.9999999 and about 10^(−7). The gradient through a softmax weight p is proportional to p(1 − p), here about 10^(−7): learning stalls. Divide by 16 and the scores become 1 and 0: weights 0.73 and 0.27, and p(1 − p) ≈ 0.20.\n\nThe paper's evidence is the comparison with additive attention, which uses a small feed-forward network as the scoring function and outperformed unscaled dot products at larger d_k.",
+  [
+   "attention"
+  ]
+ ],
+ [
+  "One head produces one set of weights, hence one weighted average. If a token needs two different things at once a single average has to blend them. The paper's phrase is that with a single head, averaging inhibits attending to different subspaces at different positions. Several heads give several averages, which are concatenated.\n\nThe cost stays flat because the width is divided, not multiplied. With d_model = 512 and h = 8, each head projects to 512 ÷ 8 = 64 dimensions. A query projection for one head has 512 × 64 weights; eight of them have 8 × 512 × 64 = 512 × 512, exactly one full-width projection.\n\nThe mask is what makes training efficient. Feed a sequence of T tokens and ask every position to predict the next token: T training examples from one forward pass. That is only honest if position i cannot look at positions after i. Setting those scores to −∞ makes their softmax weight e^(−∞) = 0. The paper adds the second half: output embeddings are offset by one position, so position i's prediction depends only on known outputs before it.\n\nIn nanoGPT the mask is a lower-triangular matrix of ones built with torch.tril; where it is 0 the score is filled with −inf. On PyTorch 2.0 or later it calls scaled_dot_product_attention with is_causal=True.",
+  [
+   "attention",
+   "nanogpt"
+  ]
+ ],
+ [
+  "The BPE paper's own toy example shows the mechanism. Its vocabulary is four words with counts: \"low\" 5, \"lower\" 2, \"newest\" 6, \"widest\" 3, each split into characters plus an end-of-word mark. Count adjacent pairs: \"e s\" occurs 6 + 3 = 9 times (newest, widest), as does \"s t\"; \"l o\" occurs 5 + 2 = 7. Merge a most frequent pair, say e+s into \"es\"; next \"es t\" (9) becomes \"est\". After a few merges the frequent suffix \"est\" is one token and a rare word is still spellable from pieces. That was the aim: rare and unknown words encoded as sequences of subword units.\n\nTokenization leaks into behaviour because the model sees tokens, not digits. The GPT-3.5 and GPT-4 tokenizer chunks numbers into groups of 3 digits from the left, so 1234567 becomes 123|456|7, and the chunks do not line up with thousands. Written 1,234,567 the groups are 1|234|567, matching place value. Singh and Strouse found the right-to-left grouping largely improves arithmetic.\n\nRoPE in one picture: treat each pair of dimensions as a 2-D arrow and rotate it by an angle proportional to the position. A dot product of two arrows depends on the angle between them, so rotating the query by mθ and the key by nθ leaves a result that depends only on (m − n)θ.",
+  [
+   "bpe",
+   "tokarith",
+   "rope"
+  ]
+ ],
+ [
+  "The 12 comes from counting matrices. Attention has four d × d matrices: the query, key and value projections and the output projection, 4d². The MLP goes from d to 4d and back: d × 4d + 4d × d = 8d². Together 12d² per layer.\n\nWorked through for 32 layers and d_model = 4,096: N ≈ 12 × 32 × 4,096² = 6,442,450,944, about 6.44 billion. Each weight is used once per token in a matrix multiply, a multiply and an add, so the forward pass is 2N ≈ 12.9 GFLOPs per token. Training on a trillion tokens: 6 × 6.44 × 10⁹ × 10¹² ≈ 3.87 × 10²² FLOPs. Chinchilla's budget by the same rule: 6 × 70 × 10⁹ × 1.4 × 10¹² ≈ 5.9 × 10²³.\n\nThe context term is the part people forget. Divide it by 2N: (2 · n_layer · n_ctx · d) ÷ (2 · 12 · n_layer · d²) = n_ctx ÷ (12 · d). At n_ctx = 8,192 and d = 4,096 that is 8,192 ÷ 49,152 = 1/6, about 17% extra. At a 100,000-token context it is 100,000 ÷ 49,152 ≈ 2, so attention over the context costs twice the weights.\n\nThe interview use is a sanity check: given a GPU's FLOPs per second, 6ND bounds training time and 2N bounds tokens per second.",
+  [
+   "kaplan"
+  ]
+ ],
+ [
+  "For sequence length n = 1,024 and width d = 4,096, attention's n²·d is 1,024² × 4,096 ≈ 4.3 × 10⁹ and a recurrent layer's n·d² is 1,024 × 4,096² ≈ 1.7 × 10¹⁰: attention is cheaper whenever n is less than d. At n = 32,768, n²·d ≈ 4.4 × 10¹² against 5.5 × 10¹¹, eight times more. Transformers won anyway because of the other column: a recurrent layer needs n steps one after another, while attention relates all positions in a constant number of steps.\n\nThe memory is what fails first. At n = 32,768 the score matrix has 32,768² ≈ 1.07 billion entries; at 2 bytes each that is 2 GiB for one head, in one layer, for one sequence.\n\nFlashAttention's insight is that the arithmetic was not the slow part; moving that matrix in and out of the GPU's large, slower memory (HBM) was. It is a cook working one tray at a time on the counter (the small, fast on-chip SRAM) instead of walking to the pantry for each ingredient. Each tile of the matrix is computed, used and discarded, and for the backward pass it is recomputed, not stored. That is why FLOPs go up while time goes down, and the paper stresses the result is exact attention, unlike approximate methods that cut FLOPs yet often gained no wall-clock speed.",
+  [
+   "attention",
+   "flash"
+  ]
+ ],
+ [
+  "Both papers answer the same question: given compute C ≈ 6ND, how should it be split between model size N and training tokens D? Kaplan's exponents say that with 10 times the compute you should make the model 10^0.73 ≈ 5.4 times bigger and use only 10^0.27 ≈ 1.9 times more data. Chinchilla's say both should grow by √10 ≈ 3.2 times.\n\nThe disagreement comes from experimental method. Hoffmann et al. point out that Kaplan used a fixed number of training tokens and a fixed learning-rate schedule for all models, which prevented modelling the effect of those choices. They found instead that setting the schedule to match the number of training tokens gives the best final loss whatever the model size. Kaplan's setup therefore undervalued training for longer, which made bigger models look like the better use of compute.\n\nThe test was direct. Gopher had 280B parameters. Chinchilla used the same compute with 70B parameters, a quarter of the size, and therefore 4 times the data: 1.4T tokens, or 1.4 × 10¹² ÷ 70 × 10⁹ = 20 tokens per parameter. The smaller model won, and it is also four times cheaper at inference.\n\nAs a rule of thumb: a 6.44B-parameter model wants about 20 × 6.44B ≈ 129B training tokens.",
+  [
+   "kaplan",
+   "chinchilla"
+  ]
+ ]
+];
