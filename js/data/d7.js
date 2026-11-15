@@ -133,7 +133,7 @@ SD.deep["7.4"] = [
   ]
  ],
  [
-  "The score and the rules do different jobs. The score is the model's estimate, squeezed onto 0 to 99 so that people can set cut-offs on it; 65 and 75 are only the default lines for \"elevated\" and \"high\". Rules carry what a merchant knows and the model does not, and they take effect the moment they are saved.\n\nThe ordering is the part people get wrong. Radar does not run rules in the order you wrote them. It groups them by action: rules that request 3D Secure first, then allow, then block, then review. Within a group there is no order, and the first match ends evaluation. Stripe's own example: with the rules \"allow payments under $10\" and \"block payments where the risk level is high\", every payment under $10 is processed whatever its risk level, because the allow rule matched first and nothing else was looked at.\n\nSo an allow rule is not a hint; it is an override of the model. A broad one, such as allowing all small payments, is a hole in the wall: anyone who discovers it can send high-risk payments straight through it. In a design discussion, say that allow rules should be narrow, and that you would log which rule decided each payment so a bad rule can be found afterwards.",
+  "The score and the rules do different jobs. The score is the model's estimate, squeezed onto 0 to 99 so that people can set cut-offs on it; 65 and 75 are only the default lines for \"elevated\" and \"high\". Rules carry what a merchant knows and the model does not, and they can be changed without retraining anything.\n\nThe ordering is the part people get wrong. Radar does not run rules in the order you wrote them. It groups them by action: rules that request 3D Secure first, then allow, then block, then review. Within a group there is no order, and the first match ends evaluation. Stripe's own example: with the rules \"allow payments under $10\" and \"block payments where the risk level is high\", every payment under $10 is processed whatever its risk level, because the allow rule matched first and nothing else was looked at.\n\nSo an allow rule is not a hint; it is an override of the model. A broad one, such as allowing all small payments, is a hole in the wall: anyone who discovers it can send high-risk payments straight through it. In a design discussion, say that allow rules should be narrow, and that you would log which rule decided each payment so a bad rule can be found afterwards.",
   [
    "stripe-radar-risk",
    "stripe-radar-rules-ref"
@@ -336,6 +336,49 @@ SD.deep["7.9"] = [
   [
    "twitter-notif-ltv",
    "duolingo-notif-bandit"
+  ]
+ ]
+];
+SD.deep["7.10"] = [
+ [
+  "The terabyte an hour is an estimate built from stated assumptions, and it helps to see them. The NVIDIA author assumes just five cameras of two megapixels at 30 frames a second, which he says produces more than 3 TB of raw video an hour, and rounds it down to 1 TB to be conservative. A car drives 8 hours on 260 days: 2,080 hours a year. So 100 cars x 2,080 h x 1 TB = 208,000 TB, about 200 PB (his figure is 204.8). The same fleet records over a million camera-hours of video a year: 100 x 5 x 2,080 = 1.04M.\n\nNow do the upload. One car brings home 8 TB a day. A 1 Gbit/s link moves 125 MB/s, which is 0.45 TB an hour, so that single car needs about 18 hours of a dedicated gigabit line, every day. The network, not the disk, is what rules out uploading everything.\n\nThe 2020 remark explains what the waste is: data spoiled by faulty sensors, dust on a lens or badly mounted sensors, plus data that simply lacks diversity. The same author suggests a preprocessing tier close to where data is collected, which is the argument for selecting on the vehicle or at the depot before anything crosses the network.",
+  [
+   "nvidia-av-scale-2017",
+   "nvidia-av-dgx-2020"
+  ]
+ ],
+ [
+  "A rolling buffer is a recorder that keeps only the last minute or so of sensor data and overwrites the oldest. It is needed because a trigger fires at or after the interesting moment, and what you want is the lead-up. When a trigger fires, the buffer's contents plus the next few seconds are saved as a segment and queued for upload; otherwise the data is dropped.\n\nThe triggers are proxies for the model being wrong or the scene being rare. A disengagement, in Aurora's definition, is a vehicle operator proactively taking back control because they thought an unsafe situation might develop or did not like how the vehicle was driving. Aurora's second source is the copilot in the passenger seat, who flags experiences that are interesting, uncommon or novel.\n\nnuScenes shows how selective a good dataset is: its 1,000 scenes of 20 s add up to 20,000 s, about 5.6 hours, chosen by hand for dense traffic, rare classes such as ambulances and animals, and dangerous situations such as jaywalkers.\n\nWhy keep a random sample as well? Triggered data is hard cases by construction. If you measure accuracy only on it, or estimate how often pedestrians appear from it, the answer is biased. A small uniform sample tells you what ordinary driving looks like.",
+  [
+   "aurora-online-to-offline",
+   "nuscenes"
+  ]
+ ],
+ [
+  "Before Content Search, Waymo mined its logs with heuristics on features such as an object's estimated speed and height. To find people on scooters, you might ask for objects of a certain height moving between 0 and 20 mph. That returns scooters, and also many other things that share those attributes; the results were too broad.\n\nThe search approach converts every logged object, parked bench or moving vehicle, into an embedding: a vector placed so that similar-looking things are close together. A query is then an example. Waymo says you can give it a photo of a cactus found online, or even a drawing of one, and it returns the places where vehicles saw similar objects. The index is what turns raw logs into something you can ask questions of, so build it at ingest, for everything.\n\nStorage tiers interact with this. The embeddings and metadata are small and must stay hot. The raw sensor data is huge and mostly untouched, so it belongs in archive classes. But S3's Glacier classes are not readable in real time: objects must be restored first, with retrieval times of minutes to hours, or hours for Deep Archive, which also has a 180-day minimum storage charge. So a mining job is two-phase: search the hot index now, wait for the cold segments.",
+  [
+   "waymo-content-search",
+   "aws-s3-storage-classes"
+  ]
+ ],
+ [
+  "Why can an offboard model label better than the model in the car? The onboard detector must answer in real time and, as Waymo's paper notes, sees only the current frame or a few past ones. Offboard, the drive is over, so the labeller can look at a whole sequence, including what happened after each frame, and spend as much compute as it likes. Waymo's pipeline detects objects in every frame, links them into tracks, gathers all the points for one object across its whole track, and then refines the box. A car seen from one side at first and from behind ten seconds later is labelled with both views in hand. They also enlarge the network and run each scene at ten rotations, things too slow for a vehicle.\n\nDensity is a cost lever. A 20 s scene labelled at 2 Hz is 40 frames; at 10 Hz it is 200. The nuScenes authors found 2 Hz annotations robust to interpolation up to 10 or 20 Hz.\n\nThe economics, with this topic's lab numbers: 2M frames by hand at $0.50 is $1M. Auto-labelled at $0.05 plus human review of 20% at $0.50 is $100,000 + $200,000 = $300,000. The review share is the knob, and it should go to the frames where the labeller is least sure.",
+  [
+   "waymo-offboard-autolabel",
+   "nuscenes"
+  ]
+ ],
+ [
+  "A training set here is not a folder; it is the result of a query over data that keeps changing. New segments arrive daily, labels are corrected, the auto-labeller is upgraded. If a model regresses and all you know is that it trained on the pedestrian dataset, you cannot tell whether the model, the data or the labels changed. A snapshot fixes that: an immutable manifest listing exactly which segments, which label version and which code commit produced the set. Lineage is being able to walk from a model back through that manifest to the raw logs.\n\nThe Delta Lake detail is a warning against assuming a table format gives you this for free. Time travel needs both the transaction log and the old data files to still exist. By default the log history is kept 30 days and trimmed whenever a checkpoint is written, and files become candidates for VACUUM 7 days after deletion. So a query for the table as it stood four months ago, when the model now on the road was trained, fails under default settings.\n\nThe consequence: raise retention deliberately, or write each training set out as its own immutable copy or manifest, and keep it for as long as a model trained on it might need to be reproduced or investigated.",
+  [
+   "delta-time-travel"
+  ]
+ ],
+ [
+  "Aurora names three kinds of offline test, and they check different layers. Perception tests: specialists label what really happened in a logged event (a bicyclist, 3 mph) and new perception software is scored against that. Manual driving evaluations: compare the trajectory the software planned with what the human operator actually drove. Simulations: virtual worlds where many permutations of one situation are tried.\n\nWhy must agents be reactive? Plain log replay feeds recorded sensor data to new software. That works until the new software drives differently from the recording, say braking earlier. The recorded car behind does not know, and drives through you. Waymo's description is that as the software's position diverges from the logged scene, the environment is updated, with other cars, cyclists and pedestrians responding to the vehicle's new position. Simulation is also where scale comes from: Waymo reported around 20 million simulated miles a day.\n\nThe Aurora example shows how one road event becomes a regression suite. A vehicle ahead suddenly pulled over after a turn and the operator disengaged. From it they built 50 nudging simulations: an exact reproduction, plus variations such as changing the other vehicle's speed. Every future model must pass them, so that fix cannot quietly regress.",
+  [
+   "aurora-online-to-offline",
+   "waymo-simulation-2020"
   ]
  ]
 ];

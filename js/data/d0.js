@@ -294,13 +294,13 @@ SD.deep["0B.4"] = [
   ]
  ],
  [
-  "An ordinary HTTP request can go to any server, because nothing about the user lives there between requests. A WebSocket breaks that. The load balancer chooses a server once, at connect time, and from then on the open socket exists only in that one server's memory. If Ann is connected to gateway 1 and Bo to gateway 2, gateway 1 has no way to write to Bo's socket.\n\nSlack's design shows the usual answer. Gateway Servers hold the users' WebSocket connections and their channel subscriptions. Separate Channel Servers each own a set of channels, assigned by consistent hashing on the channel ID. When a client connects, its gateway subscribes to the channel servers for that user's channels. A new message is routed to the channel server that owns its channel, which sends it to every gateway subscribed to that channel, and each gateway writes it to its own connected clients. That is publish/subscribe with gateways as subscribers. A registry mapping each user to a server does the same job by lookup.\n\nThe deploy consequence: restarting a gateway closes every connection it holds. So you drain, moving users off gradually. Slack mentions a draining mechanism that switches users from a failing region to the nearest good one.",
+  "An ordinary HTTP request can go to any server, because nothing about the user lives there between requests. A WebSocket breaks that. The load balancer chooses a server once, at connect time, and from then on the open socket exists only in that one server's memory. If Ann is connected to gateway 1 and Bo to gateway 2, gateway 1 has no way to write to Bo's socket.\n\nSlack's design shows the usual answer. Gateway Servers hold the users' WebSocket connections and their channel subscriptions. Separate Channel Servers each own a set of channels, assigned by consistent hashing on the channel ID. When a client connects, its gateway subscribes to the channel servers for that user's channels. A new message is routed to the channel server that owns its channel, which sends it to every gateway subscribed to that channel, and each gateway writes it to its own connected clients. That is publish/subscribe with gateways as subscribers.\n\nThe deploy consequence: restarting a gateway closes every connection it holds. So you drain, moving users off gradually. Slack mentions a draining mechanism that switches users from a failing region to the nearest good one.",
   [
    "slack-real-time-messaging"
   ]
  ],
  [
-  "Two separate problems hide here: not stampeding the server, and not losing messages.\n\nStampede. If a deploy drops 500,000 connections and every client reconnects at once, the gateways receive 500,000 handshakes in the same second. The WebSocket RFC warns that clients which immediately and persistently reconnect amount to a denial-of-service attack on their own server, and says the first reconnect should be delayed by a random amount. That randomness is jitter. Spread the reconnects uniformly over 30 seconds and the peak is 500,000 / 30 ≈ 17,000 per second. Backoff lengthens the wait after each failure; without jitter, AWS notes, clients that back off to the same moment collide again.\n\nLoss. TCP delivers reliably only within one connection. Messages published while the client was offline were never on any connection, so nothing retransmits them. The fix is in the application: every message has an ID, the client reports the last ID it saw, and the server replays what came after, which means keeping a buffer of recent messages. The client drops any ID it has already processed.\n\nEventSource implements the client half for free: an 'id:' line on an event sets the value it later sends as Last-Event-ID. With a WebSocket you write this yourself. Either way, decide what happens when a client was away longer than the buffer holds.",
+  "Two problems hide here: stampeding the server, and losing messages.\n\nStampede. If a deploy drops 500,000 connections and every client reconnects at once, the gateways receive 500,000 handshakes in the same second. The WebSocket RFC warns that clients which immediately and persistently reconnect amount to a denial-of-service attack on their own server, and says the first reconnect should be delayed by a random amount. That randomness is jitter. Spread the reconnects uniformly over 30 seconds and the peak is 500,000 / 30 ≈ 17,000 per second. Backoff lengthens the wait after each failure; without jitter, AWS notes, clients that back off to the same moment collide again.\n\nLoss. TCP delivers reliably only within one connection. Messages published while the client was offline were never on any connection. The fix is in the application: every message has an ID, the client reports the last ID it saw, and the server replays what came after, which means keeping a buffer of recent messages. The client drops IDs it has already processed.\n\nEventSource implements the client half for free: an 'id:' line on an event sets the value it later sends as Last-Event-ID. With a WebSocket you write this yourself. Either way, decide what happens when a client was away longer than the buffer holds.",
   [
    "rfc6455",
    "aws-bl-timeouts-retries",
@@ -311,6 +311,43 @@ SD.deep["0B.4"] = [
   "Backpressure is what happens when the sender produces faster than the receiver can take. The bytes do not disappear; they queue in the sender's memory, one queue per connection.\n\nWork an example. A price ticker sends 100 updates per second of 200 bytes each: 20 KB/s. A phone on a poor network drains only 5 KB/s. The backlog for that one client grows by 15 KB every second, which is 15 × 3,600 = 54 MB after an hour. With 10,000 such clients the server is holding 540 GB of messages nobody will read in time, and it falls over for everyone.\n\nSo each connection gets a bounded buffer, and you choose what happens when it fills. Drop: discard messages, fine for a typing indicator. Coalesce: keep only the newest value per key, right for prices or presence. Disconnect: close the slow client and let it reconnect and resume from its last ID, the choice when every message matters, as in chat.\n\nThe receiving side has the same problem. MDN warns that the browser WebSocket API has no way to apply backpressure, so messages arriving faster than the page can process them fill the device's memory or pin the CPU.",
   [
    "mdn-websocket"
+  ]
+ ]
+];
+SD.deep["0B.5"] = [
+ [
+  "'Cross-cutting' means a job every request needs done no matter which service it is heading for. Follow one request through the gateway: it terminates TLS (decrypts the client's connection), checks the access token, checks the caller's rate limit, picks a backend from the URL path (layer-7 routing), forwards the request, and logs the result.\n\nRemove it to see why it earns its place. Azure's guidance lists what happens when clients call services directly: each public-facing service must handle authentication, SSL and client rate limiting itself; clients must track many endpoints; and every public endpoint enlarges the attack surface. Certificates are its concrete example: without a gateway you deploy a client-facing certificate on every application instance, then track its expiry and renew it everywhere. With 20 services, that is 20 copies of the token-validation code and 20 places for a security bug, instead of one.\n\nThere is a monitoring benefit too: the gateway gives a baseline of logs and metrics even for a service that is not properly instrumented.\n\nThe price, which you should name: an extra network hop on every request, and each offloaded job (TLS, auth, inspection) adds processing time to the request path.",
+  [
+   "azure-api-gateways",
+   "azure-gateway-offloading"
+  ]
+ ],
+ [
+  "The gateway is a level of indirection: clients know one address and a set of public paths; the gateway maps those paths to whatever is behind them today. microservices.io names what that hides. The number of service instances and their host and port change constantly; the way the system is partitioned into services changes over time; and services may speak protocols that are not web-friendly.\n\nA worked case. Version 1 of your app calls GET /v1/orders/7/shipment, served by the orders service. A year later you split shipping into its own service. Without a gateway, every installed app holds the old service's address, and you cannot make users upgrade. With one, you change a routing rule: /v1/orders/*/shipment now goes to the shipping service, and no client notices. (The paths are illustrative.)\n\nThree more things fall out of the same indirection. Translation: the public side can be ordinary HTTP while the inside uses another protocol such as gRPC. Aggregation: the gateway can fan one client request out to several services and return a combined answer, saving round trips on slow mobile networks. And simpler services: they are no longer exposed directly to clients.",
+  [
+   "microservices-io-api-gateway",
+   "azure-api-gateways"
+  ]
+ ],
+ [
+  "A quick test for what counts as business logic: does the rule need to know what an order, a user or a price is? 'This token has expired' and 'this key has made too many requests' apply to any API, so they belong in the gateway. 'Orders over $500 need approval' or 'a shipped order cannot be cancelled' only make sense inside one domain, so they belong in the service that owns it. Azure's guidance applies the same line even to small things: a redirect that depends on business state stays in the application.\n\nWhy it matters is organisational more than technical. Sam Newman describes what happens to a general-purpose API backend that many client teams depend on: so many changes target the same deployable artifact that it becomes a bottleneck, a separate team gets created to own it, and then every front-end team must queue behind that team's priorities. A gateway that computes discounts lands in the same place. The pricing team can no longer ship a pricing change on its own.\n\nThe risk is also larger. A bug in an orders service breaks orders. A bug in code running inside the gateway can break every route, because every request passes through it.",
+  [
+   "azure-gateway-offloading",
+   "newman-bff"
+  ]
+ ],
+ [
+  "Every request passes through the gateway, so the system is never more available than the gateway. Azure's advice has three parts: run multiple instances so there is no single point of failure; size them for peak bursts, not average load, because an under-provisioned gateway slows every service behind it; and drain connections on restart.\n\nScaling out is easy while instances are stateless, since any instance can take any request. Rate limiting is where that breaks. Say the limit is 100 requests per second per API key and you run 12 instances. If each keeps its own counter, each allows 100, and a client spread across all of them gets up to 12 × 100 = 1,200. Give each instance a share instead (100 / 12 ≈ 8) and a client whose traffic happens to land unevenly is rejected while under its limit.\n\nSo the count moves to one shared place. Envoy's version: the proxy calls a global rate-limit service for every new request, and the reference implementation of that service uses a Redis backend. That is an extra call per request, so Envoy also allows a local token bucket in front, absorbing huge bursts before the precise global check. Expect the follow-up: if the shared store is down, do you let requests through or reject them?",
+  [
+   "azure-gateway-offloading",
+   "envoy-global-rate-limiting"
+  ]
+ ],
+ [
+  "Clients differ in more than payload size. Sam Newman's account: a phone has less screen, so it shows less data; opening many connections drains battery and data plans; and the interactions themselves differ. So mobile wants different calls, fewer calls and less data than desktop web.\n\nA BFF answers this by treating each user interface as having two halves: the app on the device and a small server-side component built only for that app. The important detail is ownership. The BFF is maintained by the same team as the UI, so that team changes the API and the screen together.\n\nNewman's example is a wishlist screen. The Wishlist service holds item IDs, the Catalog service holds names and prices, and the Inventory service holds stock levels. The BFF exposes one call that makes at least three downstream calls, in parallel where it can, and returns one screen-shaped response. If Inventory is down, it can still answer and simply leave out the stock indicator.\n\nThe cost is duplication: several BFFs end up with similar aggregation code. A real example: microservices.io notes that the Netflix API gateway runs client-specific adapter code to give each client an API suited to it.",
+  [
+   "newman-bff",
+   "microservices-io-api-gateway"
   ]
  ]
 ];
@@ -367,7 +404,7 @@ SD.deep["0C.2"] = [
   ]
  ],
  [
-  "Two things make it the safe starting point.\n\nFirst, transactions. PostgreSQL's tutorial defines one as bundling multiple steps into a single all-or-nothing operation. Its example is a $100 payment from Alice to Bob that takes several UPDATE statements across account and branch balances. Without a transaction, a crash midway could debit Alice and never credit Bob. Inside one, either every update happens or none does, and other transactions never see the half-finished state. If your design has any \"these rows must change together\" rule, this is the feature that enforces it.\n\nSecond, you do not need to know every query in advance. AWS's own DynamoDB guide says that for a relational database you can create a normalised model without thinking about access patterns and extend it later when new questions arise. In an interview, where requirements shift, that flexibility is worth a lot.\n\nThe usual objection is scale, and it is often premature. Hello Interview's Core Concepts page says a well-tuned single database with read replicas handles far more than most candidates think, and that 10K writes per second with 100 GB of data does not need sharding. Its staff-level model answer is: Postgres, because I need transactions across tables and durability.",
+  "Two things make it the safe starting point.\n\nFirst, transactions. PostgreSQL's tutorial defines one as bundling multiple steps into a single all-or-nothing operation. Its example is a $100 payment from Alice to Bob that takes several UPDATE statements across account and branch balances. Without a transaction, a crash midway could debit Alice and never credit Bob. Inside one, either every update happens or none does, and other transactions never see the half-finished state. If your design has any \"these rows must change together\" rule, this is the feature that enforces it.\n\nSecond, you do not need to know every query in advance. AWS's own DynamoDB guide says that for a relational database you can create a normalised model without thinking about access patterns and extend it later when new questions arise.\n\nThe usual objection is scale, and it is often premature. Hello Interview's Core Concepts page says a well-tuned single database with read replicas handles far more than most candidates think, and that 10K writes per second with 100 GB of data does not need sharding. Its staff-level model answer is: Postgres, because I need transactions across tables and durability.",
   [
    "pg-tutorial-transactions",
    "aws-dynamodb-nosql-design",
@@ -384,10 +421,83 @@ SD.deep["0C.2"] = [
   ]
  ],
  [
-  "Normalised means each fact is stored once and reads join the pieces together. Denormalised means the fact is copied into every place a read needs it, so the read is a single lookup. Cassandra's documentation is direct about the bargain: since each query is backed by a table, data is duplicated across multiple tables, and data duplication and a high write throughput are used to achieve a high read performance.\n\nIts magazine example: one query lists magazine names with their publication frequency, another lists magazines by publisher. That becomes two tables holding the same magazines, one keyed by id and one keyed by publisher.\n\nFor chat, \"latest messages in a channel\" and \"a user's recent messages\" would be two tables, and every message is written twice. The arithmetic favours it when reads dominate: at 100 reads per write, one extra write buys 100 reads that skip a scan or a join.\n\nThe cost is what \"deliberately\" refers to. An edit or delete must reach every copy, and Cassandra has no foreign keys or relational integrity to enforce that for you. If the second write fails, the copies disagree. So name which copy is the source of truth and how the others get repaired.",
+  "Normalised means each fact is stored once and reads join the pieces together. Denormalised means the fact is copied into every place a read needs it, so the read is a single lookup. Cassandra's documentation is direct about the bargain: since each query is backed by a table, data is duplicated across multiple tables, and data duplication and a high write throughput are used to achieve a high read performance.\n\nIts magazine example: one query lists magazine names with their publication frequency, another lists magazines by publisher. That becomes two tables holding the same magazines, one keyed by id and one keyed by publisher.\n\nFor chat, \"latest messages in a channel\" and \"a user's recent messages\" would be two tables, and every message is written twice. The arithmetic favours it when reads dominate: at 100 reads per write, one extra write buys 100 reads that skip a scan or a join.\n\nThe cost is what \"deliberately\" refers to. An edit or delete must reach every copy, and Cassandra has no foreign keys or relational integrity to enforce that for you. If the second write fails, the copies disagree. So say which copy is the source of truth.",
   [
    "cassandra-data-modeling"
   ]
+ ]
+];
+SD.deep["0C.3"] = [
+ [
+  "Reads and writes ask different things of a system. A read wants an answer quickly and usually tolerates one that is slightly out of date. A write must not be lost, has to reach every copy of the data, and can often take longer. They also arrive at very different rates.\n\nTwitter in 2013, as summarised by High Scalability from an engineering talk: 300K requests a second were spent reading timelines and only 6,000 a second on writes, 50 to 1. The site is described as primarily a consumption mechanism. The home-timeline read path took tens of milliseconds, while delivering a tweet to followers was something Twitter tried to do in under five seconds.\n\nWith numbers that far apart, one design cannot be best for both, so you draw two paths and tune each. ByteByteGo's news-feed example does this from the first sketch: the design is divided into a feed-publishing flow and a feed-building flow.\n\nA single arrow labelled \"CRUD\" hides all of that. Splitting it forces the useful questions: what does a read touch, what does a write touch, and which of the two is this system mostly made of?",
+  [
+   "highscalability-twitter-timelines",
+   "bbg-framework"
+  ]
+ ],
+ [
+  "All four tools are the same trick: answer the read from a copy that is cheaper to reach than the source of truth. They differ in what is copied and where it sits.\n\nA cache copies individual answers into memory. It works when answers are reused across requests, which Amazon's Builders' Library calls a good hit ratio. A read replica copies the whole database: Amazon RDS describes it as a read-only copy that you route queries to in order to reduce load on the primary, with updates copied to it asynchronously. A CDN copies static files such as images and video to edge locations near users. A precomputed view copies data into the exact shape one query needs. Twitter's home timeline is the example: a ready-made list sitting in a Redis cluster, capped at 800 entries.\n\nBecause every one is a copy, every one can be stale. The Builders' Library says cached data necessarily grows inconsistent with the source over time, and a common expiry policy gives each entry a time to live chosen by how much staleness clients tolerate. Asynchronous replication means a replica can trail the primary.\n\nThe follow-up for each box: how stale may this be?",
+  [
+   "aws-bl-caching",
+   "aws-rds-read-replicas",
+   "hi-core-concepts",
+   "highscalability-twitter-timelines"
+  ]
+ ],
+ [
+  "Write-path tools share one idea: do as little as possible at the moment of the write, and defer or spread the rest.\n\nLog-structured (LSM) storage defers. Cassandra's documentation lists the steps: record the write in an append-only commit log on disk, put it in an in-memory table (the memtable), later flush that to immutable sorted files on disk (SSTables). Appending needs no lookup of existing data, which the docs describe as a write path free of read lookups. The bill arrives later. Background compaction merges those files, so every write is re-written multiple times (write amplification), and reads cost more, which Cassandra offsets with Bloom filters.\n\nA queue defers at a larger scale. Microsoft's load-levelling pattern places it as a buffer so the downstream service handles messages at its own pace, even when producers send a burst. Batching follows naturally: a consumer can take many messages and write them together.\n\nSharding spreads. Read replicas do not help writes, because every replica must apply every write. Hello Interview's Core Concepts page lists write throughput limits, in the tens of thousands of writes per second, as one of the reasons to split data across independent servers.",
+  [
+   "cassandra-storage-engine",
+   "azure-queue-load-leveling",
+   "hi-core-concepts"
+  ]
+ ],
+ [
+  "Put numbers on it. Suppose a read costs 10 ms of database work and a write costs 5 ms. With 100 reads per write, one cycle of traffic costs 100 × 10 + 5 = 1,005 ms.\n\nNow precompute the answer at write time. The write becomes ten times dearer, 50 ms, because it also updates the stored result. Each read becomes a 1 ms lookup. The cycle costs 100 × 1 + 50 = 150 ms. Total work fell nearly sevenfold, even though the write got much worse, because the expensive step now runs once instead of a hundred times.\n\nFlip the ratio to 100 writes per read and the same change is a disaster: the original design costs 10 + 100 × 5 = 510 ms, the precomputing one costs 1 + 100 × 50 = 5,001 ms. Ten times worse.\n\nSo the ratio is the multiplier on each side of the trade. Total cost is reads × cost per read + writes × cost per write, and you shrink whichever term is larger, accepting that the other grows. That is why the read:write ratio is one of the first numbers to ask for.",
+  "calc"
+ ],
+ [
+  "The slow way to build a home timeline is at read time: look up everyone the user follows, fetch their recent posts, merge and sort. High Scalability's account of Twitter calls this naive materialisation, a massive select over all of Twitter, and says it was tried and died.\n\nThe replacement is fan-out on write. When a tweet arrives, the system works out where it should go and inserts it into the stored timeline of each follower. That is an O(n) job, where n is the follower count, writing into Redis. Reading is then a matter of finding the right Redis machine and returning the list. Their summary: don't do any computation on reads.\n\nWhere it bites is large n. Lady Gaga had 31 million followers, and a tweet could take up to five minutes to reach them all. One consequence was replies arriving before the tweet they answered. Twitter's adjustment was to stop fanning out for such accounts and merge their tweets in at read time, which the article says saves tens of percent of computational resources.\n\nHence the standard answer: push for ordinary accounts, pull for the few huge ones.",
+  [
+   "highscalability-twitter-timelines"
+  ]
+ ]
+];
+SD.deep["0C.4"] = [
+ [
+  "In a synchronous call the caller sends a request and blocks until the reply comes back. Two things follow. The caller's response time includes the callee's, so a chain of synchronous calls adds up. And the caller is only up when the callee is: AWS's Well-Architected guidance calls this a hard dependency, where an interruption in the dependent system directly translates to an interruption of the invoking system, and availability becomes the product of the parts. Its example: a system designed for 99.99% with hard dependencies on two others at 99.99% can achieve 99.97%.\n\nSo a synchronous step is one you are willing to pay for in both latency and availability. The test is whether the next thing the user sees depends on the result. Payment authorisation passes: you cannot show \"order confirmed\" without knowing the card was accepted. Reading a profile passes: the page is the result. Sending the receipt email fails the test: the confirmation page looks the same whether the email has left or not.\n\nMicrosoft's queue pattern gives the same boundary from the other side, listing \"the caller requires a low-latency, synchronous response\" as a case where a queue might not be suitable.",
+  [
+   "aws-wa-availability",
+   "azure-queue-load-leveling"
+  ]
+ ],
+ [
+  "The mechanics are three steps. The service writes a message describing the work to a queue and replies to the user straight away. A separate worker later asks the queue for messages, does the work, and deletes each message once it is done; that is how Amazon's Builders' Library describes queue-based systems. The user's request finished back at step one.\n\nHTTP has a status code for that first reply: 202 Accepted, meaning the request has been accepted for processing but the processing has not been completed. The RFC calls it intentionally noncommittal, since the work might still fail later, and says the response ought to describe the current status and point to a status monitor. It also notes HTTP has no facility for re-sending a status code from an asynchronous operation. Microsoft's queue pattern makes the same point: message queues are one-way, so a reply needs its own mechanism. The client must poll a status URL or be notified some other way.\n\nExample: a video upload that takes four minutes to transcode. Return 202 with a job URL, transcode from the queue, notify when ready. Holding one HTTP connection open for four minutes is the alternative, and any timeout along the path breaks it.",
+  [
+   "aws-bl-queue-backlogs",
+   "rfc9110",
+   "azure-queue-load-leveling"
+  ]
+ ],
+ [
+  "The benefits come from the buffer. Microsoft's load-levelling pattern: the queue lets the service handle messages at its own pace even when producers send a burst, so you need enough instances for the average load, not the peak; and producers can keep posting when the service is down, which is the failure isolation.\n\nThe buffer has a limit, stated in the same pattern: if the average producer rate exceeds the consumer rate, the queue keeps growing and latency increases. Jobs arriving at 1,200 a second against 1,000 processed leaves 200 a second unprocessed, 720,000 after an hour.\n\nAmazon's Builders' Library describes the cost as two modes. With no backlog, latency is low. Once arrivals exceed processing, end-to-end latency grows and it can take a long time to return to the fast mode. Its example: after an hour-long outage, catching up takes double the system's capacity for another hour. Synchronous services drop requests during an outage but recover faster.\n\nEventual consistency and harder debugging follow from the delay. The user has been told \"accepted\" while the work is pending, so reads may not show it yet, and a failure happens later, in another process, with no user waiting to see the error.",
+  [
+   "azure-queue-load-leveling",
+   "aws-bl-queue-backlogs"
+  ]
+ ],
+ [
+  "Duplicates are built into queues. Amazon SQS explains one cause: it stores copies of a message on several servers, and if one is unavailable when you delete the message, that copy survives and can be delivered again. A second cause is the worker: if it crashes after doing the work but before deleting the message, the queue cannot tell and hands the message out again. This is \"at-least-once\" delivery, and SQS's advice is to make applications idempotent, meaning not adversely affected by processing the same message more than once.\n\nThe usual technique is an operation ID. Stripe's description: the client generates a unique ID for the operation and sends it with the request; the server correlates the ID with the state of that request, so a retry with the same ID does not repeat the effect. A worker charging a card passes the message's ID as that key.\n\nRetries need a stopping rule, because a malformed message fails every time. Microsoft's pattern warns that such messages otherwise cycle indefinitely. In SQS the rule is maxReceiveCount: the number of times a message can be received before it is moved to a dead-letter queue, where it can be inspected. Alarm on that queue.",
+  [
+   "aws-sqs-at-least-once",
+   "stripe-blog-idempotency",
+   "aws-sqs-dlq",
+   "azure-queue-load-leveling"
+  ]
+ ],
+ [
+  "Suppose checkout has five steps with these invented but plausible timings: authorise the card 300 ms, reserve inventory 50 ms, send the confirmation email 400 ms, render the invoice PDF 800 ms, update analytics 50 ms.\n\nAll synchronous: the user waits 1,600 ms, and the order fails if any of five systems is down. If each is 99.9% available, that is 0.999^5 ≈ 99.5%, about 44 hours a year of failed checkouts.\n\nMinimum synchronous: authorise and reserve, 350 ms, then reply with the order ID and queue the other three. Availability of the reply is 0.999² ≈ 99.8% (ignoring the queue itself), about 17.5 hours a year, and an email outage now delays emails without blocking orders.\n\nThe dividing question for each step is: if this has not happened yet, is the response I am about to send wrong? \"Order confirmed\" is wrong without the authorisation and the stock. It is not wrong without the PDF.\n\nThe rule cuts the other way too. If the user needs the result on the next screen, queueing it only forces the client to poll for something you could have returned. Async is for work whose result the response does not contain.",
+  "calc"
  ]
 ];
 SD.deep["0D.1"] = [
@@ -576,6 +686,40 @@ SD.deep["0D.5"] = [
   [
    "sre-monitoring",
    "prometheus-histograms"
+  ]
+ ]
+];
+SD.deep["0D.6"] = [
+ [
+  "The reason to find the biggest line first is plain arithmetic: cutting a line that is a fraction f of the bill by a fraction s saves f times s of the total. A heroic 50% cut on a line that is 10% of spend saves 5%. A modest 20% cut on a line that is 70% of spend saves 14%, nearly three times as much.\n\nThe three lines grow with different things, which is why the dominant one changes from system to system. Compute is billed for machine-hours, so it follows request rate and how heavy each request is. Storage is billed for bytes held multiplied by how long you hold them, so it follows retention. Data transfer is billed for bytes moved, so it follows payload size multiplied by traffic.\n\nRun that against two workloads. A logging pipeline that ingests 2 TB a day and keeps it a year holds about 730 TB at rest while serving few reads: bytes held dominate. A video service streams large files to every viewer while its API handles a few small requests each: bytes moved dominate. In an interview, say which multiplier is largest for this system before proposing any saving.",
+  "calc"
+ ],
+ [
+  "A commitment trades flexibility for price. With AWS Savings Plans you promise a steady amount of spend, measured in dollars per hour, for one or three years; usage up to that amount is billed at the discounted rate and anything beyond it at normal on-demand rates. AWS quotes savings of up to 66% for the flexible Compute plan and up to 72% for the plan tied to one instance family in one region.\n\nBecause you have promised that spend for every hour, the question is how many hours you would really use it. Suppose the committed rate is 40% below on-demand. An instance running 24 hours a day costs 0.6 of on-demand: a clear win. An instance needed only 8 hours a day still costs 0.6 x 24 = 14.4 instance-hours of on-demand money to cover, versus 8 if you simply rent it when needed. The break-even is 60% utilisation. So commit to the floor that is always on, and rent the peak.\n\nThe trap in the wording: a Savings Plan is a price, not a seat. AWS's FAQ states it does not provide a capacity reservation; reserving capacity is a separate product that can be combined with the discount.",
+  [
+   "aws-savings-plans-pricing",
+   "aws-savings-plans-faq"
+  ]
+ ],
+ [
+  "Spot is the provider selling capacity nobody is currently using. AWS describes a Spot Instance as one that uses spare EC2 capacity at less than the on-demand price, with the price set by EC2 and adjusted gradually according to long-term supply and demand. The discount exists because the deal is revocable: when EC2 needs the capacity back it terminates, stops or hibernates the instance, after a two-minute warning.\n\nTwo minutes defines what is safe. It is enough for a stateless web server to stop taking new requests and finish the ones in flight. It is not enough to finish a 20-hour training run, so that job must save progress periodically; with a checkpoint every 10 minutes, an interruption costs at most 10 minutes of work. A single database primary has nowhere to put its state in two minutes, so it does not belong on spot.\n\nPut numbers on it. If spot is 70% cheaper and interruptions force 10% of the work to be redone, cost is 0.30 x 1.10 = 0.33 of on-demand. The other risk is availability: a spot request launches only if capacity is available, so keep an on-demand fallback for deadlines.",
+  [
+   "aws-ec2-spot-userguide",
+   "aws-ec2-spot-product"
+  ]
+ ],
+ [
+  "Storage classes price the same bytes differently depending on how you promise to use them. The colder the class, the less you pay per GB held and the more you pay, in money or time, to get data out.\n\nAmazon S3 shows the ladder. Standard is the default for frequently accessed data. Standard-IA still returns objects in milliseconds, but S3 charges a retrieval fee, bills at least 30 days of storage even if you delete sooner, and bills objects under 128 KB as if they were 128 KB. Glacier Flexible Retrieval has a 90-day minimum and objects must be restored first, taking minutes to hours. Glacier Deep Archive has a 180-day minimum and retrieval in hours.\n\nThose conditions are where tiering goes wrong. Put data that is read daily into an infrequent-access class and retrieval fees eat the saving. Archive millions of tiny objects and you lose twice: lifecycle transitions are charged per object, which is why S3 by default does not transition objects under 128 KB, noting the transition cost can outweigh the storage saving.\n\nThe usual design is a lifecycle rule: keep logs in Standard while they are being queried, then transition by age.",
+  [
+   "aws-s3-storage-classes",
+   "aws-s3-lifecycle-transitions"
+  ]
+ ],
+ [
+  "Data transfer is priced by where the bytes go, and the rules are worth knowing because they are counter-intuitive. On AWS, inbound data from the internet is free; outbound to the internet is charged, at rates that depend on the service and the originating region. Inside a region, traffic within one availability zone is free, but traffic between zones is charged at $0.01 per GB in each direction on the EC2 price list. Crossing regions is charged too, at a rate that depends on the source and destination region.\n\nThe cross-zone charge catches people because nothing leaves the provider. Service A sends 1 TB a day to service B in another zone. Each GB is billed out of one zone and into the other, so $0.02: 1,000 GB x $0.02 x 30 days = $600 a month for one chatty link.\n\nThe fix is not simply \"put everything in one zone\". AWS's own guidance presents multi-zone deployment as the way to get high availability and then notes that cross-zone charges apply between the servers. So the design choice is which traffic must cross zones for resilience, and which chatty pairs can be kept zone-local.",
+  [
+   "aws-arch-blog-data-transfer",
+   "aws-ec2-on-demand-pricing"
   ]
  ]
 ];

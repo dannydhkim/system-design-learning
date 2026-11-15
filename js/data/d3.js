@@ -181,3 +181,49 @@ SD.deep["3.4"] = [
   ]
  ]
 ];
+SD.deep["3.5"] = [
+ [
+  "The reason to split is that one model asked to do both jobs gets pulled two ways. Fowler's argument is that in complicated domains a single conceptual model for commands and queries ends up more complex and does neither well. Take a hotel. Accepting \"book room 12\" means checking the room is free for those nights, applying rate rules and saving the result safely: that wants objects with behaviour and a transaction. Showing a month's availability grid wants one precomputed row per room and no rules at all.\n\nTwo terms in the key idea. A command is named for the business task, not the field change: Azure's example is \"Book hotel room\" instead of \"Set ReservationStatus to Reserved\", because the first tells the write model which rules apply. A DTO (data transfer object) is a plain carrier of values with no behaviour; a query returns one and never alters data.\n\nWhere it bites: the split is a decision for one part of a system. Fowler says CQRS should be used only on specific portions (a bounded context in domain-driven design), not the system as a whole, and that usually the two sides overlap enough that sharing a model is easier.",
+  [
+   "fowler-cqrs",
+   "azure-cqrs"
+  ]
+ ],
+ [
+  "Think of the split as having two levels, and of most of the cost arriving at the second.\n\nLevel one: separate code, one database. Command handlers and query handlers are different classes with different models, but both read and write the same tables. Fowler notes that here the database itself is the communication between the two models. Nothing has to be synchronised and nothing lags. Azure calls this the foundational level of CQRS.\n\nLevel two: separate stores. Now the query side has its own database, which Fowler describes as effectively a real-time reporting database, and something has to carry every change across. In return each side takes the shape and technology that suits it. An order-history page that needs a three-table join over orders, order lines and products in the write store becomes a single read of one document per customer; Azure's phrase is a materialised view that avoids complex joins. Each store is also sized for its own load, which pays off when reads far outnumber writes.\n\nThe interview point is to say which level you mean. \"CQRS\" at level one is a code-organisation choice; at level two it is a distributed system with eventual consistency.",
+  [
+   "fowler-cqrs",
+   "azure-cqrs"
+  ]
+ ],
+ [
+  "A dual write is two writes to two systems with nothing tying them together. Commit the order, then publish OrderPlaced: if the process dies between the two, the order exists and no read model ever hears of it, and nothing raises an error. Swap the order and you can announce an order whose transaction then rolls back. One transaction across both is not available; the Debezium write-up notes that Kafka cannot be enlisted in distributed (XA) transactions.\n\nThe outbox turns two writes into one. In the same database transaction as the order, the service inserts a row describing the event into an outbox table. Either both rows commit or neither does. A separate relay then moves outbox rows to the broker. Debezium does this with change data capture, reading new rows from the database's log, which it describes as low overhead and near real time compared with polling the table.\n\nThe relay can deliver a row twice, for example when it restarts and rereads. So each outbox row has a unique ID, and the projection remembers how far it has got: if its last applied sequence number is 41 and event 41 arrives again, it skips it. Azure's example of what goes wrong otherwise is a seat counter decremented twice for one reservation.",
+  [
+   "debezium-outbox-blog",
+   "azure-cqrs",
+   "azure-event-sourcing"
+  ]
+ ],
+ [
+  "The first fix is routing: the page shown straight after a save reads that one item from the write store, which is always current, and everything else stays on the read model.\n\nThe second fix is a token. Berkeley DB does this for replicas: the application asks for a commit token when a transaction commits on the master, carries it along (the docs suggest a browser cookie or the server-side session), and a replica can be asked whether that transaction has been applied yet, blocking for a bounded time if not. In CQRS terms the command returns \"your change is event 1042\". The next read includes 1042; the read side compares it with the projection's last applied number, waits briefly if it is behind, and on timeout falls back to the write store or tells the user the change is still processing.\n\nA search index adds a second delay behind the projection. Elasticsearch makes changes visible to search only at a refresh, which by default happens every second, so a document can be written but not yet findable. refresh=wait_for makes the write call return only after such a refresh. A projector that records 1042 as applied before that would tell the user their change is in while search still shows the old title.",
+  [
+   "bdb-read-your-writes",
+   "es-refresh-parameter"
+  ]
+ ],
+ [
+  "Three things get confused here, and they answer different questions.\n\nA read replica answers \"how do I serve more of the same queries?\" It has the write store's schema, so a query that was awkward on the primary is just as awkward on the replica.\n\nA read model answers \"how do I serve a different kind of query?\" It is a materialised view: a copy reshaped for one use, which Azure describes as a specialised cache that consumers never update directly. Because it can be rebuilt entirely from the source, changing its design means dropping it and replaying, not migrating it.\n\nEvent sourcing answers \"how is the write side stored?\": as a sequence of events instead of current rows. The reason it nearly always comes with CQRS is in how an event store is read. Azure's description is that the only thing you can extract is a stream of events by identifier, typically one entity's, and you get that entity's current state by replaying them. \"All orders over 100 pounds last week\" has no such stream, so it needs a projection. The dependency runs one way: event sourcing needs read models, while CQRS works fine over ordinary tables.",
+  [
+   "azure-materialized-view",
+   "azure-event-sourcing",
+   "azure-cqrs"
+  ]
+ ],
+ [
+  "Count what level-two CQRS adds to a system that had one database: an outbox table, a relay, one projector per read model, a monitor for how far each is behind, a way for users to read their own writes, and tooling to rebuild a read model. Each is a place for things to go wrong, and all of it exists to serve a difference between reads and writes. If the screens are forms over rows, there is no such difference to serve.\n\nFowler is blunt about the record. He writes that the majority of CQRS cases he had run into were not so good, and that he had seen it drag on productivity and add risk even with a capable team. Azure's guidance lists it as possibly unsuitable when the domain or business rules are simple, or a CRUD-style interface is enough.\n\nThe lighter tool he names is a reporting database. The main system keeps answering most queries from its single model, and only the demanding ones are sent to a separate database built for them.\n\nIn an interview the strong answer is conditional: one model by default, a reporting database when a few queries hurt, and CQRS for the one part of the system where read and write shapes or loads really diverge.",
+  [
+   "fowler-cqrs",
+   "azure-cqrs"
+  ]
+ ]
+];

@@ -228,6 +228,7 @@ SD.sources = {
   'gelu': ['Gaussian Error Linear Units (GELUs) — Hendrycks & Gimpel, arXiv 2016', 'https://arxiv.org/abs/1606.08415'],
   'gilbert-lynch': ['Brewer\'s Conjecture and the Feasibility of Consistent, Available, Partition-Tolerant Web Services — Gilbert & Lynch, 2002', 'https://www.comp.nus.edu.sg/~gilbert/pubs/BrewersConjecture-SigAct.pdf'],
   'github-oct21': ['October 21 post-incident analysis (Jason Warner, 30 October 2018) — The GitHub Blog', 'https://github.blog/news-insights/company-news/oct21-post-incident-analysis/'],
+  'gke-gpu-sharing': ['About GPU sharing strategies in GKE — Google Cloud documentation', 'https://docs.cloud.google.com/kubernetes-engine/docs/concepts/timesharing-gpus'],
   'glorot': ['Understanding the difficulty of training deep feedforward neural networks — Glorot & Bengio, AISTATS 2010', 'https://proceedings.mlr.press/v9/glorot10a.html'],
   'google-aip-121': ['AIP-121: Resource-oriented design — Google', 'https://google.aip.dev/121'],
   'google-aip-180': ['AIP-180: Backwards compatibility — Google', 'https://google.aip.dev/180'],

@@ -131,3 +131,47 @@ SD.deep["4.3"] = [
   ]
  ]
 ];
+SD.deep["4.4"] = [
+ [
+  "The four strategies differ in how much is already running in the second region when disaster strikes, which sets how much work remains to be done during it.\n\nBackup and restore: only copies of the data are there. You must also redeploy infrastructure, configuration and code, which is why AWS insists on infrastructure as code; rebuilding by hand is slow and error-prone. Pilot light: the databases and storage are live and replicating, but application servers are \"switched off\". Someone has to turn them on and scale them. Warm standby: everything is deployed and running, only smaller, so it can take traffic at once and just needs scaling up. Multi-site active/active: every region serves users all the time, so recovery time can be near zero. AWS calls it the most complex and costly option.\n\nTwo details are worth having ready. First, there is a middle form, hot standby: a full-size second region that takes no traffic until failover. Second, even active/active does not replace backups. Replication faithfully copies a corrupted row or a mistaken delete to every region within a second, so recovering from data corruption still means restoring from a backup, with a recovery point that is not zero. AWS also says any backup strategy must include testing the restore.",
+  [
+   "aws-dr-options"
+  ]
+ ],
+ [
+  "The difference is when the database says \"done\". With asynchronous replication the primary region commits locally, answers the client, and ships the change afterwards. Whatever has been acknowledged but not yet shipped exists in one region only; if that region vanishes, so does that tail. The size of the tail is the lag times the write rate: at 5,000 writes a second and one second of lag, about 5,000 writes that clients were told had succeeded. DynamoDB's documentation states it directly: in the default mode the recovery point objective equals the replication delay, usually a few seconds depending on the regions.\n\nSynchronous replication closes the gap by not answering until another region has the write, so every write contains a cross-region round trip. Google's SRE book gives the scale: about a millisecond between machines in one datacentre, 45 ms across the United States, 70 ms New York to London. A request that makes four writes one after another to London spends 4 × 70 = 280 ms waiting on the network alone.\n\nDynamoDB offers both as a switch you choose when creating a table: the strongly consistent multi-region mode supports an RPO of zero and has higher write latency. The interview answer is usually to split the data: pay the round trip for money, take the lag for likes.",
+  [
+   "dynamodb-global-tables-how",
+   "sre-managing-critical-state"
+  ]
+ ],
+ [
+  "The question behind all three is: can two regions change the same thing at the same moment?\n\nWrite global says no, by having one region take every write. An Aurora global database has one primary region and up to 10 read-only secondaries; if the primary fails, a secondary can be promoted, in under a minute according to AWS. Nothing can conflict, but a user far from the primary pays the distance on every write.\n\nWrite local says yes, and then needs a tiebreak. In DynamoDB's default mode, if one item is changed in two regions at once, the change with the later internal timestamp wins and all replicas converge on it. The earlier change is not merged or reported; it is gone. If you tick an item off a shared list in Frankfurt while I rename it in Virginia a moment later, the list ends up renamed and unticked. That is fine for \"last seen at\", wrong for a balance.\n\nWrite partitioned gives each key (AWS's example is a user ID) one region that accepts its writes, so each user gets nearby writes and never conflicts with themselves. The follow-up to expect is the data that belongs to no single user: a shared document or a stock count still needs one of the other two answers.",
+  [
+   "aws-dr-options",
+   "aurora-global-database",
+   "dynamodb-global-tables-how"
+  ]
+ ],
+ [
+  "A consensus database accepts a write only when a majority of the replicas of that data agree. That one rule explains the number three. Put the replicas in two regions however you like: 2 + 1, 3 + 2, 3 + 3. Either one region holds a majority, and losing it stops all writes, or the split is even and neither half is a majority alone. Two regions can never survive the loss of either one.\n\nWith three regions CockroachDB raises the replica count from its default of 3 to 5, placed 2 + 2 + 1. Lose any region and at least 3 of 5 remain, still a majority. The price follows from the same rule: no single region holds 3 replicas, so every write must be confirmed in a second region. CockroachDB's documentation says write latency rises by at least the round trip to the nearest region, while reads are unaffected. If that region is 30 ms away, a write that took 2 ms now takes at least 32 ms.\n\nResidency adds a constraint on top. A super region confines chosen data to its member regions, for example only European ones. For that data to survive a region failure as well, the super region itself needs at least 3 regions, so \"keep it in the EU and survive a region outage\" means three EU regions.",
+  [
+   "crdb-survival-goals",
+   "crdb-multiregion-overview"
+  ]
+ ],
+ [
+  "DNS failover means changing the answer to \"what is the IP address of api.example.com?\" from the dead region's address to a live one. The difficulty is that users rarely ask your nameserver directly. A recursive resolver, typically run by their ISP or company, sits in between and caches the answer for the record's TTL. As Google's SRE book puts it, the authoritative nameserver cannot flush those caches, so the TTL is a lower bound on how fast a change reaches users, and some resolvers do not respect the TTL at all.\n\nAdd it up. Health checks every 30 s with three failures needed take 90 s to declare the region dead. With a 60 s TTL, well-behaved clients have all moved by about 150 s; with a 300 s TTL, 390 s. Lowering the TTL shortens failover but means more DNS lookups in normal operation.\n\nAnycast removes the cached thing that needs to change. AWS Global Accelerator gives you two static IPv4 addresses that are anycast from AWS's edge network: the same addresses are reachable through many locations, and traffic enters at the edge closest to the user. Behind those addresses it health-checks your endpoints and forwards only to healthy ones. On failover the client keeps the same address; the rerouting happens inside the provider's network, where no resolver cache is involved.",
+  [
+   "sre-lb-frontend",
+   "aws-global-accelerator-how"
+  ]
+ ],
+ [
+  "Work the formula once. Total load L is shared by N regions, so each carries L ÷ N. Remove one and each survivor carries L ÷ (N − 1). The ratio of new to old is N ÷ (N − 1) = 1 + 1 ÷ (N − 1). With two regions the survivor's load doubles, so each may normally run at 50% at most. With three it rises by half, so the ceiling is 2/3 ≈ 67%; with four, by a third, ceiling 75%. The idle share of what you pay for is 1 ÷ N: half with two regions, a quarter with four. More regions make the insurance cheaper, which is the same arithmetic AWS applies to three Availability Zones run at 66%.\n\nThe tempting alternative is to run the survivors hotter and scale up when a region fails. AWS's disaster-recovery whitepaper names the weakness: Auto Scaling is a control-plane activity, and depending on it lowers the resilience of the recovery. It also warns that service quotas in the recovery region must already be high enough to reach production capacity. A standby sized for the full load is what it calls hot standby, and statically stable.\n\nTesting is the last piece because none of this is exercised in normal operation: AWS calls it critical to regularly assess and test the strategy so you can invoke it with confidence.",
+  [
+   "aws-dr-options",
+   "aws-bl-static-stability"
+  ]
+ ]
+];

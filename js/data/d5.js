@@ -176,6 +176,47 @@ SD.deep["5.5"] = [
   ]
  ]
 ];
+SD.deep["5.6"] = [
+ [
+  "Exact search has no shortcut because \"nearest\" can only be known by measuring. For each query the system computes the distance to every stored vector and keeps the smallest. With 10 million vectors of 768 dimensions that is 10,000,000 × 768 ≈ 7.7 billion multiply-adds per query. Double the collection and the work per query doubles too.\n\nOrdinary database indexes do not rescue this. A B-tree works because values have an order along one dimension. The HNSW paper notes that exact methods give a substantial speed-up only for relatively low-dimensional data, because of the curse of dimensionality: with hundreds of dimensions, structures that split space stop being able to rule much out.\n\nExact search is still the right choice more often than people assume. It is what pgvector does by default, with perfect recall, and Faiss's guidelines say that if you will run only a few searches (they suggest 1,000 to 10,000) the time to build an index will not be repaid, so compute directly. The same goes for a small collection or one cut down by a selective filter first. A good interview line: \"I would start with exact search, measure it, and add an index when the latency says I must\".",
+  [
+   "hnsw-paper",
+   "pgvector",
+   "faiss-choose-index"
+  ]
+ ],
+ [
+  "Recall compares what the index returned with what exact search would have returned. Ask for the 10 nearest; if 9 of the true 10 come back, recall is 0.9. The HNSW paper's definition is this ratio: true nearest neighbours found, divided by K. Note what it leaves out: it says nothing about whether those neighbours are useful to the user, only whether the index found what brute force would have.\n\nIt has to be measured because nothing in normal operation reveals it. An approximate query returns a full list of plausible results at low latency whether recall is 99% or 60%; no error, no slow dashboard. pgvector's README puts it as: unlike typical indexes, you will see different results for queries after adding an approximate index.\n\nThe procedure: take a sample of real queries, a few hundred or thousand. Run each one exactly to get the ground truth, run it through the index with the production settings, and average the overlap. Repeat when the data grows or settings change, because settings tuned for one collection size are not guaranteed to hold at another.\n\nThe trade is then explicit: each index has a query-time knob that buys recall with latency, and you pick the cheapest setting that meets the target.",
+  [
+   "hnsw-paper",
+   "pgvector"
+  ]
+ ],
+ [
+  "HNSW is a skip list generalised to graphs, and the paper says so directly. Every vector is a node in the bottom layer, linked to nearby vectors. Each node is also promoted to higher layers at random with exponentially decaying probability, so each layer up is much sparser and its links span longer distances.\n\nA search starts at the top, where there are few nodes and long links. It moves greedily to whichever neighbour is closest to the query until none is closer (a local minimum), drops down a layer from that node, and repeats with shorter links. The top layers are the motorway, the bottom layer the local streets.\n\nThe three settings map onto this. M is the number of links per node: Faiss allows 4 to 64 and says higher is more accurate but uses more RAM; pgvector defaults to 16. ef_construction is how many candidates are considered when wiring in a new node (pgvector default 64); raising it improves recall at the cost of build time and insert speed. ef_search is how many candidates the query keeps on the bottom layer (default 40); raising it improves recall at the cost of speed, and it is the only one of the three you can change without rebuilding.",
+  [
+   "hnsw-paper",
+   "pgvector",
+   "faiss-choose-index"
+  ]
+ ],
+ [
+  "IVF (inverted file) is the library analogy made literal. A training step picks a set of centroids, each vector is filed in the list of its nearest centroid, and a query is first compared with the centroids, then only with the vectors in the nprobe closest lists. Faiss gives the fraction scanned as roughly nprobe ÷ nlist, and names the failure case: the cell holding the true nearest neighbour is not one of those selected. Vectors near a boundary between cells are the ones that get missed.\n\npgvector's starting points make this concrete: lists = rows ÷ 1,000 up to a million rows and √rows beyond; probes = √lists. A million rows gives 1,000 lists and about 32 probes, so a query scans around 3% of the table. Set probes equal to lists and the search is exact again. Because clustering needs data, pgvector says to create the index after the table has some.\n\nQuantization is a separate lever: store each vector in fewer bytes. Faiss's scalar quantizer SQ8 uses one byte per dimension, a quarter of float32; product quantization compresses to M-byte codes, with M typically 64 or less. Distances become approximate, so Elasticsearch's advice is to oversample and rescore the candidates.",
+  [
+   "faiss-indexes",
+   "pgvector",
+   "es-knn-approx"
+  ]
+ ],
+ [
+  "The sizing sum for 100 million vectors of 768 dimensions: 100,000,000 × 768 × 4 bytes ≈ 307 GB of raw float32. Faiss's HNSW formula is (d × 4 + M × 2 × 4) bytes per vector, so M = 16 adds 128 bytes each, another 12.8 GB. The vectors dominate, and Faiss reminds you that all its indexes are held in RAM. That is the point where you shard across nodes or quantize: at one byte per dimension the same collection is about 77 GB.\n\nWhy must both sides use the same model? An embedding's coordinates have no meaning by themselves. Each model learns its own arrangement of space, so position 17 in one model's output is unrelated to position 17 in another's, even when the two have the same number of dimensions. A distance between a new-model query and an old-model document is a number, but not a measure of similarity. Azure's guidance is flat: use the same embedding model for queries as for the source documents.\n\nSo a model upgrade is a migration. At 2,000 documents a second, re-embedding 100 million takes 50,000 seconds, about 14 hours, into a second index beside the first, with storage doubled until the swap. Hello Interview notes this refresh is the part most candidates skip.",
+  [
+   "faiss-choose-index",
+   "azure-vector-query",
+   "hi-ml-embeddings"
+  ]
+ ]
+];
 SD.deep["5.8"] = [
  [
   "A language model stores what it knows in its weights; the RAG paper calls this parametric memory. Changing a fact stored there means more training. RAG adds a second, non-parametric memory: text sitting in an index outside the model, which the model reads at question time. In the original paper the generator was a pre-trained seq2seq model and the index was a dense vector index of Wikipedia.\n\nThe authors tested the \"update by changing the index\" claim directly. They built one index from a December 2016 Wikipedia dump and another from December 2018, and asked the same model about world leaders who had changed in between. The answers followed whichever index was plugged in, with no retraining. They called this hot-swapping the index.\n\nThe analogy is a new hire and the company wiki. You do not send the person back to university when a policy changes; you edit the wiki page. The interview follow-up is usually \"why not fine-tune instead?\", and this is the answer: an index edit takes effect on the next query, and you can point to the passage an answer came from.",
@@ -353,6 +394,43 @@ SD.deep["5.12"] = [
    "rules-of-ml",
    "huyen-distribution-shifts",
    "sculley-ml-tech-debt"
+  ]
+ ]
+];
+SD.deep["5.13"] = [
+ [
+  "Kubernetes knows nothing about GPUs natively. A device plugin running on each machine reports how many devices it has, and the node then advertises that count as an \"extended resource\". The scheduler's bookkeeping for it is a plain integer: a pod asks for 1, and the node's free count drops from 8 to 7. The docs state the three limits directly: extended resources are integers only, cannot be overcommitted, and a device cannot be shared between containers.\n\nCPU behaves differently, which is why this surprises people. A container can request half a core, and the kernel time-slices cores between processes, so a mostly idle service costs the node very little. A GPU has no such default; the counter knows only \"taken\" or \"free\".\n\nWork the cost through. Eight data scientists each open a notebook with one GPU on an 8-GPU machine and each uses it about 5% of the time. The scheduler sees the node as 100% full and will queue the next training job, while the hardware is doing 8 × 0.05 = 0.4 GPUs' worth of work. Nothing is misconfigured. This is why interactive workloads are the first candidates for sharing or for idle timeouts, and why \"GPUs allocated\" is a poor health metric.",
+  [
+   "k8s-device-plugins"
+  ]
+ ],
+ [
+  "The three modes differ in what actually separates the tenants.\n\nTime-slicing is a fiction in the bookkeeping. The administrator declares, say, four \"replicas\" per GPU, the node advertises four times as many, and pods take turns. NVIDIA's docs are frank about the limits: there is no memory or fault isolation between replicas, the GPU gives an equal share of time to every process, and asking for two replicas does not buy twice the compute. One pod that fills the memory or crashes the device takes its neighbours with it. That suits notebooks and development.\n\nMPS lets several processes run on the GPU at the same time, not in turns, with software limits per client: Google's GKE guide names an active thread percentage for compute and a cap on pinned device memory.\n\nMIG cuts a supported GPU into as many as seven slices, each with dedicated compute and memory, isolated in hardware, so one tenant's load does not change another's latency. That is what you want for multi-tenant inference with a latency target.\n\nThe price of isolation is rigidity. MIG slices come in predefined sizes; a slice that sits idle cannot lend its capacity to a busy neighbour, and a job that needs slightly more than its slice does not fit.",
+  [
+   "nvidia-gpu-sharing",
+   "gke-gpu-sharing"
+  ]
+ ],
+ [
+  "A web service with 3 of its 4 replicas running is 75% useful. A synchronous distributed training job with 3 of its 4 workers running is 0% useful: every step waits for all workers to exchange gradients, so the three sit idle holding their GPUs. Kueue's docs name the class of job: synchronised distributed training and MPI jobs that need pod-to-pod communication.\n\nAn ordinary scheduler places pods one at a time, which is how the trap is sprung. Two jobs each need 8 GPUs and 8 are free. Pods from both are admitted as they arrive, and each job ends up with 4. Neither can start, neither will give up what it holds, and the cluster shows 8 GPUs allocated doing nothing. It is the classic deadlock: each holds part of what the other needs. Kueue's docs make the same observation, that the pair could have run to completion if scheduled one after the other.\n\nGang scheduling treats the job as the unit. Kueue's simple version watches an admitted workload until all its pods are ready; if they are not ready within a timeout, the whole workload is evicted and requeued, releasing everything it held.\n\nThe follow-up is the cost: to start a large gang the scheduler must hold GPUs idle while it gathers enough, so big jobs wait longer.",
+  [
+   "kueue-all-or-nothing"
+  ]
+ ],
+ [
+  "Counting free GPUs is not enough because training jobs care where they are. Workers on one machine, or at least close together on the network, synchronise quickly; workers scattered across the cluster spend their time waiting on each other. So a job asks for locality, and the scheduler must find free GPUs in the right shape. Sixteen free GPUs as two on each of eight machines cannot host an 8-GPU single-machine job.\n\nMicrosoft's study of its Philly cluster measured how common this is. With two thirds of the GPUs in use, fewer than 4.5% of servers were completely empty. They called the wait of a job that is within its quota but cannot find enough GPUs with good locality \"fragmentation delay\", and it accounted for about 80% of waiting time.\n\nThe same study explains the 52% utilisation figure, and it is the other horn of one dilemma. Relax locality to start sooner, and the job runs spread across servers with higher synchronisation overhead. Pack different jobs onto one server, and they interfere through shared resources. Either way the GPUs are allocated but partly idle.\n\nA common mitigation is to place small jobs on machines that are already partly used, so that whole machines stay free for jobs that need them.",
+  [
+   "jeon-gpu-cluster-analysis"
+  ]
+ ],
+ [
+  "These three mechanisms all exist to let one pool serve workloads of different urgency.\n\nPriority: in Kubernetes, when a pod cannot be scheduled, the scheduler looks for lower-priority pods to evict. Victims get their graceful termination period to finish and exit, then are killed. So a serving pod that needs a GPU takes it from a training job, and the training job must be able to resume.\n\nQuota with borrowing: in Kueue each team's queue has a nominal quota, and queues in the same cohort can borrow each other's unused quota up to a borrowing limit. A team with 16 GPUs idle overnight lends them instead of leaving them dark.\n\nWhy one pool and not a separate serving cluster? Google's Borg paper measured it: splitting production from non-production work would need 20–30% more machines, because production reserves headroom for rare spikes and mostly does not use it. Sharing lets batch work run in that headroom.\n\nSpot is the same bargain bought from a cloud. AWS quotes savings of up to 90%, with a two-minute interruption notice it recommends polling for every 5 seconds. Two minutes is enough to save a checkpoint, not to finish an epoch. If you checkpoint every 30 minutes, an interruption costs on average 15 minutes of repeated work.",
+  [
+   "k8s-pod-priority-preemption",
+   "kueue-cohorts",
+   "borg-eurosys15",
+   "aws-spot-best-practices",
+   "aws-spot-interruption"
   ]
  ]
 ];

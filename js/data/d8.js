@@ -170,3 +170,50 @@ SD.deep["8.4"] = [
   ]
  ]
 ];
+SD.deep["8.5"] = [
+ [
+  "Listing columns produces a laundry list; walking the four sources produces coverage. For \"will this user click this ad now\" ask in turn: what do we know about the user, about the ad, about this request (device, page, hour), and about what has happened between this user and this ad or ads like it?\n\nFacebook measured how much each kind carries. It trained one boosted model on contextual features only, one on historical features only, and compared both with the full model. Taking contextual-only as 100%, historical-only scored a normalised entropy of 96.32% and the full model 95.65% (lower is better). So history alone gets within 0.7 points of everything, while dropping history costs about 4.5%. The intuition: the best predictor of whether someone clicks this kind of ad is whether they, and people like them, have clicked it before. Context is a much weaker description of the same thing.\n\nHistory has a hole where the entity is new. Hello Interview's advice for that hole is not to impute the average, which pretends to know something, but to pass an explicit \"missing\" marker the model can learn from, or to run a separate cold-start feature set until behaviour accumulates.",
+  [
+   "fb-ads-ctr",
+   "hi-ml-features"
+  ]
+ ],
+ [
+  "Why do these generalise where an ID does not? A video ID tells the model about one video, and only after it has seen that video many times. \"This user has watched 14 videos from this channel, the last one yesterday\" describes a relationship, and the same number means the same thing for any channel, including one uploaded this morning. YouTube's phrase is that such features generalise well across disparate items.\n\nSmoothing, worked with Hello Interview's example. Video A has 12,000 views and 240 negative reactions, B has 8 views and 4, C has 9,000 and 1,800. The raw rates are 2%, 50% and 20%, so B looks worst on the strength of eight views. Add a prior: smoothed = (negatives + prior × C) ÷ (views + C), with a prior rate of 2% and a pseudo-count C of 50. B becomes (4 + 1) ÷ 58 ≈ 8.6%; the 9,000-view video barely moves, (1,800 + 1) ÷ 9,050 ≈ 19.9%. The pseudo-count is how many real views it takes to outvote the prior.\n\nThe window matters as much as the count. The same guide suggests computing a signal over 1 hour, 1 day and 7 days: a high 1-hour rate against a normal 7-day rate says something unusual is happening right now.",
+  [
+   "youtube-dnn-recs",
+   "hi-ml-features"
+  ]
+ ],
+ [
+  "A linear model adds one weight per active feature. With \"user installed Netflix\" and \"shown app is Pandora\" as separate features, the score is w(Netflix) + w(Pandora): it can say Netflix users install more and Pandora is popular, but not that this particular pair goes together. The cross is a new feature that is 1 only when both hold, with a weight of its own. Wide & Deep calls what it gives you memorisation: the model records how the co-occurrence of a pair relates to the label.\n\nBoth limits follow from that. A pair never seen in training has a weight that was never updated, so the cross contributes nothing. And each pair needs its own examples: crossing 100 values with 200 creates 20,000 weights, most of which see little or no data. Wide & Deep's less granular version, crossing installed category with shown category (video × music), trades precision for coverage.\n\nEmbeddings fail the other way: every pair gets a non-zero score, so a user with niche tastes is nudged towards things that are merely similar. Hence the paper's design of training both parts together. Facebook's 2014 shortcut was to let boosted trees build the tuples: each root-to-leaf path is a learned cross.",
+  [
+   "wide-deep",
+   "google-mlcc-feature-crosses",
+   "fb-ads-ctr"
+  ]
+ ],
+ [
+  "An embedding table is a lookup: row i holds the vector for ID i, and training adjusts only the rows that appear in a batch. So a row is as good as the number of times its ID was seen. Size is the other constraint: 50 million video IDs × 64 floats × 4 bytes is 12.8 GB for one feature.\n\nYouTube's truncation deals with both at once. Keep the top N IDs by frequency in clicked impressions, the ones with enough data to learn a useful vector, and send everything else to a zero vector. Keeping 1 million of those rows is 256 MB. The cost is that the whole tail looks identical to the model, so tail items must be told apart by other features. The paper adds a second saving: features in the same ID space (the impression's video, the last video watched, the video that seeded the recommendation) share one table.\n\nHashing makes the opposite trade. Every ID gets a row, chosen by hash(ID) mod table size, so nothing is out of vocabulary and no dictionary has to be built, but unrelated IDs share rows. Weinberger and colleagues designed it for spam filters with severe memory limits handling billions of emails a day, where a rare but telling token still gets to contribute.",
+  [
+   "youtube-dnn-recs",
+   "weinberger-hashing"
+  ]
+ ],
+ [
+  "Why scale matters to one family and not the other. A tree split asks \"is follower count above 12,000?\"; replace the count by its logarithm and the same split exists at a different number, so nothing changes. A network computes weight × value. With one input ranging to 300,000,000 and another between 0 and 1, the first dominates the sum and its gradients, and training tends to be unstable. YouTube found proper normalisation of continuous features critical for convergence.\n\nTwo standard fixes. Log scaling suits power-law data, where a few items have huge values and most have tiny ones: ln(300,000,000) ≈ 19.5 and ln(1,000) ≈ 6.9, so a gap of more than five orders of magnitude becomes a ratio of about three. YouTube's choice is the quantile: replace each value by its position in the cumulative distribution, giving a number evenly spread over [0, 1). Its ranking network is also fed powers of the normalised value.\n\nBucketing is the linear-model trick: Facebook bins the feature and treats the bin index as a category, so each bin gets its own weight and the model fits a step function.\n\nThe serving rule exists because the transform has parameters (quantile boundaries, bin edges). Hello Interview: they come from training data and are applied identically at serve time.",
+  [
+   "youtube-dnn-recs",
+   "google-mlcc-normalization",
+   "fb-ads-ctr",
+   "hi-ml-features"
+  ]
+ ],
+ [
+  "The three questions are three different failure modes. Existence is the leakage test, and Hello Interview's wording is the one to use aloud: could this value actually be known at request time, in production, before the prediction is made? If answering takes squinting, treat the feature as leaky.\n\nStaleness is subtler because the feature does exist; it just has a different value. Rules of ML describes joining document IDs to a table of comment or click counts. Training reads the table as it is today; serving read it as it was when the request arrived. The same document gets different inputs, so different predictions. The rule's remedy is to log the features at serving time and train from that log, or, for slowly changing tables, to snapshot hourly or daily and accept a small gap. It reports that YouTube's home page moved to logging features at serving time and gained quality while reducing code complexity.\n\nCost is plain arithmetic the interviewer will expect you to do. A \"clicks in the last 5 minutes\" feature needs a streaming pipeline and an online store; a 7-day count needs a nightly batch job. If the fresh version buys little accuracy, the batch one is the better engineering choice.",
+  [
+   "hi-ml-features",
+   "rules-of-ml"
+  ]
+ ]
+];

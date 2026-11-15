@@ -219,3 +219,49 @@ SD.deep["9.5"] = [
   ]
  ]
 ];
+SD.deep["9.6"] = [
+ [
+  "The reliable way to apply Bayes' rule is to stop thinking in probabilities and count people. A detector's quality numbers (recall, false-positive rate) are all conditioned on the truth: \"given a harmful post, how often do I flag it?\" What you need in production is conditioned the other way: \"given a flag, how often is it harmful?\" The base rate is the bridge between the two.\n\nTake a classifier with 99% recall and a 1% false-positive rate, where 1 post in 1,000 is harmful. In 100,000 posts there are 100 harmful ones, and 99 are caught. There are 99,900 benign ones, and 1% of them, 999, are flagged anyway. So a flag is right 99 times out of 1,098, about 9%. The benign pile is so much larger that a small slice of it outnumbers nearly all of the harmful pile.\n\nThe Wikipedia example shows the same test giving opposite impressions in two populations: where infection is common it finds 400 true against 30 false positives, 93% trustworthy; at 2% prevalence, 20 against 49.\n\nWhere it bites: precision is not a property of the model alone. Measure it on a balanced test set and it will collapse when the model meets the real, rare-event traffic. Always ask what the prevalence is in the place you will deploy.",
+  [
+   "wikipedia-base-rate-fallacy",
+   "dlbook-prob"
+  ]
+ ],
+ [
+  "Start with a coin that lands heads 7 times in 10. The probability of that data under a bias φ is φ⁷(1 − φ)³. Take the log, differentiate, and set to zero: 7/φ = 3/(1 − φ), so φ = 0.7. Maximum likelihood returns the observed frequency, which is what you would hope.\n\nThe link to KL divergence is one line. KL from the data distribution to the model is the average of log p_data(x) − log p_model(x) over the data. The first term does not involve the model, so shrinking the KL means raising the average of log p_model(x), which is the log-likelihood. Its negative is the cross-entropy. So \"minimise cross-entropy\", \"maximise likelihood\" and \"make the model's distribution match the data's\" are three names for one procedure.\n\nThe practical reading: every standard loss is a likelihood in disguise, so choosing a loss is choosing a noise model. Squared error says Gaussian noise; log loss says Bernoulli labels.\n\nConsistency has small print. It needs the truth to be inside the model family, and to correspond to exactly one parameter value. Goodfellow et al. also note that consistent estimators differ in efficiency, how many examples they need to reach a given error, a second yardstick on which maximum likelihood does well.",
+  [
+   "dlbook-ml"
+  ]
+ ],
+ [
+  "A model's output layer is a statement about what kind of randomness is left once the input is known, and the loss is the negative log of that distribution. A yes/no label is a Bernoulli with one number φ; its variance φ(1 − φ) is largest, 0.25, at φ = 0.5 and falls to 0.0475 at φ = 0.05, which is why rare-event rates can be estimated with tight error bars from modest samples. K exclusive classes are a categorical, parametrised by a softmax.\n\nFor a real-valued target the Gaussian is the default for two reasons the book gives. Noise that is the sum of many small independent effects is approximately normal, by the central limit theorem. And among all distributions with a given variance, the normal encodes the most uncertainty, so choosing it smuggles in the least prior knowledge. The Laplace density is exp(−|x − μ|/γ): the same shape of argument with an absolute value in the exponent, giving a sharp peak at μ.\n\nThe variance example shows what \"biased\" means. With m = 5 samples from a distribution whose variance is 10, the divide-by-m estimator averages 10 − 10/5 = 8. It is low because deviations are measured from the sample mean, which was fitted to those same points and so sits closer to them than the true mean does. Dividing by m − 1 corrects it.",
+  [
+   "dlbook-prob",
+   "dlbook-ml"
+  ]
+ ],
+ [
+  "Maximum likelihood asks which weights make the data most probable. MAP asks which weights are most probable given the data, and Bayes' rule says that is proportional to likelihood times prior. Take logs and the product becomes a sum: log-likelihood plus log-prior. The log-prior is the regulariser.\n\nFor a zero-mean Gaussian prior with variance 1/λ, the log density is −(λ/2)wᵀw plus a constant, so maximising it is minimising a squared-weight penalty. The coefficient is one over the prior's variance: a strong penalty is a confident belief that weights are near zero, a weak penalty a vague one. A Laplace prior has |w| in its exponent, so the same step yields the L1 penalty.\n\nThis view also explains when regularisation matters. The log-likelihood is a sum over examples, so it grows with the dataset; the log-prior is a single fixed term. With 100 examples the prior has real pull; with 100 million it is drowned out. That is the bias-variance trade in the key idea: the prior steadies the estimate when data is scarce, and pulls it slightly off target.\n\nThe caveat stops you over-claiming in an interview: a prior must be fixed before seeing data, so a penalty that depends on the data is a regulariser but not a prior.",
+  [
+   "dlbook-ml",
+   "dlbook-regularization"
+  ]
+ ],
+ [
+  "Picture a simulated world where the null is true, say two rankers with identical click rates, and run your experiment in it thousands of times. The p-value is the share of those runs that produce a difference at least as large as the one you saw. It is a statement about the data assuming the hypothesis: P(data this extreme | null). What people want is P(null | data), and getting from one to the other is the base-rate problem again.\n\nThe arithmetic makes it concrete. Suppose a team tests 1,000 ideas and 100 truly work. With 80% power, 80 of the real ones reach p < 0.05. Of the 900 duds, 5% do too: 45. So 45 of 125 \"significant\" results, 36%, are false, although every one has p < 0.05. Change the share of good ideas and that number changes; the p-value alone cannot tell you.\n\nTwo more limits. Greenland et al. stress that the calculation assumes every part of the setup is right, so a small p may mean the null is false, or that someone peeked early or picked the best of many analyses; it does not say which. And significance is not size: with millions of users a 0.01% lift can have a tiny p-value and still not be worth shipping.",
+  [
+   "greenland-pvalues",
+   "asa-pvalue"
+  ]
+ ],
+ [
+  "For an error rate the formula is quick. A model wrong on 5% of 10,000 test examples has per-example variance 0.05 × 0.95 = 0.0475, standard error √(0.0475/10,000) ≈ 0.0022, and a 95% interval of about ±0.43 points. So 5.0% against 4.8% on that test set is noise. The √m means halving the interval takes four times the data.\n\nFor a metric with no formula, such as AUC, the bootstrap treats your test set as a stand-in for the population: draw a same-sized sample from it with replacement, recompute the metric, repeat (SciPy's default is 9,999 resamples), and read off the range that holds the middle 95% of the results.\n\nMultiple comparisons: test 20 useless features at 0.05 each and the chance that at least one looks significant is 1 − 0.95^20 ≈ 64%. Bonferroni divides the threshold by the number of tests, which is safe and strict. Benjamini–Hochberg sorts the m p-values and finds the largest k whose k-th smallest p-value is at most (k/m)·α, then rejects those k. With ten p-values starting 0.001, 0.008, 0.012, 0.019, 0.030 and α = 0.05 the thresholds are 0.005, 0.010, 0.015, 0.020, 0.025: the first four pass, so four discoveries. Bonferroni's single threshold of 0.005 passes one.",
+  [
+   "dlbook-ml",
+   "scipy-bootstrap",
+   "scipy-fdr",
+   "wikipedia-fdr",
+   "greenland-pvalues"
+  ]
+ ]
+];

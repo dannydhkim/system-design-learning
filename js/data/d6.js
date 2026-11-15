@@ -173,3 +173,46 @@ SD.deep["6.4"] = [
   ]
  ]
 ];
+SD.deep["6.5"] = [
+ [
+  "\"Optimise for reads\" has a precise meaning here: decide where the merge happens. A home timeline is a temporal merge of the timelines of everyone you follow. You can compute that merge when someone asks, or when someone posts. Twitter tried computing it on request; the talk describes that naive approach as a massive select statement over all of Twitter that \"was tried and died\".\n\nThe ratio says which side should pay. 300K reads a second against 6,000 writes is 50 to 1, so work moved from the read to the write is done far less often. It is not free, though. The talk's delivery statistics are 400 million tweets and 30 billion timeline deliveries a day, so the average tweet is copied to 30,000,000,000 ÷ 400,000,000 = 75 timelines. You trade 50 cheap reads for one write that costs 75 inserts.\n\nThe other requirement hiding in \"time order\" is freshness: Twitter's stated goal was for a tweet to reach a user in no more than 5 seconds. That target is what makes the big accounts a problem later.\n\nA good interview answer names the ratio first, then says what it buys: reads that are a lookup of a precomputed list, described in the talk as taking tens of milliseconds.",
+  [
+   "highscalability-twitter-timelines"
+  ]
+ ],
+ [
+  "A Snowflake ID is three fields packed into one integer, most significant first: 41 bits of milliseconds since a custom epoch (enough for 69 years), 10 bits of machine ID (up to 1,024 generators) and a 12-bit sequence, so one machine can issue 4,096 IDs in a millisecond before it must wait for the next. Because the timestamp is in the high bits, comparing two IDs as plain numbers compares their creation times. Generators never talk to each other, which the README lists as a requirement for availability. \"Roughly\" is literal: clocks differ between machines, and the README promises ordering only within about a second.\n\nThis is what lets a cursor be an ID. \"Give me the timeline since this ID\" needs no timestamp column, and sorting a list of IDs sorts by time without loading a single tweet.\n\nThe cached entry is tiny on purpose, since the talk calls RAM the limiting resource for timeline length. If both IDs are 64-bit, an entry is 8 + 8 + 4 = 20 bytes, and 800 entries is 16 kB per user; 150 million users would be about 2.4 TB per copy, the same order as the \"couple of terabytes of RAM\" the talk mentions. Storing the tweet text 75 times over would multiply that.",
+  [
+   "snowflake-readme",
+   "highscalability-twitter-timelines"
+  ]
+ ],
+ [
+  "Follow one tweet. The write API accepts it, taking up to 145 ms according to the talk, puts it on a queue and releases the client. Everything after that is asynchronous, so the author never waits for the fan-out.\n\nA fan-out daemon then asks the social graph service who follows the author. The talk's example: with 20K followers, it looks up where each of those 20K timelines lives in the Redis cluster and inserts the tweet ID into each list, pipelining 4K destinations at a time. One tweet becomes as many as 20K inserts. Followers who have not been active recently have no list in memory and are skipped.\n\nThree copies exist because, at that scale, machines fail every day. They also make reads faster: the timeline service only has to find one machine holding your list, and takes whichever of the three answers first.\n\nWhat comes back is a list of IDs, not a page. \"Hydration\" is the second step: a parallel multi-get against the tweet service and the user service, each with its own cache (the user cache held the entire user base; the tweet cache about the last month and a half). Edits and deletions therefore live in one place, never in 20K copies.",
+  [
+   "highscalability-twitter-timelines"
+  ]
+ ],
+ [
+  "Fan-out is O(n) in followers, so the worst case is set by the biggest account. Using the talk's own figures: the whole system made about 300K deliveries a second, and one tweet to 31 million followers is 31 million inserts. Even if the entire pipeline did nothing else, that is 31,000,000 ÷ 300,000 ≈ 103 seconds. The talk's delivery figures were 3.5 seconds at the median for 1 million followers and up to 5 minutes at p99.\n\nThe ordering bug follows directly. The fan-out walks the follower list, so some followers receive the tweet minutes before others. One of the early ones replies. The reply's author has few followers, so its fan-out finishes at once, while the celebrity's is still running. A person who follows both now has the reply in their list and not the tweet it answers. Sorting by ID at read time does not help, because the original is not there to sort.\n\nThe fix is to treat these accounts as the exception: do not push their tweets at all. When you load your timeline, fetch the recent tweets of the few huge accounts you follow and merge them with your precomputed list. A little work per read replaces tens of millions of writes.",
+  [
+   "highscalability-twitter-timelines"
+  ]
+ ],
+ [
+  "Search and the home timeline are the same trade made in opposite directions. For the timeline, a write does O(n) work (one insert per follower) so that a read is O(1). For search, a tweet is tokenised and written to a single Earlybird machine, O(1), and a query has to ask every shard \"do you have anything matching?\", then merge, sort and rerank the answers. The talk's reason for the choice: most people don't use search, so it is cheaper to pay per query than per tweet. It stays at around 100 ms because the whole index is in RAM.\n\nFor You stacks a ranking funnel on top. Candidate sources each return posts; about half come from the search index, which finds posts by people you follow. Home Mixer then fetches roughly 6,000 features for the candidates and a neural model scores each one. The score is not one prediction. The heavy ranker outputs a probability for each of several actions (a like, a retweet, a reply, watching half a video, and negative ones such as a report), and the final score is a weighted sum, with the weights kept in a configuration file.\n\nFilters run last: author diversity, in-network balance, and removing blocked or muted authors.",
+  [
+   "highscalability-twitter-timelines",
+   "x-algorithm-readme",
+   "x-home-mixer-readme",
+   "x-heavy-ranker-readme"
+  ]
+ ],
+ [
+  "\"Derived data\" means the cache holds nothing that cannot be recomputed from the systems of record. The talk calls the recovery \"reconstruction\": ask the social graph service who you follow, read each of those users' tweets from disk, and put the merged result back into Redis. It is expensive, a disk read per followed account, which is why timelines are kept as three copies: a failed machine then does not force reconstruction of every timeline it held.\n\nThe same mechanism handles the 30-day rule. A user who has not logged in for 30 days has no list in RAM and receives no fan-out; if they return, their timeline is reconstructed. The talk notes the 30 days can change with cache capacity, so it is a dial for trading memory against cold-start cost.\n\nThe Home Mixer fallback applies the same idea to ranking: the ranked pipeline depends on many services and a model, so its configuration lists a backup pipeline that returns posts in reverse chronological order if scoring fails. A plainer timeline beats an empty one.\n\nThe interview point: say out loud which stores are sources of truth and which can be dropped and rebuilt, and what the degraded experience is for each failure.",
+  [
+   "highscalability-twitter-timelines",
+   "x-home-mixer-readme"
+  ]
+ ]
+];
