@@ -18,11 +18,36 @@
   };
   function style() { var k = set().voiceKind; return LINES[k] ? k : 'arcade'; }
   // A playlist per scene. Tracks play in shuffled order, one after another, so no single loop repeats.
-  var MUSIC = { study: 5, arcade: 4, boss: 3 };
+  var MUSIC = { study: 9, arcade: 9, boss: 6 };
+  var TITLES = {'study': ['Determined Pursuit', 'Fantasy Orchestral Theme', 'Covert Operations', 'Cyberpunk Moonlight Sonata', 'Atmospheric puzzles', 'Liquid Flame', 'Cyber March', 'All The Fight Left', 'Black Diamond'], 'arcade': ['Let the Games Begin', 'Battle Theme A', 'Hunter-class Lifeform', 'Action Theme Song', 'Drum and bass', 'Final Hour', 'Lucid Trigger', 'Lunar Arrow', 'Chase'], 'boss': ['Boss Battle #2 (Symphonic Metal)', 'Epic Boss Battle', 'Battle RPG Theme', 'Android Assault', 'Cyborg', 'Finale']};
   // One-shot jingles. Only one may play at a time (see play): several firing together was the overlap at a boss result.
   var JINGLE = { levelup: 1, win: 1, lose: 1, rankup: 1, quest: 1, boom: 1 };
   // Literal paths, so tools/check-sw.mjs puts them in the offline copy.
   var FILES = [
+    'audio/music/study1.mp3',
+    'audio/music/study2.mp3',
+    'audio/music/study3.mp3',
+    'audio/music/study4.mp3',
+    'audio/music/study5.mp3',
+    'audio/music/study6.mp3',
+    'audio/music/study7.mp3',
+    'audio/music/study8.mp3',
+    'audio/music/study9.mp3',
+    'audio/music/arcade1.mp3',
+    'audio/music/arcade2.mp3',
+    'audio/music/arcade3.mp3',
+    'audio/music/arcade4.mp3',
+    'audio/music/arcade5.mp3',
+    'audio/music/arcade6.mp3',
+    'audio/music/arcade7.mp3',
+    'audio/music/arcade8.mp3',
+    'audio/music/arcade9.mp3',
+    'audio/music/boss1.mp3',
+    'audio/music/boss2.mp3',
+    'audio/music/boss3.mp3',
+    'audio/music/boss4.mp3',
+    'audio/music/boss5.mp3',
+    'audio/music/boss6.mp3',
     'audio/voice/arcade/prepare_yourself.mp3',
     'audio/voice/arcade/fight.mp3',
     'audio/voice/arcade/combo.mp3',
@@ -51,10 +76,7 @@
     'audio/voice/male/mission_failed.mp3', 'audio/voice/male/congratulations.mp3',
     'audio/voice/male/new_highscore.mp3', 'audio/voice/male/game_over.mp3', 'audio/voice/male/time_over.mp3',
     'audio/voice/male/hurry_up.mp3', 'audio/voice/male/level_up.mp3', 'audio/voice/male/objective_achieved.mp3',
-    'audio/music/study1.mp3', 'audio/music/study2.mp3', 'audio/music/study3.mp3', 'audio/music/study4.mp3',
-    'audio/music/study5.mp3', 'audio/music/arcade1.mp3', 'audio/music/arcade2.mp3', 'audio/music/arcade3.mp3',
-    'audio/music/arcade4.mp3', 'audio/music/boss1.mp3', 'audio/music/boss2.mp3', 'audio/music/boss3.mp3'
-  ];
+    ];
   function path(kind, name) { return 'audio/' + kind + '/' + name + '.mp3'; }
   function set() { return (SD.state && SD.state.settings) || {}; }
 
@@ -135,7 +157,9 @@
   }
   function startNext() {
     if (!order.length) {
-      order = SD.shuffle(Array.from({ length: MUSIC[scene] }, function (_, k) { return k + 1; }));
+      var off = set().mutedTracks || {};
+      order = SD.shuffle(Array.from({ length: MUSIC[scene] }, function (_, k) { return k + 1; }).filter(function (n) { return !off[scene + n]; }));
+      if (!order.length) return stop();   // every track of this scene has been turned off
       if (cur && order.length > 1 && cur._n === order[0]) order.push(order.shift());   // do not repeat the track just heard
     }
     var n = order.shift(), a = new Audio('audio/music/' + scene + n + '.mp3');
@@ -166,6 +190,12 @@
 
   SD.audio = {
     play: play, say: say, music: music, skip: function () { if (cur) startNext(); },
+    // The track now playing: { id, title }, or null.
+    now: function () { return cur ? { id: cur._scene + cur._n, title: TITLES[cur._scene][cur._n - 1] } : null; },
+    // Never play this track again (until it is restored in Settings), and move on.
+    mute: function (id) { var st = SD.state.settings; st.mutedTracks = st.mutedTracks || {}; st.mutedTracks[id] = 1; SD.save(); order = []; if (cur && cur._scene + cur._n === id) startNext(); },
+    unmuteAll: function () { SD.state.settings.mutedTracks = {}; SD.save(); order = []; music(); },
+    titleOf: function (id) { var m = /^([a-z]+)(\d+)$/.exec(id); return m && TITLES[m[1]] ? TITLES[m[1]][m[2] - 1] : id; },
     refresh: function () { if (cur) fade(cur, vol()); music(); },
     playing: function () { return !!cur && !cur.paused; },
     SFX: SFX, LINES: LINES, FILES: FILES

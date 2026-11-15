@@ -263,6 +263,7 @@ window.SD = window.SD || {};
     if (typeof s.settings.music !== 'boolean') s.settings.music = false;
     if (['arcade', 'female', 'male'].indexOf(s.settings.voiceKind) < 0) s.settings.voiceKind = 'arcade';
     s.settings.musicVol = Math.min(1, Math.max(0, num(s.settings.musicVol) == null ? 1 : num(s.settings.musicVol)));
+    s.settings.mutedTracks = only(s.settings.mutedTracks, num);
     var lad = isObj(s.ladder) ? s.ladder : b.ladder, rp = Math.max(0, num(lad.rp) || 0);
     s.ladder = { rp: rp, peak: Math.max(rp, num(lad.peak) || 0) };
     return fixTally(s);

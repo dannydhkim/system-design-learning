@@ -342,12 +342,26 @@
     var vk = h('select', { class: 'num wide', 'aria-label': 'Announcer voice' }, h('option', { value: 'arcade' }, 'Arcade (fighting-game announcer, calls answer streaks)'), h('option', { value: 'female' }, 'Calm, voice A'), h('option', { value: 'male' }, 'Calm, voice B'));
     vk.value = s.settings.voiceKind;
     vk.addEventListener('change', function () { s.settings.voiceKind = vk.value; SD.save(); SD.audio.say('bossWin'); });
+    // What is playing, with a way to skip it or never hear it again.
+    var nowBox = h('div', {});
+    function drawNow() {
+      if (!nowBox.isConnected && nowBox.firstChild) return clearInterval(nowTimer);
+      var n = SD.audio.now(), off = Object.keys(s.settings.mutedTracks || {});
+      clear(nowBox);
+      nowBox.appendChild(h('div', { class: 'row wrap' }, h('span', { class: 'muted' }, n ? '♪ Now playing: ' + n.title : s.settings.music ? '♪ Music starts after your first tap.' : '♪ Music is off.'),
+        n ? h('button', { class: 'btn mini', onclick: function () { SD.audio.skip(); setTimeout(drawNow, 300); } }, '⏭ Next') : null,
+        n ? h('button', { class: 'btn mini', onclick: function () { SD.audio.mute(n.id); setTimeout(drawNow, 300); } }, '🚫 Never play this one') : null));
+      if (off.length) nowBox.appendChild(h('div', { class: 'muted' }, 'Turned off: ' + off.map(SD.audio.titleOf).join(', ') + '. ', h('button', { class: 'btn mini', onclick: function () { SD.audio.unmuteAll(); drawNow(); } }, 'Restore all')));
+    }
+    var nowTimer = setInterval(drawNow, 3000);
+    SD.onLeave(function () { clearInterval(nowTimer); });
+    setTimeout(drawNow, 0);
     main.appendChild(h('div', { class: 'card' }, h('div', { class: 'label' }, 'Sound'),
       toggle('sound', 'Sound effects'), toggle('voice', 'Announcer'),
       h('label', { class: 'field' }, h('span', {}, 'Announcer voice'), vk),
-      toggle('music', 'Music (a playlist each for study, arcade and boss fights)'),
+      toggle('music', 'Music (playlists for study, arcade and boss fights: orchestral, synthwave, trance, drum and bass, dubstep)'),
       h('label', { class: 'field' }, h('span', {}, 'Music volume'), mv),
-      h('div', { class: 'row' }, h('button', { class: 'btn mini', onclick: function () { SD.audio.skip(); } }, '⏭ Next track')),
+      nowBox,
       h('p', { class: 'muted' }, 'All sounds and music are free CC0 assets (Kenney.nl and OpenGameArt, listed in audio/CREDITS.md) and work offline.')));
 
     var status = SD.sync.server === 'ok' ? '✓ Also saving to progress/progress.json in this folder (serve.py is running). That file is a local backup and stays out of git.'

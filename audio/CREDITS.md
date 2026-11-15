@@ -40,3 +40,15 @@ From OpenGameArt.org, each page listing the CC0 licence, downloaded 2026-11-14. 
 | music/boss1.mp3 | Boss Battle #2 [Symphonic Metal] (opening, then the loop three times) | nene | https://opengameart.org/content/boss-battle-2-symphonic-metal |
 | music/boss2.mp3 | Epic Boss Battle [Seamlessly Looping] (Juhani Junkala) | subspaceaudio | https://opengameart.org/content/boss-battle-music |
 | music/boss3.mp3 | Battle RPG Theme (CleytonRX) | cleytonkauffman | https://opengameart.org/content/boss-battle-theme |
+| music/study6.mp3 | Liquid Flame | of-far-different-nature | https://opengameart.org/content/liquid-flame |
+| music/study7.mp3 | Cyber March | iamoneabe | https://opengameart.org/content/cyber-march |
+| music/study8.mp3 | All The Fight Left! (HoliznaCC0) | holizna | https://opengameart.org/content/all-the-fight-left |
+| music/study9.mp3 | Black Diamond | joth | https://opengameart.org/content/black-diamond |
+| music/arcade5.mp3 | Drum and bass | bertsz | https://opengameart.org/content/drum-and-bass |
+| music/arcade6.mp3 | Final Hour | isaiah658 | https://opengameart.org/content/final-hour |
+| music/arcade7.mp3 | Lucid Trigger (Liq_mmry) | khtlrpzvgm | https://opengameart.org/content/lucid-trigger |
+| music/arcade8.mp3 | Lunar Arrow (mmry) | khtlrpzvgm | https://opengameart.org/content/lunar-arrow |
+| music/arcade9.mp3 | Chase | adiutorium | https://opengameart.org/content/chase-2 |
+| music/boss4.mp3 | Android Assault | umplix | https://opengameart.org/content/android-assault |
+| music/boss5.mp3 | Cyborg | umplix | https://opengameart.org/content/cyborg |
+| music/boss6.mp3 | Finale | sudocolon | https://opengameart.org/content/finale |

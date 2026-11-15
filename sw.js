@@ -4,7 +4,7 @@
 // tools/check-sw.mjs, and `node tools/check-sw.mjs --write` rewrites them after any file changes. A new VERSION is
 // what makes installed copies pick up a deploy: the browser sees sw.js changed, downloads the new files into a fresh
 // cache, and the page offers a reload (js/app.js). Progress is not stored here; it lives in localStorage.
-const VERSION = '899261f33ae1';
+const VERSION = 'b1c73dc831e5';
 const FILES = [
   './',
   'js/data/meta.js',
@@ -52,6 +52,30 @@ const FILES = [
   'questions/module-1-foundations.json',
   'questions/module-5-ml-systems.json',
   'questions/ml-interview-deck.json',
+  'audio/music/study1.mp3',
+  'audio/music/study2.mp3',
+  'audio/music/study3.mp3',
+  'audio/music/study4.mp3',
+  'audio/music/study5.mp3',
+  'audio/music/study6.mp3',
+  'audio/music/study7.mp3',
+  'audio/music/study8.mp3',
+  'audio/music/study9.mp3',
+  'audio/music/arcade1.mp3',
+  'audio/music/arcade2.mp3',
+  'audio/music/arcade3.mp3',
+  'audio/music/arcade4.mp3',
+  'audio/music/arcade5.mp3',
+  'audio/music/arcade6.mp3',
+  'audio/music/arcade7.mp3',
+  'audio/music/arcade8.mp3',
+  'audio/music/arcade9.mp3',
+  'audio/music/boss1.mp3',
+  'audio/music/boss2.mp3',
+  'audio/music/boss3.mp3',
+  'audio/music/boss4.mp3',
+  'audio/music/boss5.mp3',
+  'audio/music/boss6.mp3',
   'audio/voice/arcade/prepare_yourself.mp3',
   'audio/voice/arcade/fight.mp3',
   'audio/voice/arcade/combo.mp3',
@@ -104,19 +128,7 @@ const FILES = [
   'audio/voice/male/time_over.mp3',
   'audio/voice/male/hurry_up.mp3',
   'audio/voice/male/level_up.mp3',
-  'audio/voice/male/objective_achieved.mp3',
-  'audio/music/study1.mp3',
-  'audio/music/study2.mp3',
-  'audio/music/study3.mp3',
-  'audio/music/study4.mp3',
-  'audio/music/study5.mp3',
-  'audio/music/arcade1.mp3',
-  'audio/music/arcade2.mp3',
-  'audio/music/arcade3.mp3',
-  'audio/music/arcade4.mp3',
-  'audio/music/boss1.mp3',
-  'audio/music/boss2.mp3',
-  'audio/music/boss3.mp3'
+  'audio/voice/male/objective_achieved.mp3'
 ];
 const CACHE = 'sdq-' + VERSION;
 // While developing on localhost the network copy wins, so an edit shows up on reload; the cache is only the fallback.
