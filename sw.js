@@ -4,7 +4,7 @@
 // tools/check-sw.mjs, and `node tools/check-sw.mjs --write` rewrites them after any file changes. A new VERSION is
 // what makes installed copies pick up a deploy: the browser sees sw.js changed, downloads the new files into a fresh
 // cache, and the page offers a reload (js/app.js). Progress is not stored here; it lives in localStorage.
-const VERSION = '5ce2aaa22344';
+const VERSION = '899261f33ae1';
 const FILES = [
   './',
   'js/data/meta.js',
@@ -52,6 +52,22 @@ const FILES = [
   'questions/module-1-foundations.json',
   'questions/module-5-ml-systems.json',
   'questions/ml-interview-deck.json',
+  'audio/voice/arcade/prepare_yourself.mp3',
+  'audio/voice/arcade/fight.mp3',
+  'audio/voice/arcade/combo.mp3',
+  'audio/voice/arcade/multi_kill.mp3',
+  'audio/voice/arcade/combo_breaker.mp3',
+  'audio/voice/arcade/flawless_victory.mp3',
+  'audio/voice/arcade/winner.mp3',
+  'audio/voice/arcade/you_lose.mp3',
+  'audio/voice/arcade/final_round.mp3',
+  'audio/voice/arcade/game_over.mp3',
+  'audio/voice/arcade/level_up.mp3',
+  'audio/voice/arcade/new_highscore.mp3',
+  'audio/voice/arcade/objective_achieved.mp3',
+  'audio/voice/arcade/congratulations.mp3',
+  'audio/voice/arcade/hurry_up.mp3',
+  'audio/voice/arcade/time_over.mp3',
   'audio/sfx/ok.mp3',
   'audio/sfx/ok2.mp3',
   'audio/sfx/bad.mp3',

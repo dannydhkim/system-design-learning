@@ -36,7 +36,7 @@
     var after = info(rp);
     if (after.tier > before.tier) {
       SD.toast(after.icon + ' Promoted to ' + after.label + '!', 'gold'); SD.confetti();
-      if (SD.audio) { SD.audio.play('rankup'); SD.audio.say('congratulations'); }
+      if (SD.audio) { SD.audio.play('rankup'); SD.audio.say('promoted'); }
     } else if (after.tier === before.tier && after.div > before.div) {
       SD.toast(after.icon + ' Rank up: ' + after.label, 'gold');
       if (SD.audio) SD.audio.play('rankup');

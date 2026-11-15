@@ -120,7 +120,7 @@ window.SD = window.SD || {};
       runs: {},   // a boss fight left part-way: boss id -> { i: next phase, scores: [0..1 per phase done], ms: time spent }
       tally: {},  // what each device has added to the running totals (see "Running totals" below)
       ladder: { rp: 0, peak: 0 },   // ranked ladder (js/ladder.js)
-      settings: { sound: true, voice: true, voiceKind: 'female', music: false, musicVol: 1 }
+      settings: { sound: true, voice: true, voiceKind: 'arcade', music: false, musicVol: 1 }
     };
   }
   function isObj(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
@@ -261,7 +261,7 @@ window.SD = window.SD || {};
     if (typeof s.settings.sound !== 'boolean') s.settings.sound = true;
     if (typeof s.settings.voice !== 'boolean') s.settings.voice = true;
     if (typeof s.settings.music !== 'boolean') s.settings.music = false;
-    if (s.settings.voiceKind !== 'male') s.settings.voiceKind = 'female';
+    if (['arcade', 'female', 'male'].indexOf(s.settings.voiceKind) < 0) s.settings.voiceKind = 'arcade';
     s.settings.musicVol = Math.min(1, Math.max(0, num(s.settings.musicVol) == null ? 1 : num(s.settings.musicVol)));
     var lad = isObj(s.ladder) ? s.ladder : b.ladder, rp = Math.max(0, num(lad.rp) || 0);
     s.ladder = { rp: rp, peak: Math.max(rp, num(lad.peak) || 0) };
@@ -484,7 +484,7 @@ window.SD = window.SD || {};
       q.done[id] = 1;
       gain(40);
       SD.toast('✅ Quest complete: ' + def.text + ' (+40 XP)', 'gold'); SD.beep('quest');
-      if (SD.audio) SD.audio.say('objective_achieved');
+      if (SD.audio) SD.audio.say('quest');
     }
   }
 
@@ -509,15 +509,18 @@ window.SD = window.SD || {};
     if (opts.count) count(opts.count);
     if (opts.quest) bumpQuest(opts.quest, 1);
     var after = SD.levelInfo(s.xp);
-    if (after.level > before) { SD.toast('⬆️ Level ' + after.level + ' — ' + after.title, 'gold'); SD.confetti(); SD.beep('levelup'); if (SD.audio) SD.audio.say('level_up'); }
+    if (after.level > before) { SD.toast('⬆️ Level ' + after.level + ' — ' + after.title, 'gold'); SD.confetti(); SD.beep('levelup'); if (SD.audio) SD.audio.say('levelUp'); }
     checkBadges(); SD.save();
     return earned;
   };
   // Record a right/wrong answer: drives the combo (win streak) and per-topic accuracy.
   SD.hit = function (correct, topicId) {
     var s = SD.state;
+    var was = s.combo;
     if (correct) { s.combo++; s.bestCombo = Math.max(s.bestCombo, s.combo); if (s.combo === 5 || s.combo === 10 || s.combo % 25 === 0) SD.toast('⚡ ' + s.combo + ' in a row!', 'gold'); }
     else s.combo = 0;
+    // Streak callouts (arcade announcer only): 5 in a row, 10 in a row, and losing a streak of 5 or more.
+    if (SD.audio) SD.audio.say(correct ? (s.combo === 5 ? 'streak5' : s.combo === 10 ? 'streak10' : null) : was >= 5 ? 'streakBroken' : null);
     if (topicId) tallyHit(topicId, correct);
     SD.beep(correct ? (s.combo >= 3 ? 'ok2' : 'ok') : 'bad');
     if (SD.ladder) { var R = SD.ladder.RP; SD.ladder.add((correct ? R.right : R.wrong) + (correct && s.combo % R.streakEvery === 0 ? R.streakBonus : 0)); }

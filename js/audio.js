@@ -5,14 +5,40 @@
 (function (SD) {
   'use strict';
   var SFX = ['ok', 'ok2', 'bad', 'coin', 'tick', 'hit', 'boom', 'laser', 'levelup', 'win', 'lose', 'rankup', 'quest'];
-  // Announcer lines (two voices, chosen in Settings). Kept to big moments: a level, a quest, a boss result, a high score.
-  var VOICE = ['go', 'ready', 'final_round', 'mission_completed', 'mission_failed', 'congratulations', 'new_highscore', 'game_over', 'time_over', 'hurry_up', 'level_up', 'objective_achieved'];
+  // Announcer. Callers name a moment (SD.audio.say('streak5')); the style chosen in Settings decides the line. The
+  // arcade style is a fighting-game announcer and also calls answer streaks; the two calm voices skip those.
+  var CALM = { bossStart: 'ready', arcadeStart: 'go', finalPhase: 'final_round', perfect: 'congratulations', bossWin: 'mission_completed',
+    bossLose: 'mission_failed', gameOver: 'game_over', timeUp: 'time_over', highScore: 'new_highscore', levelUp: 'level_up',
+    quest: 'objective_achieved', promoted: 'congratulations', hurry: 'hurry_up' };
+  var LINES = {
+    arcade: { bossStart: 'prepare_yourself', arcadeStart: 'fight', finalPhase: 'final_round', streak5: 'combo', streak10: 'multi_kill',
+      streakBroken: 'combo_breaker', perfect: 'flawless_victory', bossWin: 'winner', bossLose: 'you_lose', gameOver: 'game_over',
+      timeUp: 'time_over', highScore: 'new_highscore', levelUp: 'level_up', quest: 'objective_achieved', promoted: 'congratulations', hurry: 'hurry_up' },
+    female: CALM, male: CALM
+  };
+  function style() { var k = set().voiceKind; return LINES[k] ? k : 'arcade'; }
   // A playlist per scene. Tracks play in shuffled order, one after another, so no single loop repeats.
   var MUSIC = { study: 5, arcade: 4, boss: 3 };
   // One-shot jingles. Only one may play at a time (see play): several firing together was the overlap at a boss result.
   var JINGLE = { levelup: 1, win: 1, lose: 1, rankup: 1, quest: 1, boom: 1 };
   // Literal paths, so tools/check-sw.mjs puts them in the offline copy.
   var FILES = [
+    'audio/voice/arcade/prepare_yourself.mp3',
+    'audio/voice/arcade/fight.mp3',
+    'audio/voice/arcade/combo.mp3',
+    'audio/voice/arcade/multi_kill.mp3',
+    'audio/voice/arcade/combo_breaker.mp3',
+    'audio/voice/arcade/flawless_victory.mp3',
+    'audio/voice/arcade/winner.mp3',
+    'audio/voice/arcade/you_lose.mp3',
+    'audio/voice/arcade/final_round.mp3',
+    'audio/voice/arcade/game_over.mp3',
+    'audio/voice/arcade/level_up.mp3',
+    'audio/voice/arcade/new_highscore.mp3',
+    'audio/voice/arcade/objective_achieved.mp3',
+    'audio/voice/arcade/congratulations.mp3',
+    'audio/voice/arcade/hurry_up.mp3',
+    'audio/voice/arcade/time_over.mp3',
     'audio/sfx/ok.mp3', 'audio/sfx/ok2.mp3', 'audio/sfx/bad.mp3', 'audio/sfx/coin.mp3', 'audio/sfx/tick.mp3',
     'audio/sfx/hit.mp3', 'audio/sfx/boom.mp3', 'audio/sfx/laser.mp3', 'audio/sfx/levelup.mp3', 'audio/sfx/win.mp3',
     'audio/sfx/lose.mp3', 'audio/sfx/rankup.mp3', 'audio/sfx/quest.mp3', 'audio/voice/female/go.mp3',
@@ -70,7 +96,8 @@
   // the same line is not repeated within 8 seconds.
   var waiting = null, speaking = false, lastSaid = {};
   function say(line) {
-    if (set().voice === false || VOICE.indexOf(line) < 0) return;
+    line = LINES[style()][line];
+    if (set().voice === false || !line) return;
     var now = Date.now();
     if (lastSaid[line] && now - lastSaid[line] < 8000) return;
     lastSaid[line] = now;
@@ -83,7 +110,7 @@
     if (wait > 0) { speaking = true; setTimeout(function () { speaking = false; next(); }, wait + 60); return; }
     var line = waiting; waiting = null; speaking = true;
     duck(true);
-    playFile(path('voice/' + (set().voiceKind === 'male' ? 'male' : 'female'), line), 0.8).then(function (d) {
+    playFile(path('voice/' + style(), line), 0.8).then(function (d) {
       setTimeout(function () { speaking = false; if (!waiting) duck(false); next(); }, Math.max(150, d * 1000 + 150));
     });
   }
@@ -141,6 +168,6 @@
     play: play, say: say, music: music, skip: function () { if (cur) startNext(); },
     refresh: function () { if (cur) fade(cur, vol()); music(); },
     playing: function () { return !!cur && !cur.paused; },
-    SFX: SFX, VOICE: VOICE, FILES: FILES
+    SFX: SFX, LINES: LINES, FILES: FILES
   };
 })(window.SD);

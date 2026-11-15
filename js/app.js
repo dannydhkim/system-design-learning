@@ -169,6 +169,7 @@
       // Correct answers up to the previous best pay replay XP; only answers beyond it pay in full.
       L.quiz(m2, { qs: t.quiz }, { topicId: id, paid: st.quizBest != null ? Math.round(st.quizBest * t.quiz.length) : st.done.quiz ? t.quiz.length : 0, onDone: function (score) {
         st.quizBest = Math.max(st.quizBest || 0, score);
+        if (score === 1) SD.audio.say('perfect');
         if (score >= 0.66) passed(score === 1 ? 'Perfect.' : 'Passed.'); else { SD.save(); retry('Pass mark is ' + Math.ceil(0.66 * t.quiz.length) + ' of ' + t.quiz.length + '. The questions and their options are reshuffled each time.'); }
       } });
     }
@@ -332,17 +333,17 @@
 
     function toggle(key, label) {
       var c = h('input', { type: 'checkbox' }); c.checked = !!s.settings[key];
-      c.addEventListener('change', function () { s.settings[key] = c.checked; SD.save(); SD.audio.refresh(); if (c.checked && key === 'voice') SD.audio.say('ready'); if (c.checked && key === 'sound') SD.audio.play('coin'); });
+      c.addEventListener('change', function () { s.settings[key] = c.checked; SD.save(); SD.audio.refresh(); if (c.checked && key === 'voice') SD.audio.say('bossStart'); if (c.checked && key === 'sound') SD.audio.play('coin'); });
       return h('label', { class: 'check' }, c, ' ' + label);
     }
     var mv = h('input', { type: 'range', min: '0', max: '100', value: String(Math.round(s.settings.musicVol * 100)), 'aria-label': 'Music volume' });
     mv.addEventListener('input', function () { s.settings.musicVol = +mv.value / 100; SD.audio.refresh(); });
     mv.addEventListener('change', function () { SD.save(); });
-    var vk = h('select', { class: 'num wide', 'aria-label': 'Announcer voice' }, h('option', { value: 'female' }, 'Voice A'), h('option', { value: 'male' }, 'Voice B'));
-    vk.value = s.settings.voiceKind === 'male' ? 'male' : 'female';
-    vk.addEventListener('change', function () { s.settings.voiceKind = vk.value; SD.save(); SD.audio.say('congratulations'); });
+    var vk = h('select', { class: 'num wide', 'aria-label': 'Announcer voice' }, h('option', { value: 'arcade' }, 'Arcade (fighting-game announcer, calls answer streaks)'), h('option', { value: 'female' }, 'Calm, voice A'), h('option', { value: 'male' }, 'Calm, voice B'));
+    vk.value = s.settings.voiceKind;
+    vk.addEventListener('change', function () { s.settings.voiceKind = vk.value; SD.save(); SD.audio.say('bossWin'); });
     main.appendChild(h('div', { class: 'card' }, h('div', { class: 'label' }, 'Sound'),
-      toggle('sound', 'Sound effects'), toggle('voice', 'Announcer (big moments only: levels, quests, boss results, high scores)'),
+      toggle('sound', 'Sound effects'), toggle('voice', 'Announcer'),
       h('label', { class: 'field' }, h('span', {}, 'Announcer voice'), vk),
       toggle('music', 'Music (a playlist each for study, arcade and boss fights)'),
       h('label', { class: 'field' }, h('span', {}, 'Music volume'), mv),

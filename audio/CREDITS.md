@@ -20,6 +20,7 @@ From Kenney (kenney.nl), CC0, downloaded 2026-11-14. Converted to mono 64 kb/s M
 | sfx/lose.mp3 | Music Jingles | jingles_STEEL16.ogg |
 | sfx/rankup.mp3 | Music Jingles | jingles_HIT05.ogg |
 | sfx/quest.mp3 | Digital Audio | powerUp2.ogg |
+| voice/arcade/*.mp3 (prepare_yourself, fight, combo, multi_kill, combo_breaker, flawless_victory, winner, you_lose, final_round, game_over) | Voiceover Pack: Fighter | same names; its other six lines are copies of voice/male |
 | voice/female/*.mp3, voice/male/*.mp3 (go, ready, final_round, mission_completed, mission_failed, congratulations, new_highscore, game_over, time_over, hurry_up, level_up, objective_achieved) | Voiceover Pack (Female, Male) | same names |
 
 ## Music (`music/`)
