@@ -217,6 +217,45 @@ SD.deep["5.6"] = [
   ]
  ]
 ];
+SD.deep["5.7"] = [
+ [
+  "Each stage answers a different question with a different budget. Candidate generation asks \"which few hundred items are plausibly relevant?\" and must be cheap per item because it faces the whole catalogue. Ranking asks \"in what order?\" and can be expensive per item because it only sees the survivors. Re-ranking asks \"is this list, as a whole, a good list?\", which no per-item score can answer.\n\nYouTube's paper draws exactly this funnel: millions of videos, then hundreds after candidate generation, then dozens after ranking. It explains why ranking is better informed: with only a few hundred videos to score, it can use many more features describing the video and the user's relationship to it. It also gives ranking a second job, putting candidates from different sources, whose scores are not directly comparable, on one scale.\n\nWhy re-ranking is separate: a ranker scores items one at a time, so ten near-identical clips from one creator can each deserve a high score. Instagram Explore handles this with a rule on top of the model: posts from the same author are downranked with a penalty that grows as more of them appear further down the batch.\n\nThe design consequence is that retrieval is tuned for recall (do not lose the good items) and ranking for precision at the top.",
+  [
+   "youtube-dnn-recs",
+   "meta-instagram-explore"
+  ]
+ ],
+ [
+  "Do the arithmetic (illustrative numbers of mine). Suppose a good ranking model costs 0.1 ms per item, including fetching its features. Over 500 candidates that is 50 ms, which fits a request. Over 10 million items it is 1,000 seconds. No amount of hardware closes a gap of that size inside one request, so the catalogue must be cut down first by something that does not score items individually. The Wide & Deep paper says the same of Google Play: with over a million apps it is intractable to score every app for every query within serving latency requirements, often on the order of 10 ms, so the first step is retrieval.\n\nThe same reasoning applies again inside ranking: if the best model is too slow even for 500, put a cheaper model in front of it. Instagram Explore describes three ranking passes over 500 candidates. A first-pass distilled model with minimal features keeps 150; a lightweight neural network with the full dense features keeps 50; a deep network with dense and sparse features orders those. The first model is trained to mimic the combination of the later two, so it is an inexpensive imitation of the final judge.\n\nThe risk to name: an item dropped early can never be rescued later, however much the final model would have liked it.",
+  [
+   "wide-deep",
+   "meta-instagram-explore"
+  ]
+ ],
+ [
+  "A two-tower model is two separate neural networks. One tower takes the user and context and outputs a vector; the other takes an item and outputs a vector of the same size. The score is simply the inner product of the two, as the Yi et al. paper defines it. They are trained together so that users and the items they engaged with end up pointing the same way.\n\nThe separation is what makes retrieval fast. The item tower never sees the user, so every item's vector can be computed ahead of time and put in an index. At request time you run only the user tower once, then ask the index for the vectors with the largest inner product. YouTube's paper says the scoring problem reduces to a nearest-neighbour search in the dot product space, for which general-purpose libraries exist, and adds that results were not particularly sensitive to which search algorithm was used.\n\nThe limitation follows from the same separation: user and item features never interact inside the model, only through one dot product at the end. That is why a richer ranker comes next.\n\nSeveral generators run because each finds different things. Instagram Explore starts from \"seed accounts\" a person has interacted with and uses account embeddings to find similar accounts; YouTube notes its design allows blending candidates from other sources.",
+  [
+   "yi-two-tower",
+   "youtube-dnn-recs",
+   "meta-instagram-explore"
+  ]
+ ],
+ [
+  "The training data is a log of what users did with what the last model chose to show. That makes the model partly its own teacher. Two distortions follow.\n\nSelection: an item that was never shown has no clicks, which looks the same in the log as an item nobody wanted. The next model learns to keep not showing it. YouTube's counter is to train on all watches, including videos embedded on other sites, not just watches that came from its own recommendations; otherwise, the paper says, new content would struggle to surface and the recommender would be overly biased towards exploitation. Discoveries users make by other routes then flow back in.\n\nPosition: Google's recommender course states that items lower on the screen are less likely to be clicked than items higher up. So a click on slot 1 is weaker evidence than a click on slot 8, yet the raw log counts them the same, and whatever was on top looks better than it is. The course's remedy is position-independent ranking: score every candidate as if it were in the top position.\n\nExploration is the third counter: deliberately show a small share of items the model is unsure about, to buy the data needed to judge them.\n\nWhere it bites: offline metrics computed on this biased log can reward a model for agreeing with its predecessor.",
+  [
+   "youtube-dnn-recs",
+   "gdev-recsys-scoring"
+  ]
+ ],
+ [
+  "Collaborative signals (\"people who watched this also watched that\") need history, and a new user or item has none. An embedding learned only from an ID starts as noise. Content features are the bridge: a new film still has a genre, cast and description; a new user still has a country and device. Yi et al. call content features critical for generalisation and mitigating cold start, and YouTube's paper says demographic features provide priors so that recommendations behave reasonably for new users. As clicks arrive, in-session signals take over from those priors.\n\nThe second sentence of the key idea is about where computation happens, and Netflix's architecture post defines the three modes. Offline computation runs as batch, with almost no limit on data size or algorithm complexity, but its results grow stale between runs. Online computation uses the latest data but must meet a response-time SLA, which limits how complex it can be. Nearline is the compromise: computed like online, in response to user events, but the result is stored instead of served immediately, so it can be asynchronous.\n\nPut together for a new user: offline jobs train the models and precompute popular lists; a nearline job updates the user's state seconds after each play; the online request reads that state and ranks.",
+  [
+   "yi-two-tower",
+   "youtube-dnn-recs",
+   "netflix-big-personal"
+  ]
+ ]
+];
 SD.deep["5.8"] = [
  [
   "A language model stores what it knows in its weights; the RAG paper calls this parametric memory. Changing a fact stored there means more training. RAG adds a second, non-parametric memory: text sitting in an index outside the model, which the model reads at question time. In the original paper the generator was a pre-trained seq2seq model and the index was a dense vector index of Wikipedia.\n\nThe authors tested the \"update by changing the index\" claim directly. They built one index from a December 2016 Wikipedia dump and another from December 2018, and asked the same model about world leaders who had changed in between. The answers followed whichever index was plugged in, with no retraining. They called this hot-swapping the index.\n\nThe analogy is a new hire and the company wiki. You do not send the person back to university when a policy changes; you edit the wiki page. The interview follow-up is usually \"why not fine-tune instead?\", and this is the answer: an index edit takes effect on the next query, and you can point to the passage an answer came from.",
@@ -431,6 +470,42 @@ SD.deep["5.13"] = [
    "borg-eurosys15",
    "aws-spot-best-practices",
    "aws-spot-interruption"
+  ]
+ ]
+];
+SD.deep["5.14"] = [
+ [
+  "The two phases differ because of what is known in advance. All prompt tokens exist before the model starts, so it can process them together in one parallel pass: that is prefill, and it ends with the first output token. After that, each new token depends on the one before it. Databricks describes each generated token being appended to the input and fed back in to produce the next, so decoding is a loop that cannot be parallelised across positions.\n\nPut numbers in their formula, latency = TTFT + TPOT x output tokens (my example values). With a time to first token of 0.5 s and 30 ms per output token, a 100-token answer takes 0.5 + 3 = 3.5 s, and a 1,000-token answer 0.5 + 30 = 30.5 s. Doubling the prompt barely moves the first term; doubling the answer nearly doubles the total. Databricks measured the same asymmetry: adding 512 input tokens increased latency less than producing 8 more output tokens on the models they tested.\n\nWhat follows in a design: cap or shorten outputs before anything else, and stream, because streaming does not make generation faster but lets the user start reading at TTFT. Their reference point is that a TPOT of 100 ms is 10 tokens per second, about 450 words a minute, faster than a typical person reads.",
+  [
+   "databricks-llm-inference"
+  ]
+ ],
+ [
+  "To choose the next token, every attention layer compares the newest position against a \"key\" and \"value\" vector for each earlier token. Those vectors for earlier tokens do not change once computed, so recomputing them at every step would be wasted work. The KV cache stores them: per step, only the new token's key and value are computed and appended. That turns each step from \"reprocess the whole prefix\" into \"process one token and look up the rest\".\n\nThe price is memory, and the vLLM paper works the example. For the 13-billion-parameter OPT model, one token's cache is 2 (key and value) x 5120 (hidden size) x 40 (layers) x 2 bytes (16-bit floats) = 819,200 bytes, about 800 KB. A 2,048-token sequence therefore needs up to 1.6 GB. With GPU memory in the tens of GB, some of it already holding the weights, the paper concludes only a few tens of requests could fit even if all the rest went to KV cache.\n\nThat is why memory, not arithmetic, sets the batch size. It is worse when managed badly: reserving the maximum length for every request wastes most of the reservation. vLLM's PagedAttention allocates the cache in fixed-size blocks on demand, like an operating system's paged virtual memory, and reports 2 to 4 times the throughput at the same latency.",
+  [
+   "vllm-pagedattention"
+  ]
+ ],
+ [
+  "A GPU does a batch of sequences in one forward pass for little more than the cost of one, so batching is how serving becomes affordable. The naive way is request-level: collect 8 requests, run them until all 8 are finished, return. Requests differ wildly in length, though. If seven need 20 tokens and one needs 2,000, the seven sit finished but unreturned for 1,980 more steps, their slots idle, while new arrivals queue. The Orca paper states the problem in those terms: requests that finish early cannot return to the client, and newly arrived requests wait until the whole batch finishes.\n\nIts fix is iteration-level scheduling: the scheduler asks the engine to run just one iteration (one token step) on the batch, then reconsiders. After each step, finished sequences leave and waiting ones take their slots. Think of a ski lift that loads every chair as it passes, instead of a bus that waits until everyone has returned.\n\nThe batch-size trade-off remains. Databricks: processing 16 queries concurrently gives higher throughput than running them one after another, but each user's tokens arrive more slowly. So the batch limit is a product decision: an interactive chat sets a ceiling on time per token, while an overnight batch job maximises tokens per second.",
+  [
+   "orca-osdi22",
+   "databricks-llm-inference"
+  ]
+ ],
+ [
+  "Prefill produces the KV cache for the prompt. If two requests begin with the same tokens, the cache for that shared stretch is identical, so the second request can load it and prefill only what differs. vLLM's documentation describes exactly this: a new query reuses the KV cache if it shares the same prefix with an existing one, skipping computation of the shared part. Its example is someone querying one long manual repeatedly; the document is processed once.\n\nWhy only a prefix? Each token's cached state depends on every token before it. Change token 5 and everything from 5 onward is invalid. So a prompt that starts with the current time or the user's name shares nothing with the next request, even if the following 10,000 tokens are the same. Anthropic's guidance is to place static content (tool definitions, system instructions, context, examples) at the beginning; its cache entries last 5 minutes by default and are refreshed on each use.\n\nWhy it does not speed up the answer: the saving is all in prefill. vLLM states that it reduces the time to process the query and not the time to generate new tokens, so it brings no gain when most time is spent generating. In the latency formula it shrinks TTFT and leaves TPOT x output tokens untouched.",
+  [
+   "vllm-prefix-caching",
+   "anthropic-prompt-caching"
+  ]
+ ],
+ [
+  "Speculative decoding attacks the one-token-per-step loop. A small, fast model guesses the next several tokens; the large model then checks all those positions in a single parallel pass, as it would a prompt. Guesses it agrees with are kept, the first disagreement is replaced with its own choice, and the rest are discarded. The Leviathan paper's sampling rule guarantees the output distribution is unchanged, and it reports 2 to 3 times faster T5-XXL with identical outputs. Every run of the large model yields at least one token, so it never takes more serial steps than normal. The catch is in the paper too: total arithmetic may be higher, since rejected guesses are wasted work. Its premise is that large-model inference is often bottlenecked on memory bandwidth, leaving compute spare; a GPU already saturated by batching has less to spare.\n\nA cascade changes the answer, not just the speed. FrugalGPT sends a query to a list of models in turn and stops when a response is judged reliable; it reports matching the best single model with up to 98% lower cost on its benchmarks. It needs a trustworthy \"good enough?\" check.\n\nRate limits follow the cost unit: Anthropic's API limits requests, input tokens and output tokens per minute separately, and cached input tokens do not count towards the input limit.",
+  [
+   "spec-decoding-leviathan",
+   "frugalgpt",
+   "anthropic-rate-limits"
   ]
  ]
 ];

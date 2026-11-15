@@ -166,6 +166,50 @@ SD.deep["7.4"] = [
   ]
  ]
 ];
+SD.deep["7.5"] = [
+ [
+  "Each requirement rules out a simpler design. \"Millions of documents\" rules out pasting everything into the prompt: Anthropic's guidance is that a knowledge base under about 200,000 tokens, roughly 500 pages, can simply be included whole, and retrieval is for what lies beyond that. So the first interview move is to ask how big the corpus is.\n\nThe permission rule is stricter than it sounds. Slack states it as a tenet: its assistant can only see the same data the requesting user can see, and search will never surface a result that standard search would not. Slack gets this by fetching with the requesting user's ACL through the same libraries that already fetch data for display, and by showing the output only to the person who asked. The assistant is the user's own reading glasses, not a colleague who has read everything.\n\nThe latency budget exists because retrieval is only the first stage; the model still has to write. Dropbox describes what the budget costs: to keep more than 95% of requests under 1–2 seconds you may have to use smaller embedding models, which can reduce accuracy. Their own answer was lexical retrieval, chunking at query time and a reranker, with freshness from periodic syncs plus webhooks.",
+  [
+   "anthropic-contextual-retrieval",
+   "slack-ai-secure",
+   "dropbox-dash-rag"
+  ]
+ ],
+ [
+  "The index does not store documents; it stores chunks, and nothing in a vector index knows that 30 chunks belong together unless you record it. Pinecone's guide gives the convention: each chunk gets a structured ID prefixed with the source document's ID, such as document1#chunk1, plus a document_id metadata field. That field is what lets you address \"everything from this page\" in one operation.\n\nNow the orphan problem, with numbers. A wiki page was 30 chunks: page#1 to page#30. Someone deletes two sections and the re-chunked page is 24 chunks. If the indexer only upserts page#1 to page#24, those 24 are overwritten correctly, but page#25 to page#30 were never touched. They still hold the deleted text, still match searches, and can still be quoted in an answer. Hence the rule: when the number or order of chunks changes, delete everything with that document_id, then upsert. Pinecone notes the one cheap case: if only one chunk's content changed and the count did not, update that chunk by its ID.\n\nStoring the ACL groups on every chunk looks redundant, but it is what makes the later filter possible: the search engine can only filter on fields that sit next to the vector. The cost is that a permission change means rewriting metadata on every chunk of the document.",
+  [
+   "pinecone-doc-chunks"
+  ]
+ ],
+ [
+  "Each stage is there to fix a weakness of the one before it. Vector search matches meaning but can miss exact strings. Anthropic's example: for the query \"Error code TS-999\" an embedding model may return content about error codes in general, while BM25, which matches words, finds the exact code. Hybrid retrieval runs both and merges the two lists with rank fusion, deduplicating as it goes.\n\nRetrieval is cheap per chunk but imprecise; a reranker scores each chunk against the query and is better but slower, so it is only affordable on a shortlist. That is the funnel: take the top 150 from retrieval, rerank, keep 20. Anthropic notes the second benefit: the model is processing less information, which reduces cost and latency. Their measured effect, using the share of relevant chunks missing from the top 20: contextual embeddings plus contextual BM25 took the failure rate from 5.7% to 2.9%, and adding reranking cut failed retrievals by 67% overall.\n\nPrompt order follows from how caching works. The cache matches a prefix, in the order tools, system, messages, and a change at one level invalidates that level and everything after it. So anything that changes per question, the chunks and the question, must come last.",
+  [
+   "anthropic-contextual-retrieval",
+   "anthropic-prompt-caching"
+  ]
+ ],
+ [
+  "Picture asking a librarian for the 100 most relevant books, then discarding those you may not read. If you may read 2% of the library, you expect to keep 100 × 0.02 = 2 books. To end up with 20 this way you would have to ask for about 20 ÷ 0.02 = 1,000. That is post-filtering, and Elastic's documentation says the same: it can return fewer than k results even when enough relevant documents exist.\n\nFiltering during the search fixes the count but changes the cost. An HNSW index is a graph that the search walks from neighbour to neighbour. With a filter, many nodes it visits do not qualify, so it must explore more of the graph to collect enough that do. Elastic notes this is the opposite of ordinary queries, where a stricter filter is faster. Lucene limits the damage: when the documents matching the filter in a segment are no more than the candidates the search would examine there, it skips the graph and scores those documents directly.\n\nA namespace per tenant is a different tool: separate storage, not a filter. Pinecone bills 1 read unit per GB of the namespace searched, so 2,000 one-GB tenants cost 1 RU per search separately and 2,000 RU in one shared namespace. Document-level ACLs inside a tenant still need the filter.",
+  [
+   "es-knn-filtered",
+   "pinecone-multitenancy"
+  ]
+ ],
+ [
+  "Asking a model to \"cite your sources\" in the prompt gets you citations the model typed, which can be wrong. The citations feature works differently: the supplied documents are split into citable units (plain text is chunked into sentences), the API parses the citations and extracts the cited text itself, and that is why the pointers are guaranteed valid. A side benefit from the same page: the cited text does not count toward output tokens.\n\nA refusal has to be permitted explicitly. Anthropic's guidance is to give the model permission to admit uncertainty, with wording such as telling it to say it does not have enough information. Otherwise a helpful model fills the gap from memory, which is exactly the answer you cannot cite.\n\nWhy two evaluations? Because the two halves fail independently. RAGAS defines faithfulness by breaking the answer into statements and checking each against the retrieved context: F = supported statements ÷ all statements, so 19 of 20 gives 0.95. That number says nothing about whether the right passages were retrieved. Suppose a chunking change leaves faithfulness at 0.95 but refusals rise. Generation is behaving correctly; it is being handed the wrong chunks. Only a retrieval measure, recall of the needed chunks on a labelled question set, shows that.",
+  [
+   "anthropic-citations",
+   "anthropic-reduce-hallucinations",
+   "ragas"
+  ]
+ ],
+ [
+  "Work one question through. The request is a 2,000-token system prompt, 10,000 tokens of chunks and a 50-token question, 12,050 input tokens, and 300 tokens come back. At $3 per million input and $15 per million output: input 12,050 × $3 ÷ 1,000,000 = $0.0362, output 300 × $15 ÷ 1,000,000 = $0.0045, total about $0.0407.\n\nNow cache the prefix. Only the 2,000-token system prompt is identical across questions, and a cache read costs 0.1× the input price. Those tokens fall from $0.0060 to $0.0006, saving $0.0054, which is 0.0054 ÷ 0.0407 ≈ 13%. The chunks alone are 10,000 × $3 ÷ 1,000,000 = $0.03, about 74% of the bill, and they cannot be cached because every question retrieves different ones.\n\nSo the lever on cost is the retrieval budget, not caching: sending 10 chunks instead of 20 saves far more than the cache does. \"Warm\" has a precise meaning too: the default cache lifetime is 5 minutes, so a prefix is only read from cache if another request with the same prefix arrived within that window. A low-traffic deployment keeps paying the 1.25× write price and gets few reads.\n\nThe listed failure modes share one cause: the index is a copy of the sources, and a copy can be stale.",
+  [
+   "anthropic-prompt-caching"
+  ]
+ ]
+];
 SD.deep["7.6"] = [
  [
   "The point of quoting YouTube is that it shows what the latency requirement is measured in: views, not milliseconds. A violating video that is removed after an hour with zero views did no harm; one removed after five minutes with 50,000 views did. So the question to ask is how many views a violation may collect, per category.\n\nWork the numbers through. Of just over 8M removals, 6.7M (about 84%) were first flagged by machines. 76% of 6.7M is about 5.1M removed before anyone watched, which leaves about 1.6M machine-flagged videos that were seen at least once. For violent extremism the same post says that at the start of 2017 only 8% of removed videos came down with fewer than 10 views, and after machine flagging arrived in June 2017 it was more than half. Videos matched to known extremist content at upload are excluded from that figure because they never went live.\n\nOne thing the post is explicit about: machines flag, people still decide. In its words, more machine learning meant more people reviewing content, not fewer. That is why the rest of this design is sized in reviewers.",

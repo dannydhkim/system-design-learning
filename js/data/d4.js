@@ -175,3 +175,45 @@ SD.deep["4.4"] = [
   ]
  ]
 ];
+SD.deep["4.5"] = [
+ [
+  "Fowler and Lewis define the style as a single application built as a suite of small services, each in its own process, built around business capabilities and independently deployable. Their complaint about the monolith is about coupling of change and of scale: a change to a small part requires the entire monolith to be rebuilt and deployed, and scaling means scaling the entire application rather than the parts that need more resource. They also state plainly that a monolith scales horizontally by running many instances behind a load balancer.\n\nSo what is actually gained? Say image resizing needs big-memory machines and takes 5% of requests. In a monolith every copy must be the big-memory size, and you add copies of everything to get more resizing. As a service, resizing gets its own machine type and its own instance count.\n\nThe team argument is Conway's law, which the article quotes: an organisation's design copies its communication structure. If teams are split by layer (UI, logic, database), a simple feature needs three teams to coordinate. Organising services around a business capability lets one cross-functional team own everything for that area and release on its own schedule.\n\nThe interview follow-up is \"what forces the split?\" Good answers are a team needing its own release cadence, or a part needing different hardware, not size.",
+  [
+   "fowler-lewis-microservices"
+  ]
+ ],
+ [
+  "Inside one process, calling another module is a function call: nanoseconds, and it cannot \"time out\". Split the modules into services and the same call crosses a network: it is serialised, sent, queued, and may fail or hang independently of the caller. Fowler's trade-offs article lists this first among the costs: remote calls are slow and always at risk of failure.\n\nHis latency example: a service calls half a dozen services, each of which calls another half dozen, and the response times add up. Worked through with my own numbers: at 10 ms per call made one after another, the first layer is 6 x 10 = 60 ms and the second 36 x 10 = 360 ms, 420 ms in total. His mitigation is asynchrony: six calls made in parallel cost only as much as the slowest one rather than the sum, at the price of harder code.\n\nFailure compounds the same way (again my arithmetic): if each of 42 downstream services is up 99.9% of the time and the request needs all of them, it succeeds 0.999^42, about 95.9% of the time.\n\nThe other two costs he names are eventual consistency, because strong consistency across services is extremely difficult, and operations: half a dozen applications turn into hundreds of little services to deploy, monitor and page on.",
+  [
+   "fowler-microservice-tradeoffs"
+  ]
+ ],
+ [
+  "The reason to split by data is that a shared table is a hidden interface. If Orders and Billing both read the customers table, renaming a column breaks both, so neither team can change it alone, and you are back to coordinated releases. The database-per-service pattern on microservices.io closes that door: a service's persistent data is private and accessible only via its API, and the database is effectively part of the service's implementation.\n\n\"Database per service\" sounds like dozens of servers, but the pattern page says you do not need to provision a server for each service. With a relational database the options are private tables per service, a schema per service, or a server per service; the first two have the lowest overhead, and a schema makes ownership clearer. The point is the access rule, which you can enforce with a different database user per service.\n\nWhat you give up is the JOIN and the cross-table transaction. \"Show a customer with their recent orders\" used to be one query. Now it is either API composition (the caller fetches the customer from one service and the orders from another and joins in application code) or a replicated view kept up to date from both services' events (CQRS). And \"debit and ship atomically\" becomes a saga.",
+  [
+   "microservices-io-database-per-service"
+  ]
+ ],
+ [
+  "The test is one question: can this service be deployed by itself, today, without anyone else deploying? Fowler makes independent deployment part of the definition, so a suite of services whose deployments must be coordinated is not a microservice architecture, and he adds that many teams get into trouble exactly this way.\n\nThe usual causes are shared things. Two services read the same tables, so a schema change needs both released together. Or they share a client library that all must upgrade at once. Segment's account shows the library version: with a repo per destination and shared libraries, their small team was mired in complexity, and after merging back into one service they made 46 improvements to shared libraries in a year, against 32 in the microservice period.\n\nWhy this is the worst of both: you still pay the network hop, the partial failures and the extra dashboards from the previous key idea, but the benefit you bought them for, releasing independently, is gone. A monolith would at least give function calls and one deploy.\n\nA practical check for an interview design: for each pair of boxes, ask what happens if one is deployed a week before the other. If the answer is \"it breaks\", the boundary is in the wrong place or the contract between them is not versioned.",
+  [
+   "fowler-microservice-tradeoffs",
+   "segment-goodbye-microservices"
+  ]
+ ],
+ [
+  "Every service-to-service call needs the same plumbing: encrypt, authenticate the peer, time out, retry, record metrics. The first answer was a library, but then each language needs its own copy and every upgrade means redeploying every service. The mesh moves that plumbing into a separate process. Envoy's documentation describes it as a self-contained process designed to run alongside every application server; the application talks to localhost and is unaware of the network topology, and the stated benefit is that it works with any application language.\n\nLinkerd's explainer names the two halves: the proxies form the data plane, which carries the traffic, and a control plane configures them as a whole. That is how you get mutual TLS, latency-aware load balancing, retries and traffic shifting (send 5% of calls to the new version) by changing configuration instead of code.\n\nThe cost is easiest to see by counting. A call from A to B now goes A, A's proxy, B's proxy, B: two extra hops each way. Istio's 1.24 figures put one sidecar at about 0.20 vCPU and 60 MB per 1,000 requests per second. My arithmetic: 500 pods each handling 1,000 requests per second is 100 vCPU and 30 GB spent on proxies. Istio also notes each feature lengthens the path inside the proxy and can affect latency.",
+  [
+   "envoy-what-is",
+   "linkerd-service-mesh",
+   "istio-performance"
+  ]
+ ],
+ [
+  "Fowler gives two reasons. The first is that you may not need it: a new application may never have the users that would justify the cost. The second is boundaries. Moving a responsibility between services is much harder than moving it between modules, and he notes that even experienced architects in familiar domains have great difficulty getting boundaries right at the start. A monolith lets you discover where the seams are before they are set in network calls. His preferred form is a monolith designed with care for modularity, in its internal APIs and in how data is stored, so a module can later be lifted out.\n\nSegment's story is the cautionary one. They had split their event pipeline into a service and queue per destination to stop one slow destination delaying all the others (head-of-line blocking). At over 140 services, three full-time engineers were spending most of their time keeping the system alive, and the first fix was to consolidate into a single service. They are candid about what the merge cost: fault isolation is harder, since a bug in one destination can crash the service for all.\n\nThe balanced interview line: the split solved a real problem and created a bigger one for a small team. Team size and operational maturity decide, not fashion.",
+  [
+   "fowler-monolith-first",
+   "segment-goodbye-microservices"
+  ]
+ ]
+];

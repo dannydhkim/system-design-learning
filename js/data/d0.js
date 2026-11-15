@@ -351,6 +351,42 @@ SD.deep["0B.5"] = [
   ]
  ]
 ];
+SD.deep["0B.6"] = [
+ [
+  "The retry is forced on the client by what a timeout does not tell it. Three different failures look identical from outside: the request never arrived, the server crashed halfway through, or the work finished and only the reply was lost. Stripe's engineering post puts it as the success of the operation being ambiguous from the client's perspective; a connection that dies midway through the exchange is its example, while a failure to even connect is the rare case where a retry is obviously safe.\n\nIdempotency removes the need to know which of the three happened. HTTP builds this into its verbs: RFC 9110 says PUT, DELETE and the safe methods (GET, HEAD and so on) are idempotent, and POST is not on that list. The definition is about the intended effect, so the server may still log every copy or return a different status the second time.\n\nWhere it bites: \"retry on timeout\" is only a safe default for the idempotent verbs. The same post also recommends spacing retries with exponential backoff (waits growing as 2^n) plus random jitter, so that many clients failing together do not hammer a recovering server in step.",
+  [
+   "stripe-blog-idempotency",
+   "rfc9110"
+  ]
+ ],
+ [
+  "The client has to mint the key because only the client knows that two HTTP requests are the same intention. To the server, two POSTs for 20 dollars from one customer could be a retry or two real purchases; the key is the client saying \"these are one\". So it is created once per logical operation, before the first attempt, and reused unchanged on every retry. Stripe suggests a V4 UUID or another random string with enough entropy to avoid collisions, and accepts keys of up to 255 characters.\n\nOn the server the key indexes a stored outcome. For its v1 API Stripe saves the status code and body of the first request for a key and returns that saved response to retries, including 500 errors. So a retry is a lookup, not a second execution.\n\nTwo follow-ups interviewers ask. What if the same key arrives with a different amount? Stripe compares the parameters with the original request and returns an error, so a client bug is not silently hidden. And how long are keys kept? Not forever: Stripe's v1 keys can be pruned once they are at least 24 hours old, after which a reused key is treated as a new request.",
+  [
+   "stripe-idempotent-requests"
+  ]
+ ],
+ [
+  "Take the two-step version: SELECT the key, find nothing, do the work, INSERT the key. Two retries 5 ms apart on different servers both run the SELECT before either INSERT, both find nothing, and both do the work. The fix is to let the database be the referee: put a unique index on the key (Brandur's Postgres design uses one across user_id and idempotency_key) and insert first. Exactly one insert wins; the loser gets a constraint violation and knows a twin is already in flight.\n\nWhy the same transaction? AWS's Builders' Library states the requirement as recording the token and all the mutating operations being one ACID operation, so you can never end up with the token recorded and no resource, or the resource created and no token.\n\nThat only works while the side effect lives in your own database. A card charge at an outside processor cannot be rolled back by your transaction. Brandur's rule is that the local \"atomic phase\" must be committed before the foreign call starts: commit key plus a pending record, then call out, then record the result. If the process dies in between, the committed record shows where to resume, and passing the same key onward makes the repeated outbound call harmless too.",
+  [
+   "brandur-idempotency-keys",
+   "aws-bl-idempotent-apis"
+  ]
+ ],
+ [
+  "Delivery and processing are two separate promises. A sender that cannot tell whether a message landed has only two choices: give up (at-most-once, messages can be lost) or resend until acknowledged (at-least-once, messages can repeat). Kafka's design document describes exactly this: a producer that got no response had little choice but to resend, and the message may then be written twice if the first attempt had in fact succeeded. The consumer side has the same hole: crash after processing but before saving your position, and the replacement process sees those messages again.\n\nSo nobody removes duplicates from the wire; they are made harmless at the receiver. The idempotent-consumer pattern on microservices.io does it with a PROCESSED_MESSAGE table whose primary key is (subscriberId, messageID). The handler inserts the message ID in the same transaction as its business update; for a repeat, the insert fails and the handler rolls back and ignores the message. Kafka's idempotent producer is the same trick inside the broker: each producer gets an ID and sends sequence numbers, and the broker drops repeats.\n\nIn an interview, say \"effectively once\", and name where the dedup record lives. Without that, \"exactly-once\" is a claim with no mechanism behind it.",
+  [
+   "kafka-design",
+   "microservices-io-idempotent-consumer"
+  ]
+ ],
+ [
+  "The test is whether the operation reads the current state to compute the new one. \"Set status = shipped\" ignores what was there: run it once or five times and the row ends as shipped. \"balance = balance - 10\" depends on the previous value, so each repeat moves it again: 100 becomes 90, then 80. The microservices.io pattern page gives the same example, a consumer of an AccountDebited message that subtracts the amount from the current balance and ends with the wrong balance when the message repeats.\n\nThree ways to turn a relative change into an absolute one. Send the result instead of the delta (\"balance = 90\"). Guard it with a version (\"... WHERE version = 3\"), so a second run matches zero rows. Or key the write by identity: Kafka's design notes observe that when messages carry a primary key, receiving one twice just overwrites the record with another copy of itself.\n\nWhy prefer this over idempotency keys where you can: there is no key table to store, expire or race on. The limit is that some operations are deltas by nature, such as appending to a log, adding a ledger row or charging a card. Those need a key.",
+  [
+   "microservices-io-idempotent-consumer",
+   "kafka-design"
+  ]
+ ]
+];
 SD.deep["0C.1"] = [
  [
   "Each of the four boxes has one job. The client originates requests. The load balancer spreads them over several copies of the service. The service runs the logic and remembers nothing between requests. The database remembers everything. That is enough to make any create-and-read feature work, which is the bar for a first diagram.\n\nThe reason to start there is that a simple design that works can be improved, while a sophisticated one that is unfinished cannot be assessed. Hello Interview says it is incredibly common for candidates to layer on complexity too early and never arrive at a complete solution. Its advice: build a relatively simple design that meets the core functional requirements, and when you spot a place for a cache or a queue, note it with a quick verbal callout and move on. The complexity belongs in the deep dives, where it answers a non-functional requirement.\n\nIts own Twitter walkthrough ends the high-level design with a system it calls woefully inefficient at fetching feeds, and treats that as fine: that is what the deep dive iterates on. The staff-level article says the same: start as basic as possible and acknowledge it may be deficient in places.",

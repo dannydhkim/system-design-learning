@@ -232,3 +232,82 @@ SD.deep["2.6"] = [
   ]
  ]
 ];
+SD.deep["2.7"] = [
+ [
+  "'Default' has a specific reason behind it: a relational database is the one store that does not make you decide your queries in advance. You describe the data as tables, and SQL lets you ask questions later that nobody planned for, joining orders to users to products on the fly. Transactions let several rows change together or not at all, and constraints such as foreign keys make the database itself refuse broken data. Hello Interview's guide describes Postgres as the fit for structured data with clear relationships that needs strong consistency, and recommends starting from a normalised relational model, denormalising only specific hot paths once a read problem is shown.\n\nContrast that with the stores below, each of which is fast because it gives something up. The same guide's example: model posts in DynamoDB keyed by user ID and 'all posts for user X' is one fast lookup, but 'all posts mentioning hashtag Y' means scanning the whole table, because the layout was built for one access pattern.\n\nSo 'something forces otherwise' should be a named pressure: write volume beyond one primary, blobs, full-text ranking, similarity search. Without one, extra stores only add work.",
+  [
+   "hi-core-concepts"
+  ]
+ ],
+ [
+  "A key-value store offers roughly two operations: put a value under a key, and get the value for a key. No joins, no 'where' on other fields, usually no transaction spanning several keys. That narrowness is what makes it fast and easy to spread over machines: the key alone says which machine holds the data, so every request goes straight to one node, and adding nodes adds capacity.\n\nThe Dynamo paper is the classic statement of why this is worth having. Amazon observed that many of its services, including shopping carts, session management, best-seller lists and the product catalogue, only ever stored and fetched data by primary key, and that running them on a relational database meant paying for query machinery they never used while limiting scale and availability. Dynamo's requirements say it outright: simple reads and writes of an item identified by a key, and no operation spans multiple items.\n\nA document store is the same idea with a structured value, such as JSON, that the store can look inside. The interview test is whether you can list the access patterns up front. If every one is 'fetch by ID', this fits; if you keep wanting ad hoc filters, it does not.",
+  [
+   "dynamo-sosp07"
+  ]
+ ],
+ [
+  "Object storage is a giant key-to-file map reached over HTTP: put a whole object under a name, get it back by name. You cannot update the middle of an object or query its contents, and in exchange the store handles replication and scale. Amazon S3 says its standard class stores objects redundantly on multiple devices across at least three Availability Zones, checks integrity with checksums, repairs lost redundancy, and is designed for 99.999999999% durability over a year. Working that out: an annual loss chance of 1 in 100 billion per object means that with 10 million objects you would expect to lose one about every 10,000 years.\n\nWhy not a BLOB column? The PostgreSQL wiki lists the costs: a performance hit, higher memory requirements, and backups that take significantly longer. A 2 GB video in a row makes every backup and every replica carry 2 GB that never changes. The wiki also names the price of keeping files outside: the file and its database row can get out of sync.\n\nThe standard design: metadata and the object key in the database, bytes in object storage, served through a CDN. Clients often upload directly to the object store.",
+  [
+   "s3-data-durability",
+   "pg-wiki-binary-files"
+  ]
+ ],
+ [
+  "The workload has three unusual properties. Writes are almost all appends at 'now', rarely updates. Reads ask for a time window and usually an aggregate, such as average CPU per minute over the last day. And the value of a point decays: last hour's ten-second detail matters, last year's does not. Scale makes this pressing: a million series reporting every 10 seconds is 100,000 points a second, or 8.64 billion a day.\n\nDownsampling is the response. InfluxDB's guide walks through a concrete setup: keep raw ten-second data for two hours, continuously aggregate it into 30-minute summaries, and keep those for 52 weeks. One 30-minute summary replaces 180 raw points, so long-range storage shrinks by that factor and a year-long query reads far fewer rows.\n\nExpiry is cheap for a structural reason. These stores partition data by time, so removing old data means dropping whole partitions rather than deleting rows one by one. TimescaleDB's documentation says it drops data by the chunk, and only chunks whose data all falls outside the retention window.\n\nInterview follow-up: what resolution do you keep, for how long, and which aggregates (keep max as well as mean, or spikes disappear).",
+  [
+   "influx-downsample",
+   "timescale-retention"
+  ]
+ ],
+ [
+  "A normal index answers 'which rows have this value?'. Text search asks 'which documents contain this word?', the reverse of how documents are stored, hence inverted index: Lucene's documentation says it lists, for a term, the documents that contain it. Elastic's walkthrough gives the mechanics: terms sit in a sorted dictionary, each pointing at the list of documents containing it, and a multi-word query looks up each term and intersects the lists for AND or unions them for OR. The index files are immutable, which is one reason a search index is fed asynchronously and lags the database slightly.\n\nVector search asks a different question: which stored vectors are closest to this one? Being exact means comparing against every vector; pgvector does exactly that by default, with perfect recall. An approximate index trades some recall for speed. HNSW builds a multilayer graph; search starts in the sparse upper layer, hops greedily towards the query, and descends, which the HNSW paper says gives logarithmic scaling. Recall is tunable: in pgvector, raising ef_search (default 40) improves recall at the cost of speed.\n\nWhere it bites: results change after adding the index, so measure recall and do not assume it.",
+  [
+   "lucene-index-format",
+   "elastic-bottom-up",
+   "pgvector",
+   "hnsw"
+  ]
+ ],
+ [
+  "A graph database stores relationships as first-class records. Neo4j's model: nodes are entities, and each relationship connects a source node to a target node with a direction and a type. Queries are traversals: start at a node and follow relationships according to rules, usually visiting only a small part of the graph. Neo4j's own example question is 'what music do my friends like that I don't yet own?'\n\nIn a relational database each hop is another join of the friendships table against itself, and the work multiplies: with 200 friends each, three hops is up to 200 × 200 × 200 = 8 million paths to consider. A graph store is organised around following those links, so it suits queries whose depth is large or unknown. For one or two hops, a join in Postgres is normally fine.\n\nThe closing warning applies to every store in this topic. The second system needs deploying, monitoring, backing up, and above all feeding. Writing to both from the application leaves them inconsistent when one write fails; the usual answer is one source of truth with changes streamed from its log, which Debezium's documentation contrasts with dual writes because it captures all changes. Even then the copy lags.",
+  [
+   "neo4j-graph-concepts",
+   "debezium-features"
+  ]
+ ]
+];
+SD.deep["2.8"] = [
+ [
+  "Auto-increment works because one database hands out every number in turn, and that single turnstile is also the problem: every insert anywhere must go through it, and if it is down nothing can be created. Once data is split over many database servers, each one counting 1, 2, 3 on its own would produce clashing IDs.\n\nFlickr's \"ticket servers\" show the classic patch. A dedicated MySQL box does nothing but issue numbers (a REPLACE INTO on a one-row table, then read LAST_INSERT_ID). To avoid a single point of failure they run two and split the ID space into evens and odds: one server steps by 2 starting at 1, the other by 2 starting at 2, and callers round-robin between them. The cost is visible in their own write-up: the two sides drift out of step, so IDs are unique but no longer strictly in creation order. Vitess softens the bottleneck differently, letting each server reserve a block of, say, 1000 values at a time.\n\n\"Leak your volume\" means this: sign up today and get user 5,000, sign up a week later and get 5,700, and you have measured their weekly growth. Vitess's documentation lists exactly this as a reason not to use auto-increment, alongside trying neighbouring IDs.",
+  [
+   "flickr-ticket-servers",
+   "vitess-sequences"
+  ]
+ ],
+ [
+  "Where do the other 6 bits go? A UUID is 128 bits, but 4 are fixed to say \"version 4\" and 2 to mark the variant, so RFC 9562 counts 122 random ones. No coordination is needed because the space is so large that two independent generators picking at random will not meet. My arithmetic, by the birthday bound: the chance of any collision among n IDs is about n squared divided by 2 times 2^122. For a billion IDs that is 10^18 / 10^37, roughly one in 10^19.\n\nThe index cost comes from how a B-tree stores keys: sorted, in pages. Sequential keys always land on the rightmost page, which stays in memory. Random keys land on a random page each time. The RFC's wording is that new values created in succession are not close to each other in the index, so inserts happen at random locations, and the effect on B-trees \"can be dramatic\". Picture filing each new invoice at a random spot in a warehouse of cabinets instead of at the end of the last drawer: once the index is bigger than RAM, most inserts must first fetch a cold page from disk.\n\n\"Not sortable\" matters too: ORDER BY id says nothing about creation order, so you need a separate created_at column and index.",
+  [
+   "rfc9562"
+  ]
+ ],
+ [
+  "Each field buys one guarantee. Twitter's Snowflake README gives the layout: 41 bits of milliseconds since a custom epoch, a 10-bit configured machine ID, and a 12-bit sequence. Two machines can never collide because their machine bits differ. One machine never collides with itself because, within a millisecond, the sequence counts up, and the next millisecond changes the time bits. The limits fall out as powers of two: 2^12 = 4,096 IDs per millisecond per machine, 2^10 = 1,024 machines, and 2^41 ms is about 69 years.\n\n\"Roughly\" sortable because the timestamp is the high bits, so IDs order by millisecond first; within the same millisecond, IDs from different machines order by machine number, not by which was really first. Good enough for \"newest first\" feeds and cursor pagination.\n\nThe two conditions are the price of having no coordinator per ID. Machine IDs must be handed out uniquely once, at start-up: two workers sharing an ID can mint the same value. And the clock must not go backwards, or a machine could reissue a timestamp it has already used. The README's answer: if the clock repeats some milliseconds, Snowflake refuses to generate IDs until time passes the last ID it issued. That is a deliberate trade of brief unavailability for no duplicates.",
+  [
+   "snowflake-readme"
+  ]
+ ],
+ [
+  "These keep the UUID size but swap the front of it for a clock. A ULID is a 48-bit millisecond timestamp followed by 80 random bits, written as 26 characters; UUID v7 puts a 48-bit Unix millisecond timestamp in the most significant bits and fills the remaining 74 with random bits. No machine ID is needed: uniqueness inside a millisecond comes from the randomness, which is why they need no coordination and also why order within one millisecond is not guaranteed (the ULID spec says so directly, and offers an optional monotonic mode that increments the random part).\n\nBecause the timestamp leads, new keys are all bigger than old ones and land together at the right edge of the B-tree. RFC 9562 says the difference between that locality and random inserts can be an order of magnitude or more.\n\nThe same property is a liability when data is split by key range: every new row falls into the newest range, so one shard takes all the writes. Figma hit this when sharding Postgres: many chosen keys were auto-incrementing or Snowflake timestamp-prefixed, which would have put most data on a single shard. Their fix was to route by a hash of the key, accepting that range scans across shard keys become less efficient.",
+  [
+   "ulid-spec",
+   "rfc9562",
+   "figma-sharding"
+  ]
+ ],
+ [
+  "Each question eliminates options, so ask them in the order that prunes fastest.\n\nFits in 64 bits? This knocks out UUID v4, v7 and ULID, which are 128. It matters when the ID is a bigint primary key repeated in every foreign key and index: 8 bytes against 16, times every reference.\n\nSortable by time? This knocks out UUID v4. If you paginate \"newest first\" by ID or want inserts clustered, you need a timestamp prefix: Snowflake-style, v7, ULID, or a plain sequence.\n\nNo network call? This knocks out a central sequence or ticket server, which is a round trip per ID (or per reserved block) and a dependency that can be down.\n\nUnguessable? This knocks out sequences, and weakens anything timestamp-led, since the leading bits are predictable. Even here, RFC 9562 warns not to assume UUIDs are hard to guess and says they must not be used as security capabilities, meaning identifiers whose mere possession grants access. So \"unguessable\" reduces enumeration; it never replaces an authorisation check.\n\nWorked example: a chat message ID that must sort by time, fit a bigint and be created on any app server leaves only Snowflake-style. A public share-link token with no ordering need points to random bits instead.",
+  [
+   "rfc9562"
+  ]
+ ]
+];

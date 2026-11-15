@@ -216,3 +216,86 @@ SD.deep["6.5"] = [
   ]
  ]
 ];
+SD.deep["6.6"] = [
+ [
+  "The numbers look large until you divide them. Black Friday to Cyber Monday is four days, or 345,600 seconds, so 300 million transactions average 300,000,000 ÷ 345,600 ≈ 870 a second. That is a modest write rate for a database fleet; the peak is higher, but nothing like a social feed. The average payment is $18.6B ÷ 300M = $62, and that is the point: each of those 870 writes a second is someone's money, so none of them may be lost or doubled.\n\nThe availability figure shows how tight this is. 99.999% allows 0.001% downtime; over those four days that is 345,600 × 0.00001 ≈ 3.5 seconds.\n\nThe Ledger figure is on a different scale: five billion events a day is 5,000,000,000 ÷ 86,400 ≈ 58,000 a second. Stripe explains why bookkeeping outruns payments: Ledger records the operations of many internal producer systems, some of which emit billions of events a day and others a few hundred.\n\nSo in an interview, spend one sentence on throughput and the rest on correctness: exactly-once charging, reporting outcomes that arrive later, and proving the books balance.",
+  [
+   "stripe-ledger"
+  ]
+ ],
+ [
+  "Think of a PaymentIntent as the tracking record for one parcel: a single object that lives from \"we know the amount\" until the money has arrived, however many delivery attempts that takes. Stripe's advice is to create it as soon as you know the amount to charge, so that every attempted payment is recorded on it. A declined card does not create a new object; the same one steps back and waits for another payment method.\n\nWhy a state machine and not a boolean \"paid\"? Because a payment has waiting rooms. One is the customer (3D Secure authentication). One is the bank: asynchronous methods such as bank debits can take up to a few days, and the object sits in processing all that time. Most integrations never see requires_confirmation, because they send the payment details in the same call that confirms.\n\nWhere it bites: only succeeded means the funds are in your account and you can confidently fulfil the order. Shipping on processing is shipping on hope. Cancelling is also state-dependent: it releases any held funds and cannot be undone, and once a payment is processing it is only possible for a few bank-debit methods, within a window that may already have closed.",
+  [
+   "stripe-paymentintents-lifecycle"
+  ]
+ ],
+ [
+  "The key is a cloakroom ticket that the client writes for itself. The client invents a unique string (Stripe suggests a V4 UUID; keys can be up to 255 characters) and attaches it to the POST. The server files the outcome of the first request under that ticket, and anyone presenting the same ticket again is handed the same outcome instead of having the work redone.\n\nThree details answer the usual follow-ups. First, the result is saved only after the endpoint starts executing. A request that fails parameter validation, or that collides with a concurrent request using the same key, never started, so nothing is saved and it is safe to send again. Second, the server compares the retry's parameters with the original's and returns an error if they differ, which stops one ticket being reused by accident for a different charge. Third, GET and DELETE take no key because they are idempotent by definition.\n\nThe surprising part is that a saved 500 is replayed too. That is deliberate: a 500 does not say whether the charge happened, so the honest replay is the same uncertain answer. And the ticket expires: after a key is pruned, reusing it generates a new request, which is why the 24-hour figure matters.",
+  [
+   "stripe-idempotent-requests"
+  ]
+ ],
+ [
+  "The trap is that a timeout tells you about the connection, not about the charge. The request may never have arrived, or it may have run to completion and only the reply was lost. Stripe's guide says it directly: restoring connectivity does not tell you whether the original request succeeded.\n\nSo there are two different tools. For a network error, the same key is the tool: Stripe either runs the request for the first time or replays the stored result, so a retry cannot create a second object. For a 500, the same key cannot help, because API v1 caches the 500 and returns that cached response on every retry. The key now only protects you; it does not inform you. The information is elsewhere: retrieve the object, and read webhook events. During incident recovery Stripe tries to reconcile failed operations and sends webhook events for objects created along the way, while the cached response stays unchanged.\n\nThat leads to a design detail worth volunteering: put your own order ID in the object's metadata when you create it, so that an object you first learn about from a webhook can be matched to your local record. Stripe adds that reconciliation is not guaranteed for every operation, and that if you cannot establish what happened you should contact support before repeating it.",
+  [
+   "stripe-error-handling"
+  ]
+ ],
+ [
+  "Stripe's own analogy is plumbing: money is water flowing through pipes (processes) into reservoirs (balance sheets). When everything has settled, the reservoirs are full and the pipes are empty. Water still sitting in a pipe is a problem.\n\nA clearing account is one such pipe. Take a $40 charge for business A. The charge.creation event puts +$40 into a charge_undisbursed account identified by the business and the charge ID. Later charge.release moves $40 out, to the business's balance. The two events are independent and may arrive in either order; they meet because they carry the same identifiers, and the account returns to zero.\n\nNow publish three releases tagged business B by mistake. A's account stays at +$120 and a B account that never had a charge shows −$120. The total across both is still zero, which is why a grand total proves nothing. The check that works is per account: Stripe's example query is to find the clearing accounts with a nonzero balance.\n\nImmutability shapes the repair. Events are never edited or deleted, so a correction means reverting and reprocessing earlier operations, and Stripe built migration tooling with a two-phase review for that. \"Within four days\" reflects that clearing is judged at steady state, after late events have had time to arrive.",
+  [
+   "stripe-ledger"
+  ]
+ ],
+ [
+  "Each of the handler's rules follows from one fact: Stripe keeps sending an event until your endpoint answers 2xx, for up to three days with exponential backoff. Delivery is therefore at least once, never exactly once.\n\nStart with the reply. If your handler does slow work first and times out, Stripe sees a failure and sends the event again, so slow handlers manufacture their own duplicates. Hence: verify, put the event on a queue, return 2xx, and process at your own pace. Stripe gives the reason for the queue: a spike, such as the start of the month when all subscriptions renew, can overwhelm endpoint hosts.\n\nDeduplication must use the event ID because the created timestamp is recorded in seconds, so distinct events can share a value; it can neither order events nor identify repeats.\n\nThe signature covers the timestamp as well as the body, so an attacker who captures a valid delivery cannot change its date without invalidating the signature. That makes a recency check meaningful: reject anything older than the tolerance, 5 minutes by default in Stripe's libraries. Legitimate retries are not caught by this, because Stripe generates a new timestamp and signature for each delivery attempt. One trap: setting the tolerance to 0 disables the recency check entirely.",
+  [
+   "stripe-webhooks"
+  ]
+ ]
+];
+SD.deep["6.7"] = [
+ [
+  "Dividing the slide's numbers shows what kind of system this is. 19 billion messages in per day is 19,000,000,000 ÷ 86,400 ≈ 220,000 a second on average, against a measured peak of 342,000: the peak is only about 1.6 times the average, so load is steady around the clock. That is what a worldwide user base gives you, and it means you cannot plan to catch up overnight.\n\nOutput is about double input, 40 billion against 19 billion (and 712,000 a second out at peak against 342,000 in). The talk's own heading for output is \"Messages, Notifications, & Presence\": one message coming in produces more than one thing going out.\n\nThe third number sets the shape of the fleet. 147 million connections open at once out of 465 million monthly users is roughly a third of everyone, connected at the same moment. So the first resource you run out of is not CPU for messages but the number of open sockets a machine can hold, which is why the next key idea is about connections per server.\n\nThe requirements pull against each other: \"often offline\" forces the server to hold messages, while end-to-end encryption means it must hold them without being able to read them.",
+  [
+   "reed-efsf2014"
+  ]
+ ],
+ [
+  "A phone cannot be called from the internet, so it has to call the server and keep the line open. Once that connection exists, the server can push a message down it the instant one arrives. The cost is one open socket per online device, which makes \"how many sockets fit on one box\" the capacity question.\n\nThe 2012 blog post answers it with a screenshot: 2,277,845 open sockets on one machine with 24 CPUs and 103,062,118,400 bytes (about 96 GiB) of memory, with the CPU 41.9% idle and 27 GB free. The stack it lists is FreeBSD and Erlang.\n\nTwo years later the fleet did not run at that limit. Dividing the talk's figures, 147,000,000 connections ÷ 150 chat servers ≈ 980,000 each, which is about half of what one box had been shown to hold. A sensible reading (mine, not the slide's) is headroom: when a server dies its phones reconnect to the others, and the talk reports 230,000 logins a second at peak.\n\nThe connection is wrapped in Noise Pipes, which WhatsApp's white paper credits with fast, lightweight connection setup and resume, and with hiding the connecting user's identity from network observers. That matters on mobile networks where connections drop and resume constantly.",
+  [
+   "whatsapp-1m-2011",
+   "reed-efsf2014",
+   "whatsapp-encryption-overview"
+  ]
+ ],
+ [
+  "The model is a post office counter, not an archive. The server keeps a parcel only while the addressee has not collected it; once it is handed over, the post office has nothing. WhatsApp's policy states both halves: messages are deleted from its servers once delivered, and an undelivered one is kept in encrypted form for up to 30 days while delivery is retried, then deleted.\n\nTwo consequences follow. First, server storage grows with the backlog of uncollected messages, not with total history. In the 2014 talk this store is a separate box in the system diagram called offline storage, and the same talk notes that most messages are picked up very quickly, so the backlog is a small fraction of traffic.\n\nSecond, history has to live on the devices. When a new companion device is linked, it is the primary device, not the server, that encrypts a bundle of messages from recent chats and transfers it; afterwards the companion reads history from its own local database.\n\nThe ticks are the acknowledgements travelling back along the same path, one per hop. Worked example: Bob's phone is off for six weeks and he has no other device. Alice's message waits 30 days, is deleted, and her single tick never becomes two.",
+  [
+   "whatsapp-privacy-policy",
+   "reed-efsf2014",
+   "meta-whatsapp-multidevice"
+  ]
+ ],
+ [
+  "Normally two parties agree a key by exchanging messages while both are online. X3DH, the Signal key agreement, removes that need by having Bob do his half in advance. The specification explains the name: prekeys are essentially protocol messages that Bob publishes to the server before Alice begins. Think of Bob leaving a stack of open padlocks at the post office; anyone can take one, lock a box and post it, and only Bob has the keys.\n\nThe three kinds have different lifetimes. The identity key is uploaded once. The signed prekey is changed periodically. Each one-time prekey is used in a single protocol run, so the server removes it from storage after handing it out, and Bob uploads more when told the store is getting low.\n\nThe ratchet is two HMAC calls. WhatsApp's white paper gives them: Message Key = HMAC-SHA256(Chain Key, 0x01), then Chain Key = HMAC-SHA256(Chain Key, 0x02). A hash runs one way, so a stored message key cannot be used to derive the current or past chain key. On top of that, each message round trip performs a fresh Diffie-Hellman agreement that replaces the chain key.\n\nThe consequence to say aloud: the server stores and hands out only public keys, so it can route messages but has nothing with which to decrypt them.",
+  [
+   "signal-x3dh",
+   "whatsapp-encryption-overview"
+  ]
+ ],
+ [
+  "Encryption sessions are between devices, not accounts, so \"send to Ben\" means \"send to every device Ben has\". The server keeps a mapping from each account to its device identities, and the sending client fetches that list. Worked example: Ana has a phone and a laptop; Ben has a phone and two linked devices. From her phone Ana encrypts four copies: three for Ben's devices and one for her own laptop, so the laptop shows what she sent. The work is done on the client because only the client holds the pairwise sessions.\n\nThat does not scale to groups. Take 100 members with two devices each, 200 devices. Pairwise, every message from one device would be 199 separate ciphertexts uploaded from a phone. With Sender Keys the 199 pairwise messages are paid once: the sender generates a random 32-byte chain key and a signature key pair and encrypts that Sender Key individually to each member. After that each message is encrypted once, signed, and sent as a single ciphertext that the server copies to all participants.\n\nThe price appears on membership change. Whenever a member leaves, all participants clear their Sender Key and start over, so everyone repeats the pairwise distribution. A group with frequent departures pays that cost often.",
+  [
+   "meta-whatsapp-multidevice",
+   "whatsapp-encryption-overview"
+  ]
+ ],
+ [
+  "A write-back cache holds new data in memory and writes it to disk later, in batches. For a mailbox that changes the arithmetic, because of one observation on the slide: most messages are picked up very quickly. A message that is collected before its turn to be written never needs to touch the disk at all, so the write that was the bottleneck is simply skipped for most traffic.\n\n\"Variable sync delay\" is the control knob. Under a surge the system can wait longer before syncing; the slide's words are that it can absorb overloads via sync delay. The reasoning-level trade-off, which the slide does not spell out, is that whatever is in memory and not yet synced is exposed if the machine fails, so the delay is a bound on that exposure. A related fix in the same talk keeps large mailboxes from polluting the cache.\n\nThe prekey half is a different kind of failure: exhaustion of a finite resource. The X3DH specification says that when all one-time prekeys are gone the bundle simply contains none and the session still starts, but forward secrecy for the initial key then depends on the signed prekey's lifetime. Since anyone can request bundles, an attacker can drain them on purpose, which is why the specification recommends rate limits on fetching.",
+  [
+   "reed-efsf2014",
+   "signal-x3dh"
+  ]
+ ]
+];

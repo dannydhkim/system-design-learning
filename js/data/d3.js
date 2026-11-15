@@ -227,3 +227,86 @@ SD.deep["3.5"] = [
   ]
  ]
 ];
+SD.deep["3.6"] = [
+ [
+  "Two-phase commit works like a wedding: the coordinator asks every participant \"do you?\", and only after all say yes does it pronounce the commit. The trouble is the gap between the two phases. A participant that has said yes (prepared) has promised it can commit, so it may neither commit nor abort on its own; it waits for the verdict. PostgreSQL's PREPARE TRANSACTION documentation spells out what waiting costs: the prepared transaction continues to hold whatever locks it held, and leaving one prepared for long interferes with VACUUM. So if the coordinator dies after collecting the votes, rows in every participating database stay locked until it returns. Pat Helland's summary is that 2PC can easily block when nodes are unavailable.\n\nConcretely: an order service and a stock service both prepare, the coordinator crashes for ten minutes, and for ten minutes nobody can touch those stock rows, including unrelated orders for the same item. Availability of the whole becomes the product of the parts.\n\nThe second obstacle is support. The outbox pattern page on microservices.io notes that the database or the message broker might not support 2PC at all, and that coupling a service to both is often undesirable anyway. Hence sagas: accept no global atomic commit, and design the undo instead.",
+  [
+   "pg-prepare-transaction",
+   "helland-life-beyond-dt",
+   "microservices-io-transactional-outbox"
+  ]
+ ],
+ [
+  "The original paper was about one database, not microservices: a long-lived transaction (one that might pause for customer input) holds its locks for its whole life and blocks everyone else. The idea was to cut it into short transactions that each commit and release their locks, and to pair each with a compensating transaction. The paper says the compensation undoes the step from a semantic point of view but does not necessarily return the database to the state that existed when the step began.\n\nIts airline example shows why. T reserves a seat: seats taken goes from 40 to 41. Before the saga fails, two other customers book, taking it to 43. A byte-level undo would write back 40 and erase two real bookings. The paper says exactly this: the compensation cannot simply store the number of seats that existed when the step ran, because other transactions could have run in between. The correct compensation subtracts one, giving 42.\n\nThe run order matters too. If step 4 of 6 fails, steps 1 to 3 have really committed, so compensations run newest first: C3, C2, C1. Where it bites: a compensation is new business behaviour somebody must design. Azure's guidance notes that cancelling a flight reservation might not entitle the customer to a complete refund.",
+  [
+   "sagas-1987",
+   "azure-compensating-transaction"
+  ]
+ ],
+ [
+  "Azure's saga guidance sorts steps into three kinds. Compensable steps can be undone by another transaction with the opposite effect. The pivot is the point of no return: once it succeeds, compensable transactions are no longer relevant and all subsequent actions must be completed. Retryable steps follow the pivot; they are idempotent, so they can be repeated until the saga reaches its final state.\n\nSo a saga has two halves with opposite failure handling. Before the pivot, failure means go backwards (compensate). After it, failure means keep going forwards (retry). There is no going back after the pivot, which is why nothing after it may be able to fail for a business reason; it may only fail temporarily.\n\nWorked example, checkout: create order PENDING (compensable: reject it), reserve stock (compensable: release it), charge card (pivot), schedule shipping and send confirmation (retryable). A declined card is still before the point of no return, so stock is released. But suppose you put \"verify delivery address\" after the charge. If it fails, the money is already taken and your only move is a refund, which is a visible, costly compensation. Moving the address check before the charge removes the problem. In an interview, name your pivot and explain why every check that can say \"no\" sits before it.",
+  [
+   "azure-saga"
+  ]
+ ],
+ [
+  "The difference is where the workflow lives. In choreography it lives nowhere in particular: Order emits OrderCreated, Inventory hears it and emits StockReserved, Payment hears that, and so on. Like dancers who each know their cue, there is no conductor. To answer \"what happens after payment fails?\" you must read every service's subscriptions. Azure's comparison lists the costs: the workflow gets confusing as steps are added, it is difficult to track which commands each participant responds to, there is a risk of cyclic dependency because participants consume each other's messages, and integration tests need every service running. The upside it lists is that no extra coordinating service is needed and there is no single point of failure.\n\nIn orchestration the workflow is one piece of code. Azure describes the orchestrator as telling participants which operation to perform, storing and interpreting the state of each task, and handling failure recovery with compensations. Services stay simpler because they only execute commands. The price: the orchestrator is a point of failure managing the complete workflow. If it forgets that saga 812 had reserved stock but not yet charged, nobody else knows to release it. So its state must be durable, written before each command is sent, which is the job workflow engines exist to do.",
+  [
+   "azure-saga"
+  ]
+ ],
+ [
+  "A database transaction hides its half-finished work; a saga cannot, because each step has really committed. Between step 1 and step 5 the rest of the system can read and change the same data. Azure names the resulting anomalies: lost updates (one saga modifies data without considering another's change and overwrites it), dirty reads (reading data another saga has modified but not completed), and fuzzy reads (different steps of one saga see different values).\n\nExample: saga A reserves the last concert seat and then waits on payment. Saga B reads \"sold out\" and tells its customer so. A's card is declined and the seat is released. B acted on a state that, from the business view, never became final: a dirty read.\n\nThe countermeasures rebuild isolation at the application level. A semantic lock is a flag in the data that says \"in progress\", like the PENDING order: other requests see it and must wait, refuse, or treat the record with care. Commutative updates are ones that give the same result in any order (add 5 and subtract 3, never \"set to\"). Rereading means checking a value is unchanged just before updating, and restarting the step if not. Azure also lists reordering the saga so risky updates happen in retryable steps after the pivot, where they can never be rolled back under a reader.",
+  [
+   "azure-saga"
+  ]
+ ],
+ [
+  "Three separate failure windows hide in every step.\n\nFirst, the step may run twice. An orchestrator that crashes after sending \"reserve stock\" but before recording the reply will send it again on restart. AWS's guidance is that saga participants need to be idempotent to allow repeated execution after crashes and orchestrator failures. In practice the command carries the saga ID and step, and the participant records it with the change.\n\nSecond, the step's database commit and its \"done\" message are two writes. Commit then crash, and the saga stalls forever with stock reserved. The transactional outbox writes the message into a table in the same local transaction; a relay publishes it later. The pattern page warns the relay might publish a message more than once, for example by crashing after publishing but before recording that it did, so consumers must deduplicate, usually on message ID.\n\nThird, the undo can fail. Azure's compensating-transaction guidance: compensations are eventually consistent operations and can fail, so the system should record progress to resume from the point of failure, each step should be an idempotent command, and sometimes manual intervention is the only way to recover, in which case raise an alert with details. So a real saga design includes a \"stuck sagas\" queue that a person watches.",
+  [
+   "aws-saga-orchestration",
+   "microservices-io-transactional-outbox",
+   "azure-compensating-transaction"
+  ]
+ ]
+];
+SD.deep["3.7"] = [
+ [
+  "The programmer writes two small functions and the framework does everything in between. Take counting page views per URL over a day of logs. Map reads one log line and emits (url, 1). The framework then guarantees that every pair with the same URL reaches the same reduce task, by computing hash(url) mod R; the paper says the key space is split into R pieces by a partitioning function, and that the hashing default tends to give fairly well-balanced partitions. Reduce receives (\"/home\", [1, 1, 1, ...]) and emits (\"/home\", 31402).\n\nWhy this shape scales: map calls share nothing, so the input can be cut into M pieces and mapped on M machines at once (the paper sizes pieces at roughly 16 to 64 MB). Reduce calls for different keys also share nothing, so R of them run in parallel. The only coordination is the grouping in the middle. Output arrives as R files, one per reduce task.\n\nThe paper's scale figure shows what the single master tracks: computations with M = 200,000 and R = 5,000 on 2,000 worker machines. Notice tasks far outnumber machines; small tasks let work be rebalanced and make recovery after a failure quick. Interviewers often ask who chooses R: the user does, since it fixes the number of output files.",
+  [
+   "mapreduce-osdi04"
+  ]
+ ],
+ [
+  "Re-running is only safe if running twice gives the same answer as running once, and two design choices make that so. The input files never change, and map and reduce are deterministic, so a task is a pure function: same input split in, same output out. The paper's claim is that with deterministic operators the distributed run produces the same output as a non-faulting sequential execution of the whole program.\n\nWhy redo map tasks that had already finished? Their output is the intermediate data, written to the mapper's own local disk and waiting to be fetched by reducers. If that machine dies, the files die with it, so the paper re-executes completed map tasks. Completed reduce tasks are not redone, because their output already sits in the shared distributed file system.\n\nThe remaining danger is two copies of the same reduce task both finishing (after a false failure detection, or a deliberate backup copy of a slow task). Each writes to its own temporary file and then renames it to the final name. Rename is atomic, so the final file holds exactly one execution's data, never a mixture.\n\nWhere it bites: a map function that calls random() or reads the current time, or writes to an external database, breaks the guarantee. A retried task then produces different or duplicated effects.",
+  [
+   "mapreduce-osdi04"
+  ]
+ ],
+ [
+  "The shuffle is the regrouping in the middle: every record leaves the machine that mapped it and travels to the machine that owns its key. Spark's guide lists why that is expensive: disk I/O, data serialisation and network I/O. Map and filter touch each record where it sits; a shuffle moves the whole dataset.\n\nSkew follows from hash(key) mod R sending all records of one key to one task. Suppose 1 billion click events over 200 partitions, so about 5 million each, but one bot account produced 300 million. Its partition is 60 times the others; 199 tasks finish in two minutes and one runs for two hours, or runs out of memory. Adding machines does not help, because one key cannot be split by hashing.\n\nThe first remedy shrinks what crosses the network. MapReduce's combiner does partial merging on the map machine: instead of sending 300 million (bot, 1) pairs, each map task sends one (bot, count). In Spark that is reduceByKey rather than groupByKey, which the guide says gives much better performance for sums. This works only for aggregations that can be merged piecewise.\n\nThe second handles joins: Spark's adaptive execution measures partition sizes at run time and splits a sort-merge join partition that is both over 5 times the median and over 256 MB into evenly sized tasks.",
+  [
+   "spark-rdd-guide",
+   "mapreduce-osdi04",
+   "spark-sql-performance"
+  ]
+ ],
+ [
+  "In classic MapReduce the only way to pass data from one job to the next is to write it to the distributed file system and read it back, paying for replication, disk and serialisation each time. The RDD paper names two workloads this hurts most: iterative algorithms (each pass of a training loop is another job over the same data) and interactive queries on one dataset. Keeping the data in memory, it says, can improve performance by an order of magnitude; its headline measurement is up to 20 times faster than Hadoop for iterative applications.\n\nMemory is volatile, so how do you survive a lost machine without copying everything to a second one? Spark stores the recipe instead of a spare dish. Each dataset (RDD) remembers which transformations built it from which parents: \"read file X, filter lines starting with ERROR, take field 3\". That record is its lineage. If one partition is lost, Spark re-runs just that recipe on just the parent partitions involved, in parallel on other nodes, with no rollback of the whole program.\n\nWhere it bites: a recipe with 500 steps is slow to replay, and steps that involve a shuffle depend on many parent partitions. The paper notes that checkpointing some RDDs to storage is useful when a lineage chain grows long.",
+  [
+   "spark-rdd-nsdi12"
+  ]
+ ],
+ [
+  "Lambda exists because batch is complete but hours late, and streaming is fresh but (when it was proposed) considered approximate. So it runs both: Kreps describes an immutable sequence of records fed into a batch system and a stream processing system in parallel, with results stitched together at query time. A dashboard reads \"everything up to last midnight\" from the batch table and \"since midnight\" from the streaming one.\n\nThe cost is in his next sentence: you implement your transformation logic twice. \"Revenue per country\" exists as, say, a Spark job and a streaming job, in different frameworks with different semantics. Every change is made twice, and every discrepancy between the two is a bug hunt.\n\nKappa asks why batch was needed at all, and the honest answer is reprocessing: recomputing history after a code change. Kreps's recipe does that with the stream job alone. Keep the input log long enough (to reprocess 30 days, set Kafka retention to 30 days). Start a second instance of the job from the beginning of the retained data, writing to a new output table. When it has caught up, switch the application to read the new table, then stop the old job and delete the old table.\n\nThe limit to mention: you can only replay what the log still retains.",
+  [
+   "kreps-questioning-lambda"
+  ]
+ ],
+ [
+  "The goal is a job you can run for any date, any number of times, and get the same table. Appending fails that test: run 3 March twice and its rows are there twice. Overwriting the whole table fails differently: a 90-day backfill should not need to rebuild two years. The unit that works is the partition. A table partitioned by date is one directory per day, and a run for 3 March deletes and rewrites only that directory.\n\nSpark's setting decides what \"overwrite\" deletes. Its configuration reference says that in static mode (the default, kept for compatibility with Spark before 2.3) it deletes all partitions matching the partition specification in the INSERT statement before overwriting, while in dynamic mode it deletes nothing ahead and overwrites only the partitions that receive data at run time.\n\nRead \"matching the specification\" carefully. PARTITION(date='2024-03-03') matches one partition. PARTITION(date), with no value, matches every partition. So an overwrite carrying 14 days of data, in static mode with no fixed value, first empties all two years and then writes back 14 days. Dynamic mode would have replaced just those 14. The same reference notes the config does not affect Hive serde tables, which are always overwritten dynamically. It can also be set per write with option(\"partitionOverwriteMode\", \"dynamic\").",
+  [
+   "spark-configuration"
+  ]
+ ]
+];
