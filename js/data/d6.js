@@ -131,3 +131,45 @@ SD.deep["6.3"] = [
   ]
  ]
 ];
+SD.deep["6.4"] = [
+ [
+  "The two headline numbers describe two different systems, and noticing how unequal they are is the point. The catalogue is big in bytes but boring: 50 million files that never change. The event stream is the part that behaves like a firehose. Spotify's own detail on it: more than 500 distinct event types, over 350 TB of raw events a day, and 500 billion events a day in the same quarter. Dividing, 500 billion ÷ 86,400 seconds ≈ 5.8 million a second on average against a peak above 8 million, so the average is about 70% of the peak: there is little quiet time to catch up in.\n\n\"Start a track instantly\" also has a measurable form. Spotify tracks two playback metrics: playback latency, the time from click to sound, and stutter, the number of skips or pauses during playback, which mostly happens when the audio buffer runs dry on a slow connection.\n\nIn an interview this tells you where to spend time. The parts with real numbers behind them are byte delivery, measured in latency and stutter, and event ingestion, measured in events per second and how late the data may be.",
+  [
+   "spotify-event-delivery",
+   "spotify-bbr"
+  ]
+ ],
+ [
+  "A range request is an ordinary HTTP GET that asks for only part of a file, bytes X to Y. That one feature is why no special streaming server is needed: the app asks for the first chunk, starts playing, and asks for the next before the buffer runs out.\n\nImmutability is what makes this cheap. A file that never changes can be copied to any number of servers and cached indefinitely with no question of which copy is current, so delivery can be handed to CDN companies; Spotify names Akamai, AWS and Fastly for audio.\n\nTo get a feel for 512 kB, assume a bitrate (Spotify does not give one in these sources): at 160 kb/s, which is 20 kB a second, one chunk is about 26 seconds of music, so a three-minute song is around seven requests.\n\nBecause the protocol is plain HTTP over TCP, improvements come from the transport. Spotify's 2018 experiment switched the server's congestion control algorithm to BBR, a change made only on the sending side, and stutter fell 6–10%, with the largest gains in Asia-Pacific and Latin America.",
+  [
+   "spotify-bbr",
+   "spotify-cdn-alignment"
+  ]
+ ],
+ [
+  "The paths are separate so that each can slow down without stopping the others: music keeps playing if events are hours behind. Here is one event's journey. A listener finishes a track and the app emits an EndSong event. It reaches the Event Service, the single entry point, which parses it, recognises its type and publishes it to that type's own Pub/Sub topic; malformed or unrecognised events are rejected there. A per-type ETL job then writes it into that type's storage, in an hourly bucket: all the events that arrived between 13:00 and 14:00 UTC form one partition, which becomes immutable once delivered. Downstream jobs wait for a closed hour and read it, knowing it will not change under them.\n\nWhy per type? Types differ enormously. Some are emitted a few hundred times an hour and others more than a million times a second; some, like EndSong, are used to pay royalties and are subject to external SLAs. So Spotify grades them: high priority has an SLO of a few hours, normal 24 hours (data needed the next day), low 72 hours (needed the next working day).",
+  [
+   "spotify-event-delivery"
+  ]
+ ],
+ [
+  "Home is a grid of shelves (rows) holding cards (an album, a playlist). Spotify says not every shelf is machine-learned: some content comes from heuristics and rules, some from editors, some from models, and each model powers one shelf. One example is a Shortcuts model that predicts your next familiar listen.\n\nThe move from batch to real time is the instructive part. In the batch design a job predicts, offline, what each listener is likely to stream and stores the answers; serving is a lookup, but the answer is as old as the last run. Real-time serving means a service fetches features, transforms them and runs the model when you open the app. Retraining stayed periodic: a weekly pipeline that pushes the new model to production automatically if its evaluation score clears a threshold.\n\nDiscover Weekly shows when batch is the right answer: the product promise is \"updated each Monday\", so nothing is gained by computing it per request.\n\nThe four-artists example is collaborative filtering in one sentence: the system needs no knowledge of what the music sounds like, only that people whose histories overlap tend to like each other's remaining items.",
+  [
+   "spotify-home-ml",
+   "spotify-discovery-newsroom"
+  ]
+ ],
+ [
+  "Term matching looks up documents containing the words you typed. Spotify's example query is \"electric cars climate impact\": its Elasticsearch cluster retrieved nothing for it, which does not mean nothing relevant existed. Fuzzy matching, normalisation and hand-written aliases patch some of this but cannot cover every way of phrasing a request.\n\nDense retrieval replaces word overlap with distance between vectors. Two encoders, sharing weights, are trained so that a query and a relevant episode land close together. The episode side is done offline: vectors are precomputed for a large set of episodes and indexed in Vespa, which supports approximate nearest-neighbour (ANN) search, the thing that keeps latency acceptable over tens of millions of episodes. At query time only the query is encoded, on a GPU, with a cache so that repeated queries are not re-encoded, and the top 30 semantic episodes are fetched.\n\nWhy keep Elasticsearch? Spotify's answer is that dense retrieval often does worse than traditional methods on exact term matching and costs more to run on every query. So it is one source among several, and a final reranking model sees the candidates from all of them, with the query–episode cosine similarity added as a feature.",
+  [
+   "spotify-nls"
+  ]
+ ],
+ [
+  "\"Liveness over lateness\" is a choice about what to do when something is stuck. Picture the hourly buckets as a grid, one row per event type. If the pipeline insisted on closing all of 13:00–14:00 before moving on, one type that is noisy, broken or blocked would hold up every row, including the events used to pay royalties. With a separate topic, ETL job and storage per type, a stuck type only leaves its own partitions open while the others are delivered. The cost is that consumers cannot assume all data for an hour is complete, only the types they depend on.\n\nTraining–serving skew is the ML cousin of this. When the podcast model moved from batch predictions to a real-time service, the features were fetched and transformed in a new place, separate from the training code. One feature was transformed slightly differently, and nothing could detect it: the model still returned plausible answers, just slightly worse ones, for four months. The durable fixes were to log the already-transformed features at serving time and train on those, so only one implementation exists, and to compare training and serving schemas and feature distributions daily, with alerts.",
+  [
+   "spotify-event-delivery",
+   "spotify-home-ml"
+  ]
+ ]
+];

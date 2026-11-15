@@ -125,6 +125,47 @@ SD.deep["7.3"] = [
   ]
  ]
 ];
+SD.deep["7.4"] = [
+ [
+  "Three facts in this requirement shape everything after it. First, the check sits inside the payment: Stripe describes the moment as starting when someone clicks \"purchase\" and ending when the transaction is confirmed, so every millisecond of scoring is a millisecond the buyer waits, and a late answer is as bad as none. Second, the output is a decision with more than two values. Besides allow and block, a risky payment can be diverted to an additional security check, which lets a real customer prove themselves where a block would lose the sale.\n\nThird, rarity changes how you measure. With fraud at 1 in 1,000, a model that calls everything legitimate is 99.9% accurate and useless. Take a million payments: 1,000 are fraud. A model that catches every one of them and wrongly flags just 1% of good payments blocks 1,000 frauds and 9,990 good customers, so only about 9% of what it blocks is fraud. That is why fraud teams talk in precision (what share of blocked payments were fraud) and recall (what share of fraud was caught), not accuracy.\n\nFor scale, Stripe says Radar wrongly blocks about 0.1% of legitimate payments. An interviewer will expect you to ask what each kind of error costs before choosing a model.",
+  [
+   "stripe-radar-built"
+  ]
+ ],
+ [
+  "The score and the rules do different jobs. The score is the model's estimate, squeezed onto 0 to 99 so that people can set cut-offs on it; 65 and 75 are only the default lines for \"elevated\" and \"high\". Rules carry what a merchant knows and the model does not, and they take effect the moment they are saved.\n\nThe ordering is the part people get wrong. Radar does not run rules in the order you wrote them. It groups them by action: rules that request 3D Secure first, then allow, then block, then review. Within a group there is no order, and the first match ends evaluation. Stripe's own example: with the rules \"allow payments under $10\" and \"block payments where the risk level is high\", every payment under $10 is processed whatever its risk level, because the allow rule matched first and nothing else was looked at.\n\nSo an allow rule is not a hint; it is an override of the model. A broad one, such as allowing all small payments, is a hole in the wall: anyone who discovers it can send high-risk payments straight through it. In a design discussion, say that allow rules should be narrow, and that you would log which rule decided each payment so a bad rule can be found afterwards.",
+  [
+   "stripe-radar-risk",
+   "stripe-radar-rules-ref"
+  ]
+ ],
+ [
+  "The three paths exist because features age at different speeds. What is in the request (amount, country, card type) is free. A velocity count such as \"charges on this card in the last hour\" is only useful if it includes the charge from a second ago, which is exactly the pattern of someone testing stolen cards. Relationships between accounts change slowly and are expensive to compute, so they are done in batch.\n\nFor the streaming path, Stripe moved feature updates to Flink and reported p99 freshness of 150 ms. Freshness is not the same as read speed, though. If every event is stored separately, a lookup must fetch and add them all. Stripe instead keeps pre-aggregated partial counts, which it calls tiles, in the Flink job and flushes them to the key-value store. A 7-day count over hourly tiles is 168 small reads and a sum, even if the window holds 2 million events.\n\nFor the graph path, Uber's idea is that fraudsters are connected and clustered through shared information, so a user's score should draw on neighbours several hops away. In its case study, two graph-learned scores added to an existing model's 200 features gave 15% better precision and ranked 4th and 39th in importance. Uber notes that model was not in production.",
+  [
+   "stripe-shepherd",
+   "uber-graph-fraud"
+  ]
+ ],
+ [
+  "A fraud label is not observed when the payment happens. It appears when a cardholder reads a statement, does not recognise a charge and contacts the bank, and Stripe's documentation says networks typically allow 120 days for that. For something bought ahead of time, such as an event ticket, the clock generally starts on the event date, so the label can be later still.\n\nUntil then the payment sits in your data looking legitimate. An illustration with assumed numbers: true fraud is 1 in 1,000, and for payments made last week only a fifth of the eventual disputes have arrived. The data then shows 0.02% fraud, and four out of five fraudulent payments are labelled good. A model trained on that week learns that the newest fraud pattern is safe, and a test set from the same week agrees with it.\n\nThere is a second gap in the labels. Stripe's guide points out that a blocked payment has no outcome at all: you cannot know whether it would have been disputed. So measuring a live model needs an estimate of what would have happened to the blocked payments, which it calls counterfactual analysis.\n\nThe trade-off to state: wait longer and labels are more complete, but the model learns about new fraud later.",
+  [
+   "stripe-disputes",
+   "stripe-radar-guide"
+  ]
+ ],
+ [
+  "The formula comes from comparing two mistakes in the same unit. Say good sales earn profit G each and a fraudulent sale loses L. If you block a group of payments of which a fraction p is fraud, each blocked payment saves p × L on average and gives up (1 − p) × G. Blocking pays when p × L is greater than (1 − p) × G, which rearranges to p greater than G ÷ (G + L), or 1 ÷ (1 + L ÷ G).\n\nStripe's example fills it in. A $26 sale at 8% margin earns G = $2.08. A fraudulent one loses the $23.92 the product cost plus a $15 chargeback fee, so L = $38.92, which is 18.71 good sales' worth of profit. Break-even is 1 ÷ 19.71 = 5.07%. In words: it is worth blocking a group of payments even if only about one in twenty of them is fraud.\n\nThat is far lower than intuition suggests, and it moves with margin. At $50 and 10% margin the same sum gives 7.7%.\n\nTwo cautions. Apply it to the slice of payments at the threshold, not the average of everything blocked, since the average hides a losing tail. And Stripe warns that businesses tend to overweight missed fraud and underweight good customers blocked.",
+  [
+   "stripe-radar-guide"
+  ]
+ ],
+ [
+  "Fail open and fail closed describe what a check does when it cannot run. Open: the payment goes through unchecked, so the service stays up. Closed: the payment is refused, so nothing unchecked gets through. Google's book frames the two as reliability against security.\n\nThe trouble with failing open is that it gives attackers a switch. If overloading the feature store turns the fraud check off, then a flood of requests is no longer just a nuisance; it is the first step of the fraud. The trouble with failing closed is arithmetic: at 500 payments a second, if 3% cannot be scored, that is 15 declined payments a second, 54,000 an hour, almost all from honest customers.\n\nThe book's way out is a third behaviour: replace the failed control with a lower-cost alternative. It adds a useful condition. If the fallback is stricter than the normal control, knocking over the normal one gains an attacker nothing. For payments that suggests fallback rules that use only fields already in the request and are deliberately tight, such as a low amount cap.\n\nThe book also says each organisation must decide its minimal non-negotiable security posture first. So the limit, and who accepts the lost sales, is agreed before the outage, not during it.",
+  [
+   "bsrs-resilience"
+  ]
+ ]
+];
 SD.deep["7.6"] = [
  [
   "The point of quoting YouTube is that it shows what the latency requirement is measured in: views, not milliseconds. A violating video that is removed after an hour with zero views did no harm; one removed after five minutes with 50,000 views did. So the question to ask is how many views a violation may collect, per category.\n\nWork the numbers through. Of just over 8M removals, 6.7M (about 84%) were first flagged by machines. 76% of 6.7M is about 5.1M removed before anyone watched, which leaves about 1.6M machine-flagged videos that were seen at least once. For violent extremism the same post says that at the start of 2017 only 8% of removed videos came down with fewer than 10 views, and after machine flagging arrived in June 2017 it was more than half. Videos matched to known extremist content at upload are excluded from that figure because they never went live.\n\nOne thing the post is explicit about: machines flag, people still decide. In its words, more machine learning meant more people reviewing content, not fewer. That is why the rest of this design is sized in reviewers.",
@@ -251,6 +292,50 @@ SD.deep["7.8"] = [
    "vllm-api-utils",
    "vllm-scheduler",
    "anthropic-prompt-caching"
+  ]
+ ]
+];
+SD.deep["7.9"] = [
+ [
+  "Why one decision point? Each producing team sees only its own events, and from where it sits its notification is always worth sending. The user receives the sum of all of them. Nobody owns that sum unless a single service sits in front of every channel. LinkedIn describes ATC as the ultimate decision maker: it optimises the portfolio of notifications per member rather than each notification, aiming for the right message, member, channel, time and frequency. Note what it is not: ATC decides which channel a notification goes through; other services do the sending.\n\nThe scale, converted: over a billion requests a day is 1,000,000,000 / 86,400, about 11,600 a second on average.\n\nThe two traffic classes need opposite treatment, which is why they are a requirement and not a detail. The Daily Rundown arrives as one batch of about a hundred million requests and can wait a couple of hours, so ATC spreads it out using aggregation and delivery-time choice. Member-to-member messages arrive steadily and must be handled in under a second, so they travel on high-priority Kafka topics. LinkedIn also reports that running remote calls in parallel cut the 90th-percentile end-to-end latency for messaging pushes from about 12 seconds to about 1.5.",
+  [
+   "linkedin-atc"
+  ]
+ ],
+ [
+  "Each candidate field exists for a later step: the dedupe key lets a replayed request be recognised, the expiry stops a held notification going out after it stopped being true, and priority picks the queue.\n\nThe interesting part is where state lives. A decision needs the member's send history, settings, devices and preferred hours. If each is a remote call, latency adds up: at LinkedIn's quoted 10-100 ms per remote call, five lookups at 50 ms is 250 ms per candidate. ATC instead partitions all its input streams (requests, tracking events, settings) by member ID, so everything about one member arrives at the same host and the same stream task, and keeps the state in RocksDB, a key-value store embedded in the process, on that host's SSD. Reads take a couple of milliseconds, so the same five lookups are about 10 ms.\n\nTwo details make it work. Keys start with the member ID, and include a timestamp where needed, so one range query returns, say, everything sent to this member in the last X days. And because local disks die, every state change is also written to Kafka; a job rescheduled onto a new host rebuilds its store by consuming that log. Data that cannot be keyed by recipient, such as a spam check on the sender, stays a remote call.",
+  [
+   "linkedin-atc"
+  ]
+ ],
+ [
+  "Write the decision as expected value. Sending is worth P(user acts) x value of the action, minus P(user disables) x value of everything you could have sent them afterwards. The second term is small in probability and large in size. Illustrative numbers: a 2% chance of a tap and a 0.1% chance of a disable. If a user who disables would otherwise have given you 50 taps over the next year, the expected loss is 0.001 x 50 = 0.05 taps, more than the 0.02 gained. Do not push; show it in-app, where it costs no interruption.\n\nA click model only sees the first term, and the first term is never negative. Twitter's paper states it directly: a myopic system always chooses to send, since the negative effects occur in the future. It adds that the usual patch, hand-tuned heuristics such as caps, is hard to reason about and needs retuning whenever the system changes.\n\nLinkedIn's ATC scores both outcomes, predicting the likelihood a member will act on or disable a notification. What survives the score is then shaped: ATC can hold notifications and send several as one, and picks a delivery time when the member is likely to engage. Interviewers usually push on how you would learn the disable model, given how rare disables are.",
+  [
+   "twitter-notif-ltv",
+   "linkedin-atc"
+  ]
+ ],
+ [
+  "You do not deliver a push; you hand it to Apple or Google with instructions, and they deliver when they can. The instructions are the headers. On APNs, priority 10 means send immediately, 5 means send with the device's power in mind, and 1 puts power first and will not wake the device. The expiration says how long to keep trying: a value of 0 means one attempt and no storage; otherwise APNs may hold the notification, for 30 days or less. But it stores only one notification per app for an offline device, in most cases the latest. So ten pushes sent to a phone in flight mode usually become one when it lands. A collapse ID (64 bytes at most) asks for the same merging on purpose: a score update replaces the previous one.\n\nQuota arithmetic: 30,000,000 devices / 600,000 a minute = 50 minutes, and that is with the whole project quota. Go over and FCM answers 429 until the quota refills in the following minute. The quota counts messages, not requests.\n\nWhere it bites: a broadcast announcing something that ends in 30 minutes cannot reach everyone in time, and while it runs it is spending the same project quota your login codes need. Pace campaigns below the limit and reserve a share for urgent traffic.",
+  [
+   "apns-sending",
+   "fcm-throttling"
+  ]
+ ],
+ [
+  "Each of the four rules answers a specific failure. Separate queues: a campaign of tens of millions and a login code are both just messages, and in one queue the code waits its turn. LinkedIn uses high-priority Kafka topics for member messages for this reason.\n\nReplays: a stream job records its progress with checkpoints. ATC processes requests in parallel, and if the job restarts after handling a request but before the checkpoint covering it, that request is processed again. Unhandled, the user gets the same notification twice. ATC drops any request it has already processed, which requires remembering what it has seen, hence the dedupe key and the send history.\n\nDead tokens: when an app is uninstalled, its device token stops being valid. APNs answers 410 Unregistered and says there is no need to send further pushes to that token; it lists Unregistered among the errors not to retry, and warns that too many error conditions slow your sending and can get the connection dropped.\n\nAccepted is not seen: Apple says notifications may be throttled, stored, and in some cases not delivered, all after your 200. FCM reports a Received count only for Android devices. So measure opens and downstream actions, and never treat the provider's 200 as the delivery metric.",
+  [
+   "linkedin-atc",
+   "apns-responses",
+   "apns-sending",
+   "fcm-delivery"
+  ]
+ ],
+ [
+  "A normal A/B test runs a week or two and reads clicks. For notifications that is the wrong window: the treatment that sends more wins on clicks immediately, and the people it annoys turn notifications off weeks later, after the test has been called. A long-lived holdout is a small group kept on the old policy, or on no policy, for months, so the slow effect has time to show. Twitter ran its notification experiment for 33 days and kept each user in the same treatment throughout, noting that an approach may temporarily improve performance and then reverse.\n\nDuolingo's holdout is a different use of the same tool: checking a system that keeps learning after launch. Its bandit chooses which reminder template to send, and the reward is 1 if the user completes a lesson within two hours. In 5% of rounds the template is drawn uniformly at random instead. The paper gives two reasons. It lets them see whether the bandit ever fails to beat random, as might happen if a subtle bug were introduced. And it supplies training data for poorly performing templates the bandit would otherwise almost never try. The 2.5% gap is the measured value of the learned policy over random choice, five months and more after launch.",
+  [
+   "twitter-notif-ltv",
+   "duolingo-notif-bandit"
   ]
  ]
 ];

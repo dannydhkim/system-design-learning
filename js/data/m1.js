@@ -177,6 +177,7 @@
       ['sre-cascading-failures', 'Amplification across layers — “the backend, frontend, and JavaScript layers all issue 3 retries (4 attempts), then a single user action may create 64 attempts (4^3) on the database”'],
       ['aws-bl-timeouts-retries', 'Retries are selfish — “Retries are "selfish." In other words, when a client retries, it spends more of the server\'s time to get a higher chance of success.”'],
       ['aws-bl-timeouts-retries', 'Jitter — “If all the failed calls back off to the same time, they cause contention or overload again when they are retried. Our solution is jitter.”'],
+      ['envoy-retry-budget', 'Envoy\'s default retry budget — “Specifies the limit on concurrent retries as a percentage of the sum of active requests and active pending requests. For example, if there are 100 active requests and the budget_percent is set to 25, there may be 25 active retries. This parameter is optional. Defaults to 20%.”'],
       ['sre-handling-overload', 'Retry budgets — “layering on the per-client retry budget (a 10% retry ratio) reduces the growth to just 1.1x in the general case”'],
       ['sre-handling-overload', 'Retry at one layer — “requests should only be retried at the layer immediately above the layer that is rejecting them”'],
       ['bronson-metastable-failures', 'Metastable failure — “Metastable failures occur in open systems with an uncontrolled source of load where a trigger causes the system to enter a bad state that persists even when the trigger is removed.”'],

@@ -320,3 +320,39 @@ SD.deep["5.11"] = [
   ]
  ]
 ];
+SD.deep["5.12"] = [
+ [
+  "Ordinary software fails by breaking a contract you can observe: the request times out, the page returns a 404, the process runs out of memory. Chip Huyen calls these operational expectations, and they come with an alarm built in. A model has a second expectation, that its answers are good, and nothing in the request path checks it. A wrong prediction is a well-formed response returned on time with status 200.\n\nGoogle's Rules of ML gives the mechanism. Suppose a table the model joins against stops being updated. Nothing errors. The model keeps scoring from stale values and quality decays gradually. Google Play once had a table that was stale for six months, and refreshing it alone raised the install rate by 2%. For half a year every dashboard was green.\n\nThe same rule gives a second example: a feature populated in 90% of examples suddenly drops to 60% after an implementation change. The model still runs; it just sees missing values more often.\n\nSo the question to ask of any monitoring plan is what would show up if the model became 10% worse tomorrow with no errors. Latency, error rate and CPU would not. You need signals about the data going in and the predictions coming out.",
+  [
+   "huyen-distribution-shifts",
+   "rules-of-ml"
+  ]
+ ],
+ [
+  "Both checks compare two histograms of the same feature; they differ in which histogram is the reference. For skew the baseline is the feature's distribution in the training data, so the question is \"is production what the model learned from?\". For drift the baseline is production in the past, so the question is \"has the world, or the pipeline, changed?\". In Vertex AI Model Monitoring a categorical feature's distribution is the share of each value, a numeric one is bucketed, a distance score is computed between the two, and an alert fires above a threshold you set.\n\nExample: a model trained when 20% of traffic came from mobile. At launch production is 60% mobile. That is skew, visible on day one, and usually a sign the training sample or the serving feature code is off. If production starts at 20% and creeps to 60% over a year, each week looks like the last; skew against training catches the slow slide, while week-on-week drift is better at catching a sudden jump, such as an upstream change that starts sending the field empty.\n\n\"A model that has not changed\" is the point: the weights are frozen, so it will keep applying last year's patterns to this year's inputs.",
+  [
+   "vertex-model-monitoring"
+  ]
+ ],
+ [
+  "Accuracy needs the true answer, and the true answer runs on its own schedule. Chip Huyen calls the gap between serving a prediction and learning the outcome the feedback loop length. For a recommender it is minutes: the user clicks or does not. For fraud it is weeks or months, because a customer has a period after the transaction to dispute it. A fraud model that broke today would show no drop in measured accuracy until those disputes arrive.\n\nPredictions, by contrast, exist immediately. Each is usually one number, so its distribution is easy to chart and test for a shift. If a loan model approved 30% of applicants last month and approves 45% today, something moved, in the inputs or in the model, even though no label says which decisions were wrong. Huyen notes that a shift in predictions is also a proxy for a shift in inputs.\n\nThe second proxy is calibration, checked as labels trickle in. The technical-debt paper calls it prediction bias: in a healthy system the distribution of predicted labels should equal the distribution of observed labels. If the model predicts an average click rate of 4% and the logs show 2%, it is wrong somewhere. The paper adds the caveat that a model predicting only the average passes this test, so it is a smoke alarm, not a quality measure.",
+  [
+   "huyen-distribution-shifts",
+   "sculley-ml-tech-debt"
+  ]
+ ],
+ [
+  "An overall metric is a weighted average, and the weights are traffic shares, so a small segment barely moves it. Suppose one country is 2% of traffic and its accuracy halves from 80% to 40%, while the other 98% improves from 80.0% to 81.8%. Before, overall accuracy is 80%. After, it is 0.98 × 81.8 + 0.02 × 40 ≈ 81%. The dashboard shows a one-point win, which is exactly the case the ML Test Score paper cites: global accuracy up 1%, one country down 50%.\n\nThe paper also says where such failures tend to come from: a fault in collecting training data, where an important set of it was lost or late. That is why the damage is concentrated in a slice and not spread evenly; a pipeline for one region or one client version broke.\n\nIts recommended fix is to put slices into the release test itself, with absolute thresholds (error for slice X must stay under 5%) as well as limits on how much any slice may change. The slices it suggests are things like users by country, users by frequency of use, or movies by genre. The follow-up question is \"which slices?\": ones where a separate data path or population could fail independently, and big enough for the metric to be stable.",
+  [
+   "ml-test-score"
+  ]
+ ],
+ [
+  "Staleness is about the world moving while the weights stay fixed. How fast it hurts depends on the product, which is why Google's Rules of ML phrases it as a question to answer by measurement: how much worse is a model that is a day old, a week old, a quarter old? Its examples span the range. Most ad systems have new ads every day and must update daily; for Google Play search, an un-updated model shows a negative impact in under a month. The answer sets both the retraining schedule and how closely someone must watch.\n\nFeedback loops are a different problem: the model changes its own future training data. Chip Huyen's example is a song recommender. Song A starts ranked marginally above B, so it is shown first, so it gets more clicks, so the next model ranks it higher still. After a few rounds A is far ahead for no reason other than its head start. The technical-debt paper names this a direct feedback loop and notes it is harder to detect when it happens gradually. Its suggested mitigation is some amount of randomisation in what is shown, which gives the next model data that the current model did not choose.\n\nThe monitoring signal for a loop is shrinking variety in the outputs.",
+  [
+   "rules-of-ml",
+   "huyen-distribution-shifts",
+   "sculley-ml-tech-debt"
+  ]
+ ]
+];

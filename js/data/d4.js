@@ -87,3 +87,47 @@ SD.deep["4.2"] = [
   ]
  ]
 ];
+SD.deep["4.3"] = [
+ [
+  "Think of the cache as a Python dict: the key is built from the request, the value is a stored response. Two requests share a copy only if they produce exactly the same key. RFC 9111 says the key is at least the method and the URL, and notes that since most caches store only GET responses, in practice it is just the URL. The Vary response header is the standard way to add request headers to it.\n\nThe trap is that the key does not know which differences matter. Cloudflare's own example of a default key includes the query string: /logo.jpg?utm_source=newsletter. The marketing tag does not change the image, but it changes the key, so every campaign link stores its own copy of the same file.\n\nCount the cost. Cloudflare lets a custom key include device type (mobile, desktop or tablet), the visitor's country and their language. Add device type and country for visitors from 50 countries and one page becomes 3 × 50 = 150 entries. If the page gets 300 requests per TTL, one entry means 1 miss and 299 hits; 150 entries mean at least 150 misses, a hit ratio of 50% at best. Key only on what actually changes the response.",
+  [
+   "rfc9111",
+   "cloudflare-cache-keys"
+  ]
+ ],
+ [
+  "There are two kinds of cache on the path. A private cache serves one user (the browser). A shared cache serves many (a CDN, a corporate proxy). A response is \"fresh\" for max-age seconds, during which a cache may reuse it without asking the origin. s-maxage gives shared caches a different number, so Cache-Control: max-age=60, s-maxage=3600 lets the CDN keep a page for an hour while browsers recheck every minute. private means the response is intended for a single user. no-store applies to both kinds, though the RFC warns it is not a reliable or sufficient privacy mechanism on its own.\n\nNormally the first request after expiry waits while the cache goes back to the origin. stale-while-revalidate removes that wait: the cache answers immediately with the expired copy and refreshes in the background. RFC 5861's example is max-age=600, stale-while-revalidate=30: fresh for 600 s, then servable stale for up to 30 s more while a refresh is attempted. The refresh only starts when a request arrives inside that window. On a quiet page with a short window, some requests land after it closes and block as usual. The total, max-age plus the window, is the staleness you are agreeing to.",
+  [
+   "rfc9111",
+   "rfc5861"
+  ]
+ ],
+ [
+  "The three methods differ in who they can reach. A TTL reaches every cache but only when each copy expires. A purge (CloudFront calls it an invalidation) removes the copy from the CDN's edge caches, so the next request goes back to the origin. But a purge reaches only the caches the CDN controls. CloudFront's guide points out that a user may have the file cached locally or behind a corporate caching proxy and will keep seeing the old version until it expires there.\n\nA new name sidesteps all of them, because a new name is a new cache key: no cache anywhere holds app.3f9c2b.js yet, so everyone fetches it. The old file stays put, which gives CloudFront's other reasons: you can serve different versions to different users, roll forward and back by changing which name is referenced, and you do not pay for invalidations.\n\nThe catch is that something must point at the new name. That is the HTML, so the HTML cannot be cached for a year too: it gets a short TTL, or is purged on deploy.",
+  [
+   "cloudfront-invalidation"
+  ]
+ ],
+ [
+  "The origin sees only the misses, so its load depends on the miss ratio, not the hit ratio, and small-looking changes in the hit ratio are large for the origin. At 50,000 req/s, a 95% hit ratio sends 5% = 2,500 req/s to the origin; 99% sends 1% = 500 req/s. Four points of hit ratio cut origin traffic to a fifth.\n\nEdges do not share their caches. A new object is a miss at every location separately, and Cloudflare's request collapsing (only the first request for a missing asset goes to the origin; the rest wait) works per data centre: one request at a time from a single location. With hundreds of locations, a launch can still mean hundreds of simultaneous fetches for the same file.\n\nA tiered cache puts a second layer in between. In Cloudflare's version, a lower-tier data centre that misses must ask an upper tier, and only the upper tier may ask the origin; origin connections then come from a few data centres instead of the whole network. CloudFront's Origin Shield is the same idea as a single extra layer: every other layer fetches from it, and concurrent misses for one object are consolidated there. AWS charges extra for it.",
+  [
+   "cloudflare-default-cache",
+   "cloudflare-tiered-cache",
+   "cloudfront-origin-shield"
+  ]
+ ],
+ [
+  "A cache cannot tell that a page is personal. /account is the same URL for everyone, so with the URL as the key, whoever asks first has their page stored and everyone after them receives it. HTTP's built-in guard is narrow: a shared cache must not reuse a response to a request that carried an Authorization header unless the response opts in with public, s-maxage or must-revalidate. That rule says nothing about sessions held in cookies, so the origin has to say private itself. Cloudflare adds defaults that help: it does not cache HTML unless a rule says so, and it will not cache a response that sets a cookie.\n\nValve's incident shows how the guard gets removed. On Christmas Day 2015 the Steam Store was under a denial-of-service attack, with traffic 2,000% above the Steam Sale average, and its caching partner deployed new rules to shed load. A second configuration cached traffic for authenticated users. Between 11:50 and 13:20 PST, pages generated for about 34,000 users may have been shown to others: from the front page in the wrong language to another user's account page, with billing address, purchase history and the last two card digits. The lesson: caching rules changed under incident pressure need the same review as code.",
+  [
+   "rfc9111",
+   "cloudflare-default-cache",
+   "valve-steam-christmas-2015"
+  ]
+ ],
+ [
+  "An edge function is code that runs in the CDN location that received the request, before (or instead of) contacting your origin. It saves a round trip when the decision needs nothing but the request itself: redirect /old to /new, reject a request whose signed token fails verification, pick A or B from a cookie.\n\nCloudflare's published limits show what kind of code is expected. Memory is 128 MB per isolate (the sandbox that runs your code), and that is per isolate, not per request: one isolate handles many concurrent requests, so they share it. CPU time on the free plan is 10 ms per request; on the paid plan it defaults to 30 s and can be raised to 5 minutes. Time spent waiting on the network does not count as CPU time, and Cloudflare says the average Worker uses about 2.2 ms of CPU per request. A Worker must start within 1 second.\n\nThe catch is data. If the function must query a database that lives in one region, the request travels to that region anyway, and you have added a hop and saved nothing. Expect the follow-up: what data does the edge code need, and where does it live?",
+  [
+   "cloudflare-workers-limits"
+  ]
+ ]
+];

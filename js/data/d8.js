@@ -129,3 +129,44 @@ SD.deep["8.3"] = [
   ]
  ]
 ];
+SD.deep["8.4"] = [
+ [
+  "Each source trades volume against meaning. Explicit feedback says what you want to know but few people give it. Implicit behaviour is logged for every impression but is ambiguous: a click may be curiosity or a mis-tap. Human raters can judge anything you can write instructions for, slowly and at a price. Later outcomes such as a purchase or a chargeback are closest to the truth and arrive last.\n\nGoogle's crash course frames the choice as direct versus proxy labels. A direct label is the thing you want to predict; a proxy is an imperfect approximation used when the direct label is missing or cannot be expressed as a number, and the model can only ever be as good as the link between the two. If the proxy is \"clicked\" and the goal is \"satisfied\", every case where those disagree is a case the model is being trained to get wrong.\n\nThe rater check is deliberately symmetrical. Label about 1,000 examples yourself and compare. Where you disagree, the course says not to assume your own labels are right, especially on value judgements. A disagreement usually means the instructions are ambiguous, and a model trained on those labels would inherit the ambiguity as noise.",
+  [
+   "mlcc-labels"
+  ]
+ ],
+ [
+  "Put numbers on the dilemma. Say 1,000 clicks today will produce 50 conversions eventually, a true rate of 5%. Build tomorrow's training set and, on Criteo's figures, only about half have arrived: 25 positives and 975 \"negatives\", of which 25 are future buyers. The model is taught 2.5%. Because the labels of a click fill in over time, the newest campaigns and newest data are always the most understated, which is exactly the data you most wanted the model to learn from. Waiting the full attribution window (30 days in the paper) fixes the labels and makes every training example at least a month old.\n\nChapelle's way out borrows from survival analysis, the statistics of \"time until an event\" when some subjects have not had the event yet. In a medical study a patient still alive at the end is censored: you know only that the survival time is longer than the follow-up. A click from two hours ago with no conversion is the same kind of observation. So he adds a second model: one predicts whether a click converts, the other how long conversion takes. A missing conversion on a fresh click is then weak evidence, and on a 3-week-old click strong evidence, as it should be.",
+  [
+   "chapelle-delayed"
+  ]
+ ],
+ [
+  "The bias comes from who gets to produce a label. A spam filter that blocks 75% of spam shows users only the remaining 25%, the spam it failed on, so user reports are a sample of the model's mistakes, not of spam. Train on them and the next model learns the hard cases while forgetting the easy ones nobody was allowed to see. The same holds for a fraud model: a blocked payment never becomes a chargeback or a happy customer, so the cases where the model was most confident are the ones it never gets corrected on.\n\nRule #34's fix is to pay a small, known price for unbiased data. Mark 1% of traffic as held out and deliver all of it. The filter still works on the other 99%, so it blocks 75% × 99% ≈ 74% of spam, and the 1% yields labels for everything, including mail the filter would have removed. The rule's title says it: small short-term sacrifices in performance for very clean data.\n\nIn an interview, name the cost when you propose this. For spam it is a few extra junk mails; for fraud, the held-out slice lets real fraud through, so you would cap it by amount or risk.",
+  [
+   "rules-of-ml"
+  ]
+ ],
+ [
+  "Why sampling shifts the prediction, and where the formula comes from: think in odds, clicks per non-click. A true CTR of 0.1% is odds of about 1 to 999. Keep every click and 1 in 100 non-clicks (w = 0.01) and the training set has odds of 1 to 9.99, a rate of 1 ÷ 10.99 ≈ 9.1%, Facebook's \"roughly 10%\". Sampling multiplied the odds by 1 ÷ w and did nothing else, so a model that fits the sampled data well reports odds 100 times too high for every impression.\n\nUndo it by multiplying the odds by w. With p the sampled-space prediction, odds are p ÷ (1 − p); corrected odds are w × p ÷ (1 − p); turning that back into a probability gives q = p ÷ (p + (1 − p) ÷ w), the formula in the paper. Check: p = 0.091 gives 0.091 ÷ (0.091 + 0.909 × 100) ≈ 0.001.\n\nThe alternative in Google's course is to correct during training instead: having downsampled the majority class by a factor of 25, count each kept negative's loss 25 times. Either way the ranking is unaffected by a missing correction, which is why the bug survives offline review and shows up only when something consumes the probability.",
+  [
+   "fb-ads-ctr",
+   "mlcc-imbalanced"
+  ]
+ ],
+ [
+  "Leakage is hard to see because nothing crashes: the column is in the table, the join succeeds, the metric goes up. The question is never \"is this column correlated with the label\" but \"what would this cell have contained at the instant of prediction\". scikit-learn's guide gives the consequence: over-optimistic performance estimates, then poorer performance on genuinely new data.\n\nHello Interview, which calls leakage an incredibly popular interview topic, lists three shapes that all sound innocent. A moderator label assigned after the prediction would be made: the feature is the answer. A lifetime click total on the impression being scored: the row knows the future. And a user's average click rate computed over the whole dataset when that user has rows in both train and test: the test rows leak through the aggregate. The third is the subtle one, since no single column is \"from the future\"; the aggregation window is.\n\nThe discipline that prevents all three is mechanical. Give every raw event a timestamp, give every training example a prediction time, and compute each feature only from events earlier than that time. Then treat any single feature with startling importance as a suspect until you can say when its value was written.",
+  [
+   "hi-ml-features",
+   "sklearn-common-pitfalls"
+  ]
+ ],
+ [
+  "A random split answers \"how well does the model fill gaps in a period it has seen?\". Production asks \"how well does it predict a period it has not seen?\". Those differ whenever the world drifts or examples near in time resemble each other, which is nearly always: the same campaign, the same trending video, the same fraud ring appear on both sides of a random split.\n\nRule #33 says what to expect from the honest version. Performance on the later data will not be quite as good, but should not be radically worse; and since there are daily effects the average click rate may be off, while AUC should stay reasonably close. A big drop from random-split to time-split numbers is therefore a finding: it measures how much the model was leaning on the period.\n\nYouTube's case shows the same leak inside a single user's history. People watch episodic series in order and explore a genre from the popular artists towards the niche ones. Hide a random watch, say episode 3, and the model sees episode 4 among its inputs, so the answer is nearly given. YouTube instead \"rolls back\" the history: pick a watch, and feed only the actions before it.",
+  [
+   "rules-of-ml",
+   "youtube-dnn-recs"
+  ]
+ ]
+];

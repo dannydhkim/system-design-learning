@@ -195,3 +195,40 @@ SD.deep["2.5"] = [
   ]
  ]
 ];
+SD.deep["2.6"] = [
+ [
+  "The proof is short enough to carry in your head. Gilbert and Lynch split the nodes into two groups, G1 and G2, and assume every message between them is lost. A client writes a new value to a node in G1. Later, another client reads from a node in G2. That node has had no way to hear about the write. It has exactly two options: answer with what it has, which is the old value, so the system is no longer consistent; or refuse to answer until it can reach G1, so the system is no longer available. No cleverness helps, because the missing information is on the far side of a link that is down.\n\nThe definition of availability is stricter than everyday usage, and that matters to the argument: every request received by a non-failing node must result in a response. It is not enough that some other node could have answered.\n\nKleppmann's picture is two datacenters with the link between them cut. Brewer's wording of the same choice: let at least one side keep updating and the two become inconsistent, or make one side act as if it is unavailable.",
+  [
+   "gilbert-lynch",
+   "kleppmann-cap",
+   "brewer-cap-twelve-years-later"
+  ]
+ ],
+ [
+  "'Pick two of three' suggests you could choose consistency plus availability and decline partitions. But a partition is something the network does to you: cables fail, switches misbehave, a datacenter link drops. Kleppmann says partition tolerance just means you are communicating over a network that may delay or drop messages, which describes every network. So the real design question is what to do while one lasts.\n\nBrewer, who proposed CAP, later called the '2 of 3' wording misleading. Partitions are rare, so there is little reason to give up anything when the system is healthy, and the choice can be made at fine granularity: per subsystem, per operation, even per user. His example is a cash machine cut off from the bank. Deposits and balance checks can always run; only withdrawal can break the rule that a balance stays at or above zero, so only withdrawal needs special treatment. Real machines do not refuse it; they cap the net withdrawal at some limit such as $200 while disconnected, and the bank compensates for any overdraft afterwards.\n\nThat is the 'in between'. In an interview, name the operation: adding to a cart stays available during a partition, while charging the card waits for consistency.",
+  [
+   "brewer-cap-twelve-years-later",
+   "kleppmann-cap"
+  ]
+ ],
+ [
+  "Linearizability means the system behaves as if there were only one copy of the data and every operation took effect at a single instant. Gilbert and Lynch's working rule: any read that begins after a write has completed must return that value or a later one. Reads never go back in time.\n\nKleppmann's example makes it concrete. Alice and Bob are in the same room checking a sports score on their phones. Alice reloads and announces the final result. Bob reloads after hearing her, and his phone still shows the game in progress. His request started after hers finished yet returned older data: a linearizability violation. Any setup that reads from an asynchronously updated replica can do this.\n\nThe C in ACID is a different idea: a transaction moves the database from one valid state to another, with constraints such as unique keys preserved. A single-node database can be ACID-consistent with no replication at all. Gilbert and Lynch flag the difference themselves, noting that database consistency refers to transactions while theirs is a property of single request and response operations. Mixing them up is a classic interview error, since a 'consistent' transactional database with lagging read replicas is not CAP-consistent.",
+  [
+   "gilbert-lynch",
+   "kleppmann-cap"
+  ]
+ ],
+ [
+  "CAP says nothing about the great majority of the time when the network is fine, yet systems give up consistency then too. Abadi's explanation is that as soon as a system replicates data, it faces a trade between consistency and latency. If replication is synchronous, the primary waits until the update has reached the replicas, and the wait is set by the slowest of them, which over a wide-area link is slow. If it is asynchronous, the write returns at once, but a read from a replica may be stale. You pay in milliseconds or in freshness on every single request, not only during failures.\n\nPACELC writes both choices in one line: if Partition, Availability or Consistency; Else, Latency or Consistency. Abadi classifies the default configurations of Dynamo, Cassandra and Riak as PA/EL: they choose availability in a partition and low latency otherwise. Fully ACID systems such as VoltDB are PC/EC and pay both costs.\n\nWhere it shows up: 'should this read go to one nearby replica or wait for a quorum?' is an ELC question, and you face it daily. It is why systems built for fast responses so often replicate asynchronously.",
+  [
+   "abadi-pacelc"
+  ]
+ ],
+ [
+  "The overlap is a counting argument. With N = 3 replicas A, B and C, a write that needs W = 2 acknowledgements is confirmed by, say, A and B. A read that needs R = 2 answers must ask two of the three. Any two of three include A or B, because only one replica lies outside the write set. So the reader sees at least one copy of the new value and picks the newest version. In general, R + W > N means the two sets are together too big to avoid sharing a member. Drop to R = 1 and the read may land on C alone and return the old value. The Dynamo paper reports (3,2,2) as its common setting, and notes the price: an operation is as slow as the slowest of the R or W replicas it waits for.\n\nWhy not linearizable? Dynamo uses a sloppy quorum: if A is unreachable, the write goes to another healthy node D instead. The write succeeded on W nodes, but a later read of A, B and C may not include D, so the overlap is gone. Kleppmann names sloppy quorums and read repair as sources of such edge cases, and calls relying on quorums for linearizability unwise.",
+  [
+   "dynamo-sosp07",
+   "kleppmann-cap"
+  ]
+ ]
+];
