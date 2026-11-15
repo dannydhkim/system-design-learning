@@ -129,7 +129,27 @@
 
     if (station === 'learn') {
       body.appendChild(h('div', { class: 'card analogy' }, h('div', { class: 'label' }, '💡 Picture it'), h('p', {}, t.analogy)));
-      body.appendChild(h('div', { class: 'card' }, h('div', { class: 'label' }, 'Key ideas'), h('ul', { class: 'points' }, t.points.map(function (x) { return h('li', {}, x); }))));
+      // Each key idea can open into a longer explanation (js/data/d*.js). Whether they start open is remembered.
+      var deep = (SD.deep || {})[t.id], openAll = false;
+      try { openAll = localStorage.getItem('sdq.deepOpen') === '1'; } catch (e) { /* storage may be unavailable */ }
+      var details = [];
+      var list = h('ul', { class: 'points' }, t.points.map(function (x, i) {
+        var d = deep && deep[i];
+        if (!d) return h('li', {}, x);
+        var links = Array.isArray(d[1]) ? d[1].map(function (k) { var src = SD.sources[k]; return src ? h('a', { href: src[1], target: '_blank', rel: 'noopener noreferrer' }, src[0]) : null; }).filter(Boolean) : [];
+        var det = h('details', { class: 'more' }, h('summary', {}, 'More detail'),
+          d[0].split(/\n\s*\n/).map(function (para) { return h('p', {}, para); }),
+          links.length ? h('div', { class: 'muted morefrom' }, 'From: ', links.map(function (a, k) { return [k ? ' · ' : '', a]; })) : h('div', { class: 'muted morefrom' }, 'Worked out from the key idea; no outside source.'));
+        det.open = openAll; details.push(det);
+        return h('li', {}, x, det);
+      }));
+      var toggle = details.length ? h('button', { class: 'btn mini', onclick: function () {
+        openAll = !details.every(function (d) { return d.open; });
+        details.forEach(function (d) { d.open = openAll; });
+        toggle.textContent = openAll ? 'Collapse all' : 'Expand all';
+        try { localStorage.setItem('sdq.deepOpen', openAll ? '1' : '0'); } catch (e) { /* storage may be unavailable */ }
+      } }, openAll ? 'Collapse all' : 'Expand all') : null;
+      body.appendChild(h('div', { class: 'card' }, h('div', { class: 'row' }, h('div', { class: 'label' }, 'Key ideas'), h('span', { class: 'spacer' }), toggle), list));
       body.appendChild(h('div', { class: 'card pitfall' }, h('div', { class: 'label' }, '⚠️ Common mistake'), h('p', {}, t.pitfall)));
       body.appendChild(h('div', { class: 'card say' }, h('div', { class: 'label' }, '🎙️ Say it in the interview'), h('p', {}, '“' + t.say + '”')));
       if (boss) body.appendChild(h('div', { class: 'card' }, h('div', { class: 'label' }, '🏆 Mock interview for this case study'),

@@ -4,6 +4,7 @@
 // Fails (exit 1) when
 //   · a built topic is missing from curriculum.md, or a curriculum item in a built module has no topic
 //   · a topic or boss has no evidence list, or cites a source that is not in js/data/sources.js
+//   · a "More detail" entry (js/data/d*.js) is missing for a key idea of its topic, or cites an unknown source
 //   · a quiz question does not cite evidence (source keys, or 'calc' when the explanation derives the answer)
 //   · a quiz, lab or boss phase is malformed (wrong number of options, bad bucket index, weights not 100…)
 //   · the length of an option gives the answer away: across a module, the correct option sits at the same
@@ -115,6 +116,19 @@ for (const id of Object.keys(curriculum)) {
   if (builtMods.has(mod) && !seen.has(id)) err('curriculum ' + id, 'is in a built module but has no topic: ' + curriculum[id]);
 }
 
+/* ---------- "More detail" for key ideas (js/data/d*.js) ---------- */
+let deepTopics = 0;
+for (const [id, list] of Object.entries(SD.deep || {})) {
+  const where = 'deep-dive ' + id, t = SD.topics.find((x) => x.id === id);
+  if (!t) { err(where, 'is for a topic that does not exist'); continue; }
+  deepTopics++;
+  if (!Array.isArray(list) || list.length !== t.points.length) { err(where, 'needs one entry per key idea (' + t.points.length + ')'); continue; }
+  list.forEach((d, i) => {
+    if (typeof d[0] !== 'string' || d[0].split(/\s+/).length < 60) err(where + ' #' + (i + 1), 'is too short to add anything');
+    if (d[1] !== 'calc') checkEvidence(where + ' #' + (i + 1), d[1]);
+  });
+}
+
 /* ---------- bosses ---------- */
 for (const b of SD.bosses) {
   const where = 'boss ' + b.id;
@@ -160,6 +174,7 @@ if (process.argv.includes('--links')) await checkLinks();
 
 const nq = SD.topics.reduce((n, t) => n + t.quiz.length, 0);
 const cited = SD.topics.reduce((n, t) => n + t.quiz.filter((q) => Array.isArray(q[3])).length, 0);
+console.log(deepTopics + ' of ' + SD.topics.length + ' topics have a "More detail" section for every key idea');
 console.log(SD.topics.length + ' topics · ' + nq + ' quiz questions (' + cited + ' cite sources, ' + (nq - cited) + ' are derived in the explanation) · ' +
   SD.bosses.length + ' bosses · ' + Object.keys(SD.sources).length + ' sources · correct option longest in ' + Math.round(longestShare * 100) + '% of questions');
 if (warnings.length) console.log('\n' + warnings.length + ' warning(s):\n  ' + warnings.join('\n  '));

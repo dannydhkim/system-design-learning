@@ -299,3 +299,6 @@ details > summary { cursor: pointer; color: var(--muted); font-size: .92rem; mar
 .duck.past { opacity: .7; } .duck-face.small { font-size: 1.6rem; animation: none; }
 .reply { margin: 6px 0 14px 52px; padding: 10px 13px; border-radius: 16px 4px 16px 16px; background: rgba(79,209,197,.08); border: 1px solid var(--line); white-space: pre-wrap; }
 .clock.over { color: #e7b93c; }
+details.more { margin: 6px 0 4px; } details.more > summary { cursor: pointer; color: var(--accent, #4fd1c5); font-size: .88rem; width: fit-content; }
+details.more[open] { border-left: 2px solid var(--line); padding-left: 12px; margin-bottom: 12px; } details.more p { margin: 8px 0; color: var(--text, inherit); opacity: .92; }
+.morefrom { font-size: .82rem; }
