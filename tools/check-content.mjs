@@ -5,6 +5,7 @@
 //   · a built topic is missing from curriculum.md, or a curriculum item in a built module has no topic
 //   · a topic or boss has no evidence list, or cites a source that is not in js/data/sources.js
 //   · a "More detail" entry (js/data/d*.js) is missing for a key idea of its topic, or cites an unknown source
+//   · a topic has no chapter opening or takeaway (js/data/frames.js)
 //   · a quiz question does not cite evidence (source keys, or 'calc' when the explanation derives the answer)
 //   · a quiz, lab or boss phase is malformed (wrong number of options, bad bucket index, weights not 100…)
 //   · the length of an option gives the answer away: across a module, the correct option sits at the same
@@ -127,6 +128,16 @@ for (const [id, list] of Object.entries(SD.deep || {})) {
     if (typeof d[0] !== 'string' || d[0].split(/\s+/).length < 60) err(where + ' #' + (i + 1), 'is too short to add anything');
     if (d[1] !== 'calc') checkEvidence(where + ' #' + (i + 1), d[1]);
   });
+}
+
+/* ---------- chapter opening and takeaway (js/data/frames.js) ---------- */
+const words = (x) => (typeof x === 'string' ? x.trim().split(/\s+/).length : 0);
+for (const id of Object.keys(SD.frame || {})) if (!SD.topics.find((x) => x.id === id)) err('frame ' + id, 'is for a topic that does not exist');
+if (SD.frame) for (const t of SD.topics) {
+  const f = SD.frame[t.id];
+  if (!f) { err('topic ' + t.id, 'has no chapter opening and takeaway in js/data/frames.js'); continue; }
+  if (words(f.intro) < 40) err('frame ' + t.id, 'intro is missing or too short');
+  if (words(f.takeaway) < 30) err('frame ' + t.id, 'takeaway is missing or too short');
 }
 
 /* ---------- bosses ---------- */

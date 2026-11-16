@@ -129,12 +129,24 @@
     function retry(msg) { clear(foot); foot.appendChild(h('p', { class: 'muted' }, msg)); foot.appendChild(h('button', { class: 'btn', onclick: route }, 'Try again')); }
 
     if (station === 'learn') {
-      body.appendChild(h('div', { class: 'card analogy' }, h('div', { class: 'label' }, '💡 Picture it'), h('p', {}, t.analogy)));
+      // The Learn page reads as a chapter: numbered sections, with a contents strip that jumps to each.
+      var frame = (SD.frame || {})[t.id] || {}, secs = [];
+      function paras(text) { return String(text).split(/\n\s*\n/).map(function (x) { return h('p', {}, x); }); }
+      function section(icon, title, cls, content, extra) {
+        var n = secs.length + 1, card = h('section', { class: 'card chapter ' + (cls || ''), 'aria-label': title },
+          h('div', { class: 'row' }, h('h2', { class: 'label sectitle' }, h('span', { class: 'secnum' }, String(n)), ' ' + icon + ' ' + title), h('span', { class: 'spacer' }), extra || null), content);
+        secs.push([title, card]);
+        return card;
+      }
+      var toc = h('nav', { class: 'toc', 'aria-label': 'In this chapter' });
+      body.appendChild(toc);
+      if (frame.intro) body.appendChild(section('🧭', 'Why this matters', 'intro', paras(frame.intro)));
+      body.appendChild(section('💡', 'Picture it', 'analogy', h('p', {}, t.analogy)));
       // Each key idea can open into a longer explanation (js/data/d*.js). Whether they start open is remembered.
       var deep = (SD.deep || {})[t.id], openAll = false;
       try { openAll = localStorage.getItem('sdq.deepOpen') === '1'; } catch (e) { /* storage may be unavailable */ }
       var details = [];
-      var list = h('ul', { class: 'points' }, t.points.map(function (x, i) {
+      var list = h('ol', { class: 'points' }, t.points.map(function (x, i) {
         var d = deep && deep[i];
         if (!d) return h('li', {}, x);
         var links = Array.isArray(d[1]) ? d[1].map(function (k) { var src = SD.sources[k]; return src ? h('a', { href: src[1], target: '_blank', rel: 'noopener noreferrer' }, src[0]) : null; }).filter(Boolean) : [];
@@ -150,13 +162,16 @@
         toggle.textContent = openAll ? 'Collapse all' : 'Expand all';
         try { localStorage.setItem('sdq.deepOpen', openAll ? '1' : '0'); } catch (e) { /* storage may be unavailable */ }
       } }, openAll ? 'Collapse all' : 'Expand all') : null;
-      body.appendChild(h('div', { class: 'card' }, h('div', { class: 'row' }, h('div', { class: 'label' }, 'Key ideas'), h('span', { class: 'spacer' }), toggle), list));
-      body.appendChild(h('div', { class: 'card pitfall' }, h('div', { class: 'label' }, '⚠️ Common mistake'), h('p', {}, t.pitfall)));
-      body.appendChild(h('div', { class: 'card say' }, h('div', { class: 'label' }, '🎙️ Say it in the interview'), h('p', {}, '“' + t.say + '”')));
+      body.appendChild(section('🔑', 'Key ideas', '', [h('p', { class: 'muted secnote' }, 'These ' + t.points.length + ' ideas are the core of the topic: the cards, quiz and lab that follow are built from them.'), list], toggle));
+      body.appendChild(section('⚠️', 'Common mistake', 'pitfall', h('p', {}, t.pitfall)));
+      body.appendChild(section('🎙️', 'Say it in the interview', 'say', h('p', {}, '“' + t.say + '”')));
+      if (frame.takeaway) body.appendChild(section('🏁', 'Takeaway', 'takeaway', paras(frame.takeaway)));
+      toc.appendChild(h('span', { class: 'muted' }, 'In this chapter:'));
+      secs.forEach(function (x, i) { toc.appendChild(h('button', { class: 'tocbtn', type: 'button', onclick: function () { x[1].scrollIntoView({ behavior: 'smooth', block: 'start' }); } }, (i + 1) + ' ' + x[0])); });
       if (boss) body.appendChild(h('div', { class: 'card' }, h('div', { class: 'label' }, '🏆 Mock interview for this case study'),
         h('p', {}, boss.icon + ' ', h('b', {}, boss.title), ' — ' + boss.sub + '. The stations here prepare for it; the boss fight is the full interview, scored out of 100.'),
         h('a', { class: 'btn', href: '#/boss/' + boss.id }, 'Go to the boss fight →')));
-      if (t.refs && t.refs.length) body.appendChild(h('div', { class: 'card sources' }, h('div', { class: 'label' }, '📚 Evidence — where these claims come from'), L.sourceList(t.refs)));
+      if (t.refs && t.refs.length) body.appendChild(h('div', { class: 'card sources' }, h('div', { class: 'label' }, '📚 References — where these claims come from'), L.sourceList(t.refs)));
       foot.appendChild(h('button', { class: 'btn primary big', onclick: function () { if (!st.done.learn) SD.award(10); passed('Reading is the weakest way to learn. The next stations make it stick.'); } }, st.done.learn ? 'Read again ✓ — continue' : 'Got it — mark as read (+10 XP)'));
     }
     else if (station === 'recall') {

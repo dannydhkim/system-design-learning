@@ -322,3 +322,11 @@ details.more[open] { border-left: 2px solid var(--line); padding-left: 12px; mar
 .miniplayer[hidden] { display: none; } .mtitlebtn { flex: 1; min-width: 0; display: flex; gap: 6px; background: none; border: none; color: inherit; font: inherit; font-weight: 600; text-align: left; padding: 8px; cursor: pointer; border-radius: 8px; }
 .mtitlebtn:hover { background: rgba(255,255,255,.06); } .mtitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .miniplayer .pbtn { min-width: 38px; min-height: 36px; padding: 2px 8px; } body.has-mini main { padding-bottom: 72px; }
+
+/* Learn page as a chapter */
+.toc { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 12px; font-size: .86rem; }
+.tocbtn { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 14px; padding: 4px 10px; font: inherit; cursor: pointer; } .tocbtn:hover { color: var(--text); border-color: var(--accent); }
+.chapter { scroll-margin-top: 72px; } .sectitle { margin: 0; font-size: inherit; } .secnum { display: inline-block; min-width: 1.5em; padding: 1px 6px; margin-right: 4px; border-radius: 8px; background: rgba(110,231,255,.14); color: var(--accent); text-align: center; font-weight: 700; }
+.card.intro { border-left: 4px solid var(--gold); } .card.takeaway { border-left: 4px solid var(--good, #5ee6a8); } .card.takeaway p:last-child { font-weight: 600; }
+.card.say .row { font-style: normal; } .secnote { margin: 4px 0 8px; font-size: .86rem; }
+ol.points { padding-left: 1.6em; } ol.points > li::marker { color: var(--accent); font-weight: 700; }
