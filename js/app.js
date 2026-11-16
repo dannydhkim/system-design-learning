@@ -200,7 +200,11 @@
     else if (station === 'duck') {
       body.appendChild(h('p', { class: 'brief' }, 'Now say it out loud. The duck knows nothing, asks about the words you use, and then pushes back. It is marked on how clearly you taught, not on coverage.'));
       var m5 = h('div', {}); body.appendChild(m5);
-      L.duckTalk(m5, { title: t.title, followups: t.duck, rubric: DUCK_RUBRIC, terms: t.points.join(' ') + ' ' + t.title, saved: st.notes.duck }, { onDone: function (score, text) {
+      // Everything the app teaches for this topic, for the judge to write reference answers from.
+      var dd = (SD.deep || {})[t.id] || [];
+      var notes = ['Analogy: ' + t.analogy].concat(t.points.map(function (x, i) { return 'Key idea ' + (i + 1) + ': ' + x + (dd[i] ? '\nDetail: ' + dd[i][0] : ''); }),
+        ['Common mistake: ' + t.pitfall, 'How to say it in an interview: ' + t.say, 'A good explanation covers: ' + t.explain[1].join('; ')]).join('\n\n');
+      L.duckTalk(m5, { title: t.title, followups: t.duck, rubric: DUCK_RUBRIC, terms: t.points.join(' ') + ' ' + t.title, saved: st.notes.duck, notes: notes, say: t.say }, { onDone: function (score, text) {
         var prev = prevXp(st.duckBest, st.done.duck, 0.6, 25);
         st.notes.duck = text; st.duckBest = Math.max(st.duckBest || 0, score);
         SD.award(SD.replayXp(Math.round(25 * score) + 5, prev), { quest: 'teach' });

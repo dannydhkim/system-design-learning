@@ -445,12 +445,39 @@
         if (mic) mic.button.focus(); else ta.focus();
       });
     }
+    // The reference for one turn. With a Claude key and a connection, the judge writes one from this topic's own notes
+    // and says what you covered and missed; it is labelled as written by the model, not a checked source. Otherwise the
+    // first turn gets the topic's own model opening, and the follow-ups say a reference needs the key.
+    function reference(t, i, box) {
+      function local() {
+        clear(box);
+        if (i === 0 && spec.say) box.appendChild(h('div', { class: 'card say' }, h('div', { class: 'label' }, '🎙️ How a strong answer might open'), h('p', {}, '“' + spec.say + '”')));
+        else box.appendChild(document.createTextNode('A reference answer to a follow-up needs a Claude key and a connection (Settings).'));
+      }
+      if (!(spec.notes && SD.judge && SD.judge.online())) return local();
+      box.textContent = '🤖 Writing a reference from this topic\'s notes…';
+      SD.judge.review(spec.title, spec.notes, t.q, t.a).then(function (r) {
+        if (!box.isConnected) return;
+        clear(box);
+        if (!r.grounded) { box.appendChild(document.createTextNode('This topic\'s notes do not cover this question, so there is no reference to compare with.')); return; }
+        function list(label, items) { return items.length ? h('div', {}, h('b', {}, label + ' '), items.join(' · ')) : null; }
+        box.className = 'ref';
+        box.appendChild(h('div', { class: 'card say' }, h('div', { class: 'label' }, '🤖 Reference, written by Claude from this topic\'s notes'), h('p', {}, r.answer)));
+        [list('You covered:', r.covered), list('Missing:', r.missing), list('Wrong:', r.wrong)].forEach(function (x) { if (x) box.appendChild(x); });
+        box.appendChild(h('div', { class: 'muted' }, 'Model-written from the notes you studied, not a separately checked source.'));
+      }, function (e) { if (box.isConnected) { local(); box.appendChild(h('div', {}, '🤖 ' + e.message)); } });
+    }
     function grade() {
       clear(el);
       var boxes = [];
       el.appendChild(h('h3', { class: 'question' }, 'How did the teaching go?'));
       el.appendChild(h('p', { class: 'muted' }, 'This marks how you taught, not what you covered (Explain did that). Be strict.'));
-      el.appendChild(h('div', { class: 'yours' }, turns.map(function (t) { return h('div', {}, h('div', { class: 'label' }, '🦆 ' + t.q), h('p', {}, t.a)); })));
+      el.appendChild(h('p', { class: 'muted' }, 'Under each of your answers is a reference to compare it with.'));
+      el.appendChild(h('div', { class: 'yours' }, turns.map(function (t, i) {
+        var ref = h('div', { class: 'ref muted', role: 'status' });
+        reference(t, i, ref);
+        return h('div', {}, h('div', { class: 'label' }, '🦆 ' + t.q), h('p', {}, t.a), ref);
+      })));
       el.appendChild(h('div', { class: 'rubric' }, spec.rubric.map(function (r) { var cb = h('input', { type: 'checkbox' }); boxes.push(cb); return h('label', { class: 'check' }, cb, ' ' + r); })));
       el.appendChild(h('button', { class: 'btn primary', onclick: function () {
         var n = boxes.filter(function (b) { return b.checked; }).length, missed = spec.rubric.filter(function (r, i) { return !boxes[i].checked; });
