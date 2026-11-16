@@ -317,3 +317,8 @@ details.more[open] { border-left: 2px solid var(--line); padding-left: 12px; mar
 .ptrack { display: flex; align-items: center; gap: 6px; border-radius: 8px; padding: 1px 4px; } .ptrack.now { background: rgba(110,231,255,.1); } .ptrack.off .plink { opacity: .45; text-decoration: line-through; }
 .plink { flex: 1; text-align: left; background: none; border: none; color: inherit; font: inherit; padding: 7px 4px; cursor: pointer; border-radius: 6px; } .plink:hover { background: rgba(255,255,255,.06); }
 .pnote { font-size: .78rem; }
+
+.miniplayer { position: fixed; right: 14px; bottom: 14px; z-index: 60; width: min(400px, calc(100vw - 28px)); display: flex; align-items: center; gap: 4px; background: var(--panel); border: 1px solid var(--accent); border-radius: 12px; box-shadow: 0 8px 26px rgba(0,0,0,.55); padding: 5px 6px 5px 4px; }
+.miniplayer[hidden] { display: none; } .mtitlebtn { flex: 1; min-width: 0; display: flex; gap: 6px; background: none; border: none; color: inherit; font: inherit; font-weight: 600; text-align: left; padding: 8px; cursor: pointer; border-radius: 8px; }
+.mtitlebtn:hover { background: rgba(255,255,255,.06); } .mtitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.miniplayer .pbtn { min-width: 38px; min-height: 36px; padding: 2px 8px; } body.has-mini main { padding-bottom: 72px; }
