@@ -34,6 +34,7 @@
     hud.appendChild(h('nav', { class: 'navs' }, link('map', '🗺️', 'Map'), link('review', '🧠', 'Review', due || null), link('arcade', '🕹️', 'Arcade'), link('boss', '🏆', 'Bosses'), link('stats', '📊', 'Stats'), link('settings', '⚙️', 'Settings')));
     var cs = SD.cloud.describe();
     hud.appendChild(h('div', { class: 'meters' },
+      SD.player.button(),
       cs.icon ? h('a', { class: 'meter cloud ' + cs.cls, href: '#/settings', title: 'Cloud sync: ' + cs.word, 'aria-label': 'Cloud sync: ' + cs.word }, cs.icon) : null,
       h('div', { class: 'lvl', title: lv.into + ' / ' + lv.span + ' XP to next level' }, h('b', {}, 'Lv ' + lv.level), h('span', { class: 'ltitle' }, lv.title), h('div', { class: 'track' }, fill)),
       (function () { var r = SD.ladder.now(); return h('a', { class: 'meter rank t' + r.tier, href: '#/stats', title: 'Ranked ladder: ' + r.label + ' · ' + r.rp + ' RP' + (r.span ? ' (' + r.into + ' / ' + r.span + ' to the next division)' : ''), 'aria-label': 'Rank ' + r.label }, r.icon + ' ', h('b', {}, r.label)); })(),
@@ -346,6 +347,10 @@
     var vk = h('select', { class: 'num wide', 'aria-label': 'Announcer voice' }, h('option', { value: 'arcade' }, 'Arcade (fighting-game announcer, calls answer streaks)'), h('option', { value: 'female' }, 'Calm, voice A'), h('option', { value: 'male' }, 'Calm, voice B'));
     vk.value = s.settings.voiceKind;
     vk.addEventListener('change', function () { s.settings.voiceKind = vk.value; SD.save(); SD.audio.say('bossWin'); });
+    var openPlayer = h('div', { class: 'row' }, h('button', { class: 'btn mini', onclick: function () { SD.player.open(); } }, '🎵 Open the music player'), h('span', { class: 'muted' }, 'Play, pause, skip, repeat, choose a playlist or turn tracks off. The 🎵 button in the header opens it anywhere.'));
+    var vk = h('select', { class: 'num wide', 'aria-label': 'Announcer voice' }, h('option', { value: 'arcade' }, 'Arcade (fighting-game announcer, calls answer streaks)'), h('option', { value: 'female' }, 'Calm, voice A'), h('option', { value: 'male' }, 'Calm, voice B'));
+    vk.value = s.settings.voiceKind;
+    vk.addEventListener('change', function () { s.settings.voiceKind = vk.value; SD.save(); SD.audio.say('bossWin'); });
     // What is playing, with a way to skip it or never hear it again.
     var nowBox = h('div', {});
     function drawNow() {
@@ -363,9 +368,9 @@
     main.appendChild(h('div', { class: 'card' }, h('div', { class: 'label' }, 'Sound'),
       toggle('sound', 'Sound effects'), toggle('voice', 'Announcer'),
       h('label', { class: 'field' }, h('span', {}, 'Announcer voice'), vk),
-      toggle('music', 'Music (playlists for study, arcade and boss fights: orchestral, synthwave, trance, drum and bass, dubstep)'),
+      toggle('music', 'Music (orchestral, synthwave, trance, drum and bass, dubstep)'),
       h('label', { class: 'field' }, h('span', {}, 'Music volume'), mv),
-      nowBox,
+      openPlayer,
       h('p', { class: 'muted' }, 'All sounds and music are free CC0 assets (Kenney.nl and OpenGameArt, listed in audio/CREDITS.md) and work offline.')));
 
     var status = SD.sync.server === 'ok' ? '✓ Also saving to progress/progress.json in this folder (serve.py is running). That file is a local backup and stays out of git.'

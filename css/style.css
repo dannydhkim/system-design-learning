@@ -302,3 +302,18 @@ details > summary { cursor: pointer; color: var(--muted); font-size: .92rem; mar
 details.more { margin: 6px 0 4px; } details.more > summary { cursor: pointer; color: var(--accent, #4fd1c5); font-size: .88rem; width: fit-content; }
 details.more[open] { border-left: 2px solid var(--line); padding-left: 12px; margin-bottom: 12px; } details.more p { margin: 8px 0; color: var(--text, inherit); opacity: .92; }
 .morefrom { font-size: .82rem; }
+
+/* Music player (js/player.js) */
+.musicbtn { cursor: pointer; font: inherit; background: none; border: 1px solid transparent; color: inherit; } .musicbtn.playing { animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .55; } }
+.player { position: fixed; right: 14px; bottom: 14px; z-index: 60; width: min(400px, calc(100vw - 28px)); background: var(--panel); border: 1px solid var(--accent); border-radius: 14px; box-shadow: 0 12px 36px rgba(0,0,0,.6); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; max-height: calc(100vh - 90px); overflow: auto; }
+.player[hidden] { display: none; }
+.prow { display: flex; align-items: center; gap: 8px; } .pgrow { flex: 1; min-width: 0; } .pctl { gap: 6px; flex-wrap: wrap; }
+.ptitle { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .psub { font-size: .82rem; }
+.pseek { display: flex; align-items: center; gap: 8px; font-size: .8rem; color: var(--muted); } .pseek input { flex: 1; } .player input[type=range] { accent-color: var(--accent); }
+.pbtn { min-width: 42px; min-height: 40px; padding: 4px 10px; }
+.ptabs { display: flex; flex-wrap: wrap; gap: 6px; } .ptab.on { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.ptracks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 32vh; overflow: auto; }
+.ptrack { display: flex; align-items: center; gap: 6px; border-radius: 8px; padding: 1px 4px; } .ptrack.now { background: rgba(110,231,255,.1); } .ptrack.off .plink { opacity: .45; text-decoration: line-through; }
+.plink { flex: 1; text-align: left; background: none; border: none; color: inherit; font: inherit; padding: 7px 4px; cursor: pointer; border-radius: 6px; } .plink:hover { background: rgba(255,255,255,.06); }
+.pnote { font-size: .78rem; }

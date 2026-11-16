@@ -124,23 +124,27 @@
     if (lastSaid[line] && now - lastSaid[line] < 8000) return;
     lastSaid[line] = now;
     waiting = line;
-    next();
+    sayNext();
   }
-  function next() {
+  function sayNext() {
     if (speaking || !waiting) return;
     var wait = jingleUntil - Date.now();
-    if (wait > 0) { speaking = true; setTimeout(function () { speaking = false; next(); }, wait + 60); return; }
+    if (wait > 0) { speaking = true; setTimeout(function () { speaking = false; sayNext(); }, wait + 60); return; }
     var line = waiting; waiting = null; speaking = true;
     duck(true);
     playFile(path('voice/' + style(), line), 0.8).then(function (d) {
-      setTimeout(function () { speaking = false; if (!waiting) duck(false); next(); }, Math.max(150, d * 1000 + 150));
+      setTimeout(function () { speaking = false; if (!waiting) duck(false); sayNext(); }, Math.max(150, d * 1000 + 150));
     });
   }
 
-  // Background music. Each track has its own <audio> element and its own fade, so a fade-out is never cancelled by the
-  // next track's fade-in (that bug let two tracks play at once). When a track ends, the next in the scene's shuffled
-  // playlist starts.
-  var cur = null, scene = null, order = [], MUSIC_VOL = 0.26;
+  // Background music, driven by a small player model (see js/player.js for the controls).
+  //   · Each track has its own <audio> element and fade, so a fade-out is never cancelled by the next track's fade-in.
+  //   · Play/pause is settings.music: pausing keeps the element, so playing again resumes at the same second.
+  //   · Playlists: study, arcade and boss. "Follow the page" (the default) picks one by where you are; a playlist can
+  //     also be pinned (settings.musicScene).
+  //   · Order: shuffled, in order, or repeating one track (settings.musicLoop). Previous goes back through what played.
+  var cur = null, routeScene = 'study', queue = [], queueScene = null, history = [], blocked = false, MUSIC_VOL = 0.26;
+  var SCENE_NAMES = { study: 'Study', arcade: 'Arcade', boss: 'Boss fight' };
   function vol() { return MUSIC_VOL * (typeof set().musicVol === 'number' ? set().musicVol : 1); }
   function fade(a, target, then) {
     clearInterval(a._fade);
@@ -150,54 +154,136 @@
       a.volume = Math.max(0, Math.min(1, a.volume + Math.sign(d) * 0.02));
     }, 40);
   }
-  function duck(on) { if (cur && !cur.paused) fade(cur, on ? vol() * 0.35 : vol()); }
-  function stop() {
-    var old = cur; cur = null;
-    if (old) { old.onended = null; fade(old, 0, function () { old.pause(); old.src = ''; }); }
+  function duck(on) { if (cur && !cur.paused && !cur._pausing) fade(cur, on ? vol() * 0.35 : vol()); }
+  function sceneMode() { var m = set().musicScene; return MUSIC[m] ? m : 'auto'; }
+  function effScene() { var m = sceneMode(); return m === 'auto' ? (MUSIC[routeScene] ? routeScene : 'study') : m; }
+  function loopMode() { var m = set().musicLoop; return m === 'order' || m === 'one' ? m : 'shuffle'; }
+  function isMuted(sc, n) { return !!(set().mutedTracks || {})[sc + n]; }
+  function playable(sc) { var r = []; for (var n = 1; n <= MUSIC[sc]; n++) if (!isMuted(sc, n)) r.push(n); return r; }
+  function save() { try { SD.save(); } catch (e) { /* state may not be ready */ } }
+  // The next track of scene sc after track `from` (or null): in order, or from a shuffled queue that skips turned-off tracks.
+  function pick(sc, from, mode) {
+    var ok = playable(sc);
+    if (!ok.length) return null;
+    if (mode === 'order') { var later = ok.filter(function (n) { return n > (from || 0); }); return later.length ? later[0] : ok[0]; }
+    if (queueScene !== sc) { queue = []; queueScene = sc; }
+    queue = queue.filter(function (n) { return ok.indexOf(n) >= 0; });
+    if (!queue.length) { queue = SD.shuffle(ok.slice()); if (ok.length > 1 && queue[0] === from) queue.push(queue.shift()); }
+    return queue.shift();
   }
-  function startNext() {
-    if (!order.length) {
-      var off = set().mutedTracks || {};
-      order = SD.shuffle(Array.from({ length: MUSIC[scene] }, function (_, k) { return k + 1; }).filter(function (n) { return !off[scene + n]; }));
-      if (!order.length) return stop();   // every track of this scene has been turned off
-      if (cur && order.length > 1 && cur._n === order[0]) order.push(order.shift());   // do not repeat the track just heard
-    }
-    var n = order.shift(), a = new Audio('audio/music/' + scene + n + '.mp3');
-    a._n = n; a._scene = scene; a.volume = 0;
-    a.onended = function () { if (cur === a) { cur = null; startNext(); } };
-    stop(); cur = a;
-    a.play().then(function () { if (cur === a) fade(a, vol()); }, function () { if (cur === a) cur = null; });
+  function startTrack(sc, n, noHistory) {
+    var old = cur;
+    if (old && !noHistory) { history.push(old._scene + old._n); if (history.length > 40) history.shift(); }
+    var a = new Audio('audio/music/' + sc + n + '.mp3');
+    a._n = n; a._scene = sc; a.volume = 0; a.loop = loopMode() === 'one';
+    a.onended = function () {
+      if (cur !== a) return;
+      var nn = pick(a._scene, a._n, loopMode() === 'order' ? 'order' : 'shuffle');
+      if (nn == null) { cur = null; return; }
+      startTrack(a._scene, nn, false);
+    };
+    if (old) { old.onended = null; fade(old, 0, function () { old.pause(); old.src = ''; }); }
+    cur = a; blocked = false;
+    a.play().then(function () { if (cur === a) fade(a, vol()); }, function () { if (cur === a) blocked = true; });
+    mediaSession(a);
+  }
+  function pauseCur() {
+    var a = cur; if (!a || a.paused) return;
+    a._pausing = true;
+    fade(a, 0, function () { if (cur === a || a._pausing) a.pause(); a._pausing = false; });
+  }
+  function resumeCur() {
+    var a = cur; if (!a) return;
+    a._pausing = false; blocked = false;
+    var go = function () { a.play().then(function () { if (cur === a) fade(a, vol()); }, function () { if (cur === a) blocked = true; }); };
+    if (a.paused) { a.volume = 0; go(); } else fade(a, vol());
+  }
+  // Make what is playing match the settings and the page: nothing, or a track from the right playlist.
+  function reconcile() {
+    var want = !!(set().music && unlocked), sc = effScene();
+    if (!want) { if (cur) pauseCur(); return; }
+    if (cur && cur._scene === sc) { if (cur.paused || cur._pausing) resumeCur(); return; }
+    var n = pick(sc, null, loopMode() === 'order' ? 'order' : 'shuffle');
+    if (n == null) { if (cur) pauseCur(); return; }
+    startTrack(sc, n, false);
   }
   function music(name) {
-    if (name) { if (name !== scene) order = []; scene = name; }
-    var on = set().music && unlocked && MUSIC[scene];
-    if (!on) return stop();
-    if (cur && cur._scene === scene) { if (cur.paused) cur.play().catch(function () {}); return; }
-    startNext();
+    if (name) { if (name !== routeScene) queue = []; routeScene = name; }
+    reconcile();
+  }
+  function setEnabled(on) { set().music = !!on; save(); reconcile(); }
+  function playing() { return !!cur && !cur.paused && !cur._pausing; }
+  function next() {
+    var sc = cur ? cur._scene : effScene(), n = pick(sc, cur ? cur._n : null, loopMode() === 'order' ? 'order' : 'shuffle');
+    if (n == null) return;
+    set().music = true; save(); startTrack(sc, n, false);
+  }
+  function prev() {
+    if (cur && cur.currentTime > 3) { cur.currentTime = 0; return; }   // like most players: a restart first
+    var sc = effScene();
+    while (history.length) {
+      var m = /^([a-z]+)(\d+)$/.exec(history.pop());
+      if (m && m[1] === sc && !isMuted(m[1], +m[2])) { set().music = true; save(); startTrack(m[1], +m[2], true); return; }
+    }
+    if (cur) cur.currentTime = 0;
+  }
+  function mediaSession(a) {
+    if (!('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') return;
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({ title: TITLES[a._scene][a._n - 1], artist: 'System Design Quest', album: SCENE_NAMES[a._scene] });
+      var acts = { play: function () { setEnabled(true); }, pause: function () { setEnabled(false); }, nexttrack: next, previoustrack: prev };
+      Object.keys(acts).forEach(function (k) { try { navigator.mediaSession.setActionHandler(k, acts[k]); } catch (e) { /* unsupported action */ } });
+    } catch (e) { /* media session is optional */ }
   }
 
-  // The first tap or key press unlocks audio; the music for the current scene starts then.
-  function unlock() {
+  // The first tap or key press unlocks audio. A tap on the music controls only unlocks: the control then decides.
+  function unlock(e) {
     if (unlocked) return;
     unlocked = true; context();
     document.removeEventListener('pointerdown', unlock, true); document.removeEventListener('keydown', unlock, true);
-    music(scene);
+    if (e && e.target && e.target.closest && e.target.closest('.player, .musicbtn')) return;
+    reconcile();
   }
   document.addEventListener('pointerdown', unlock, true);
   document.addEventListener('keydown', unlock, true);
-  // Pause the music while the app is in the background.
-  document.addEventListener('visibilitychange', function () { if (cur) { if (document.hidden) cur.pause(); else if (set().music) cur.play().catch(function () {}); } });
+  // Pause the music while the app is in the background, and pick it up again when it comes back.
+  document.addEventListener('visibilitychange', function () {
+    if (!cur) return;
+    if (document.hidden) { if (!cur.paused) { cur._hiddenPause = true; cur.pause(); } }
+    else if (cur._hiddenPause) { cur._hiddenPause = false; if (set().music) resumeCur(); }
+  });
 
   SD.audio = {
-    play: play, say: say, music: music, skip: function () { if (cur) startNext(); },
-    // The track now playing: { id, title }, or null.
-    now: function () { return cur ? { id: cur._scene + cur._n, title: TITLES[cur._scene][cur._n - 1] } : null; },
-    // Never play this track again (until it is restored in Settings), and move on.
-    mute: function (id) { var st = SD.state.settings; st.mutedTracks = st.mutedTracks || {}; st.mutedTracks[id] = 1; SD.save(); order = []; if (cur && cur._scene + cur._n === id) startNext(); },
-    unmuteAll: function () { SD.state.settings.mutedTracks = {}; SD.save(); order = []; music(); },
+    play: play, say: say, music: music,
+    // Player controls.
+    toggle: function () { setEnabled(!playing()); },
+    pause: function () { setEnabled(false); }, resume: function () { setEnabled(true); },
+    next: next, prev: prev, skip: next,
+    seek: function (frac) { if (cur && isFinite(cur.duration) && cur.duration > 0) cur.currentTime = Math.max(0, Math.min(1, frac)) * cur.duration; },
+    setLoop: function (m) { set().musicLoop = (m === 'order' || m === 'one') ? m : 'shuffle'; save(); queue = []; if (cur) cur.loop = loopMode() === 'one'; },
+    cycleLoop: function () { var m = loopMode(); SD.audio.setLoop(m === 'shuffle' ? 'order' : m === 'order' ? 'one' : 'shuffle'); },
+    setScene: function (m) { set().musicScene = MUSIC[m] ? m : 'auto'; save(); queue = []; reconcile(); },
+    playTrack: function (id) {
+      var m = /^([a-z]+)(\d+)$/.exec(id); if (!m || !MUSIC[m[1]] || +m[2] < 1 || +m[2] > MUSIC[m[1]]) return;
+      if (!(sceneMode() === 'auto' && m[1] === routeScene)) set().musicScene = m[1];   // keep the choice from being replaced at once
+      set().music = true; save(); startTrack(m[1], +m[2], false);
+    },
+    mute: function (id) { var st = set(); st.mutedTracks = st.mutedTracks || {}; st.mutedTracks[id] = 1; save(); queue = []; if (cur && cur._scene + cur._n === id) next(); },
+    unmute: function (id) { var st = set(); if (st.mutedTracks) delete st.mutedTracks[id]; save(); queue = []; },
+    unmuteAll: function () { set().mutedTracks = {}; save(); queue = []; reconcile(); },
+    refresh: function () { if (cur && playing()) fade(cur, vol()); reconcile(); },
+    // What the player shows.
+    state: function () {
+      var st = set(), sc = effScene(), off = st.mutedTracks || {};
+      return { enabled: !!st.music, unlocked: unlocked, playing: playing(), blocked: blocked,
+        track: cur ? { id: cur._scene + cur._n, scene: cur._scene, n: cur._n, title: TITLES[cur._scene][cur._n - 1] } : null,
+        time: cur ? cur.currentTime : 0, duration: cur && isFinite(cur.duration) ? cur.duration : 0,
+        loop: loopMode(), sceneMode: sceneMode(), scene: sc, routeScene: routeScene, volume: typeof st.musicVol === 'number' ? st.musicVol : 1,
+        tracks: TITLES[sc].map(function (title, k) { var id = sc + (k + 1); return { id: id, title: title, muted: !!off[id], current: !!cur && cur._scene === sc && cur._n === k + 1 }; }) };
+    },
+    now: function () { var s = SD.audio.state(); return s.track; },
     titleOf: function (id) { var m = /^([a-z]+)(\d+)$/.exec(id); return m && TITLES[m[1]] ? TITLES[m[1]][m[2] - 1] : id; },
-    refresh: function () { if (cur) fade(cur, vol()); music(); },
-    playing: function () { return !!cur && !cur.paused; },
+    playing: playing,
     SFX: SFX, LINES: LINES, FILES: FILES
   };
 })(window.SD);

@@ -120,7 +120,7 @@ window.SD = window.SD || {};
       runs: {},   // a boss fight left part-way: boss id -> { i: next phase, scores: [0..1 per phase done], ms: time spent }
       tally: {},  // what each device has added to the running totals (see "Running totals" below)
       ladder: { rp: 0, peak: 0 },   // ranked ladder (js/ladder.js)
-      settings: { sound: true, voice: true, voiceKind: 'arcade', music: false, musicVol: 1 }
+      settings: { sound: true, voice: true, voiceKind: 'arcade', music: false, musicVol: 1, musicLoop: 'shuffle', musicScene: 'auto' }
     };
   }
   function isObj(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
@@ -264,6 +264,8 @@ window.SD = window.SD || {};
     if (['arcade', 'female', 'male'].indexOf(s.settings.voiceKind) < 0) s.settings.voiceKind = 'arcade';
     s.settings.musicVol = Math.min(1, Math.max(0, num(s.settings.musicVol) == null ? 1 : num(s.settings.musicVol)));
     s.settings.mutedTracks = only(s.settings.mutedTracks, num);
+    if (['shuffle', 'order', 'one'].indexOf(s.settings.musicLoop) < 0) s.settings.musicLoop = 'shuffle';
+    if (['auto', 'study', 'arcade', 'boss'].indexOf(s.settings.musicScene) < 0) s.settings.musicScene = 'auto';
     var lad = isObj(s.ladder) ? s.ladder : b.ladder, rp = Math.max(0, num(lad.rp) || 0);
     s.ladder = { rp: rp, peak: Math.max(rp, num(lad.peak) || 0) };
     return fixTally(s);
