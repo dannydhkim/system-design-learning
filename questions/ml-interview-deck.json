@@ -284,7 +284,7 @@
    "topic": "FND",
    "title": "Data leakage",
    "type": "interview",
-   "question": "Name the main kinds of leakage and how you catch them.",
+   "question": "In ML, data leakage is when training uses information that won't be available at prediction time. Name the main kinds of data leakage and how you catch them.",
    "answer": "• Target leakage: a feature computed from or after the label (for example \"refund issued\" predicting fraud).\n• Temporal leakage: training on data from after the prediction time, or aggregates that include the future.\n• Preprocessing leakage: fitting scalers, imputers, or target encoders on the full dataset before splitting.\n• Entity leakage: the same user (or other group) in both train and test.\n• Detection: suspiciously high offline metrics, a big offline-online gap.",
    "key_concept": "Probe — Point-in-time correct feature joins (DATA-02) are the systematic fix: they reproduce each feature's value as of the label's timestamp.",
    "refs": [
