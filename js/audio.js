@@ -114,6 +114,25 @@
     playFile(path('sfx', name), JINGLE[name] ? 0.5 : 0.4);
   }
 
+  // The rubber duck's quack, synthesised (no file): two short nasal blips, each a sawtooth whose pitch falls,
+  // shaped by a band-pass filter. The second is a little higher, which keeps it cute rather than loud.
+  var lastQuack = 0;
+  function quack() {
+    var c = context();
+    if (!c || !unlocked || set().sound === false || Date.now() - lastQuack < 400) return;
+    lastQuack = Date.now();
+    var t0 = c.currentTime + 0.02;
+    [[0, 880, 520], [0.17, 990, 600]].forEach(function (q) {
+      var t = t0 + q[0], o = c.createOscillator(), f = c.createBiquadFilter(), g = c.createGain();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(q[1], t); o.frequency.exponentialRampToValueAtTime(q[2], t + 0.12);
+      f.type = 'bandpass'; f.frequency.setValueAtTime(1500, t); f.Q.value = 4;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
+      o.connect(f); f.connect(g); g.connect(c.destination);
+      o.start(t); o.stop(t + 0.15);
+    });
+  }
+
   // Announcer lines play one at a time, after any jingle that is sounding. Only the latest waiting line is kept, and
   // the same line is not repeated within 8 seconds.
   var waiting = null, speaking = false, lastSaid = {};
@@ -254,7 +273,7 @@
   });
 
   SD.audio = {
-    play: play, say: say, music: music,
+    play: play, say: say, music: music, quack: quack,
     // Player controls.
     toggle: function () { setEnabled(!playing()); },
     pause: function () { setEnabled(false); }, resume: function () { setEnabled(true); },

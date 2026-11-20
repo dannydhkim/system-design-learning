@@ -391,7 +391,7 @@
   // spec: {title, followups[], rubric[], terms (text to look for the topic's own words in), saved}. The duck asks you
   // to teach the topic, then asks about something you said: with a Claude key and a connection the question comes from
   // the judge model; otherwise the duck picks a technical word out of your answer. Then the topic's own follow-ups.
-  // Questions are read aloud where the browser can speak; answers are meant to be spoken (dictation), typing also works.
+  // Each question arrives with a quack (when sound effects are on); 🔊 reads it in a plain voice. Answers are meant to be spoken (dictation), typing also works.
   var COMMON = /^(because|between|through|without|another|something|different|example|important|actually|basically|however|therefore|usually|general|generally|problem|problems|instead|everything|whether|themselves|together|against|already|certain|several|possible|specific|example|examples|whatever|somebody|everyone|sometimes|question|answer|understand|explain|explained|thing|things|really|should|would|could|people|system|systems)$/;
   function pickTerm(said, terms) {
     var seen = {}, cands = (said.match(/[A-Za-z][A-Za-z0-9-]{2,}/g) || []).filter(function (w) {
@@ -403,10 +403,8 @@
   }
   L.duckTalk = function (el, spec, ctx) {
     var turns = [], mic = null, canSpeak = !!(window.speechSynthesis && window.SpeechSynthesisUtterance);
-    var aloud = !!(SD.state.settings.sound && canSpeak);
     SD.onLeave(function () { if (mic) mic.stop(); if (canSpeak) speechSynthesis.cancel(); });
     function words(s) { return (s.trim().match(/\S+/g) || []).length; }
-    function speak(q) { if (!aloud) return; speechSynthesis.cancel(); var u = new SpeechSynthesisUtterance(q); u.lang = 'en-US'; u.pitch = 1.5; u.rate = 1.05; speechSynthesis.speak(u); }
     // The question for turn k, as a promise.
     function question(k) {
       if (k === 0) return Promise.resolve('Quack. I know nothing about this. Teach me "' + spec.title + '" from scratch: what it is, why it matters, and when I would use it.');
@@ -431,12 +429,13 @@
       el.appendChild(h('div', { class: 'duck' }, h('div', { class: 'duck-face' }, '🦆'), bubble));
       question(k).then(function (q) {
         if (!bubble.isConnected) return;
-        clear(bubble); bubble.appendChild(document.createTextNode(q));
-        speak(q);
+        clear(bubble); bubble.appendChild(document.createTextNode(q + ' '));
+        var readQ = L.speakButton(function () { return q; });   // a plain voice, only on request
+        if (readQ) bubble.appendChild(readQ);
+        if (SD.audio && SD.audio.quack) SD.audio.quack();
         var ta = h('textarea', { class: 'ta', rows: k ? 3 : 5, placeholder: 'Say it out loud (press 🎙), or type. Plain words: the duck knows nothing.' });
         mic = L.dictate(ta);
         var warn = h('div', { class: 'muted' });
-        var voice = canSpeak ? h('label', { class: 'check' }, (function () { var c = h('input', { type: 'checkbox' }); c.checked = aloud; c.addEventListener('change', function () { aloud = c.checked; if (!aloud) speechSynthesis.cancel(); else speak(q); }); return c; })(), ' The duck speaks') : null;
         var send = h('button', { class: 'btn primary', onclick: function () {
           send.disabled = true;
           (mic ? mic.stop() : Promise.resolve()).then(function () {
@@ -447,7 +446,7 @@
           });
         } }, k + 1 < total ? 'Answer the duck →' : 'Finish →');
         el.appendChild(ta);
-        el.appendChild(h('div', { class: 'row wrap' }, mic ? mic.button : null, send, h('span', { class: 'spacer' }), voice, h('span', { class: 'muted' }, 'Question ' + (k + 1) + ' of ' + total)));
+        el.appendChild(h('div', { class: 'row wrap' }, mic ? mic.button : null, send, h('span', { class: 'spacer' }), h('span', { class: 'muted' }, 'Question ' + (k + 1) + ' of ' + total)));
         el.appendChild(warn);
         if (k === 0 && spec.saved) el.appendChild(h('details', { class: 'prev' }, h('summary', {}, 'Your previous conversation'), h('p', {}, spec.saved)));
         if (mic) mic.button.focus(); else ta.focus();
