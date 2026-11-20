@@ -154,7 +154,7 @@
    "topic": "FND",
    "title": "Bagging vs boosting",
    "type": "interview",
-   "question": "Mechanism and bias/variance effect of each.",
+   "question": "Explain the mechanism of bagging and of boosting, and how each affects bias and variance.",
    "answer": "• Bagging (random forest): independent models in parallel on bootstrap samples (drawn with replacement), averaged or voted. Reduces variance because uncorrelated errors average out; unlike boosting it is not designed to reduce bias. Random forests also pick a random subset of features at each split to decorrelate trees.\n• Boosting (XGBoost, LightGBM): sequential models, each added to correct the current ensemble's errors. Can reduce bias (builds a higher-capacity ensemble); can overfit without shrinkage and regularization.\n• Mnemonic: Bagging = Both vote together, balances variance. Boosting = Building on mistakes, chips at bias.",
    "key_concept": "Probe — Why does decorrelation matter? With n models of error variance sigma^2 and pairwise correlation rho, the ensemble's expected squared error is rho * sigma^2 + (1 - rho) * sigma^2 / n, so correlation rho sets a floor that more trees cannot remove.",
    "next_review": "2026-10-05",
