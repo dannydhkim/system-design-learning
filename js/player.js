@@ -72,7 +72,9 @@
             : h('button', { class: 'btn mini', type: 'button', title: 'Never play this track', 'aria-label': 'Never play ' + t.title, onclick: function () { A.mute(t.id); lastKey = ''; setTimeout(refresh, 80); } }, '🚫')));
       });
     }
-    E.note.textContent = s.sceneMode === 'auto' ? 'The playlist follows the page: study on lessons, arcade in arcade games, boss in boss fights.' : 'This playlist is pinned. Choose "Follow the page" to let the page pick.';
+    var rs = A.restarts();
+    E.note.textContent = (s.sceneMode === 'auto' ? 'The playlist follows the page: study on lessons, arcade in arcade games, boss in boss fights.' : 'This playlist is pinned. Choose "Follow the page" to let the page pick.') +
+      (rs ? ' The app reloaded ' + rs + ' time' + (rs === 1 ? '' : 's') + ' in the last day while music was playing (iOS can do this to home-screen apps); the track resumes where it was.' : '');
     E.mtitle.textContent = s.track ? s.track.title : s.enabled ? (s.unlocked ? 'Starting…' : 'Tap anywhere to start') : 'Press play';
     E.mplay.textContent = s.playing ? '⏸' : '▶'; E.mplay.setAttribute('aria-label', s.playing ? 'Pause' : 'Play');
     updateButton(s);

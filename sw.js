@@ -4,7 +4,7 @@
 // tools/check-sw.mjs, and `node tools/check-sw.mjs --write` rewrites them after any file changes. A new VERSION is
 // what makes installed copies pick up a deploy: the browser sees sw.js changed, downloads the new files into a fresh
 // cache, and the page offers a reload (js/app.js). Progress is not stored here; it lives in localStorage.
-const VERSION = 'd2e3fd9b1ade';
+const VERSION = '0fa65c9cd035';
 const FILES = [
   './',
   'js/data/meta.js',
@@ -162,5 +162,21 @@ self.addEventListener('fetch', (e) => {
   const key = rel === '' || rel === 'index.html' ? './' : url.origin + url.pathname;   // ignore ?query
   const cached = () => caches.open(CACHE).then((c) => c.match(key));
   if (DEV) e.respondWith(fetch(req).catch(() => cached().then((r) => r || Response.error())));
-  else e.respondWith(cached().then((r) => r || fetch(req)));
+  else e.respondWith(cached().then((r) => (r ? ranged(req, r) : fetch(req))));
 });
+
+// Audio elements ask for byte ranges (Safari always does), and need a 206 answer to seek, e.g. to resume a track
+// where it was. The cache holds whole files, so a range request gets the matching slice.
+function ranged(req, res) {
+  const m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.get('range') || '');
+  if (!m || res.status !== 200 || (m[1] === '' && m[2] === '')) return res;
+  return res.arrayBuffer().then((buf) => {
+    const size = buf.byteLength;
+    const start = m[1] === '' ? Math.max(0, size - Number(m[2])) : Number(m[1]);
+    const end = m[1] === '' || m[2] === '' ? size - 1 : Math.min(Number(m[2]), size - 1);
+    if (start > end || start >= size) return new Response(null, { status: 416, headers: { 'Content-Range': 'bytes */' + size } });
+    return new Response(buf.slice(start, end + 1), { status: 206, headers: {
+      'Content-Type': res.headers.get('Content-Type') || 'application/octet-stream',
+      'Content-Range': 'bytes ' + start + '-' + end + '/' + size, 'Content-Length': String(end - start + 1), 'Accept-Ranges': 'bytes' } });
+  });
+}

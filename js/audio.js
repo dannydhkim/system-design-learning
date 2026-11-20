@@ -114,23 +114,24 @@
     playFile(path('sfx', name), JINGLE[name] ? 0.5 : 0.4);
   }
 
-  // The rubber duck's quack, synthesised (no file): two short nasal blips, each a sawtooth whose pitch falls,
-  // shaped by a band-pass filter. The second is a little higher, which keeps it cute rather than loud.
+  // The rubber duck's quack, synthesised (no file) in a video-game style: two square-wave chirps whose pitch jumps up
+  // then drops, softened by a low-pass filter. The second chirp is higher, so it reads as a cartoon "wak-wak".
   var lastQuack = 0;
   function quack() {
     var c = context();
     if (!c || !unlocked || set().sound === false || Date.now() - lastQuack < 400) return;
     lastQuack = Date.now();
-    var t0 = c.currentTime + 0.02;
-    [[0, 880, 520], [0.17, 990, 600]].forEach(function (q) {
-      var t = t0 + q[0], o = c.createOscillator(), f = c.createBiquadFilter(), g = c.createGain();
-      o.type = 'sawtooth';
-      o.frequency.setValueAtTime(q[1], t); o.frequency.exponentialRampToValueAtTime(q[2], t + 0.12);
-      f.type = 'bandpass'; f.frequency.setValueAtTime(1500, t); f.Q.value = 4;
-      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
-      o.connect(f); f.connect(g); g.connect(c.destination);
-      o.start(t); o.stop(t + 0.15);
-    });
+    QUACK.forEach(function (q) { chirp(c, c.currentTime + 0.02 + q[0], q[1], q[2], q[3]); });
+  }
+  var QUACK = [[0, 620, 1040, 430], [0.15, 760, 1280, 520]];   // [start s, from Hz, peak Hz, end Hz]
+  function chirp(c, t, from, peak, to) {
+    var o = c.createOscillator(), f = c.createBiquadFilter(), g = c.createGain();
+    o.type = 'square';
+    o.frequency.setValueAtTime(from, t); o.frequency.exponentialRampToValueAtTime(peak, t + 0.03); o.frequency.exponentialRampToValueAtTime(to, t + 0.11);
+    f.type = 'lowpass'; f.frequency.value = 2600;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.18, t + 0.01); g.gain.setValueAtTime(0.18, t + 0.07); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    o.connect(f); f.connect(g); g.connect(c.destination);
+    o.start(t); o.stop(t + 0.13);
   }
 
   // Announcer lines play one at a time, after any jingle that is sounding. Only the latest waiting line is kept, and
@@ -190,11 +191,12 @@
     if (!queue.length) { queue = SD.shuffle(ok.slice()); if (ok.length > 1 && queue[0] === from) queue.push(queue.shift()); }
     return queue.shift();
   }
-  function startTrack(sc, n, noHistory) {
+  function startTrack(sc, n, noHistory, at) {
     var old = cur;
     if (old && !noHistory) { history.push(old._scene + old._n); if (history.length > 40) history.shift(); }
     var a = new Audio('audio/music/' + sc + n + '.mp3');
     a._n = n; a._scene = sc; a.volume = 0; a.loop = loopMode() === 'one';
+    if (at > 0) a.addEventListener('loadedmetadata', function () { if (at < a.duration - 2) a.currentTime = at; }, { once: true });
     a.onended = function () {
       if (cur !== a) return;
       var nn = pick(a._scene, a._n, loopMode() === 'order' ? 'order' : 'shuffle');
@@ -217,11 +219,38 @@
     var go = function () { a.play().then(function () { if (cur === a) fade(a, vol()); }, function () { if (cur === a) blocked = true; }); };
     if (a.paused) { a.volume = 0; go(); } else fade(a, vol());
   }
+  // Where the music was, kept in localStorage every few seconds. iOS sometimes reloads a home-screen app (for example
+  // when it reclaims memory), which would otherwise start a different track from the top. After a reload within
+  // RESUME_MS, the same track carries on from where it was. Reloads that happened while music played are counted
+  // (the last day's are shown in Settings) so they can be told apart from a bug in this file.
+  var KEEP_MUSIC = 'sdq.music', KEEP_RESTARTS = 'sdq.restarts', RESUME_MS = 120000, resumeFrom = null;
+  function readJSON(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
+  function remember() {
+    if (!cur || cur.paused) return;
+    try { localStorage.setItem(KEEP_MUSIC, JSON.stringify({ id: cur._scene + cur._n, t: cur.currentTime, at: Date.now() })); } catch (e) { /* storage may be unavailable */ }
+  }
+  (function () {
+    var m = readJSON(KEEP_MUSIC), now = Date.now();
+    if (!m || !(now - m.at < RESUME_MS)) return;
+    resumeFrom = m;
+    if (now - m.at < 15000) {   // music was playing seconds ago: the page was reloaded, not reopened later
+      var r = (readJSON(KEEP_RESTARTS) || []).filter(function (x) { return now - x < 86400000; });
+      r.push(now);
+      try { localStorage.setItem(KEEP_RESTARTS, JSON.stringify(r.slice(-50))); } catch (e) { /* storage may be unavailable */ }
+    }
+  })();
+  setInterval(remember, 3000);
+  window.addEventListener('pagehide', remember);
+  function restarts() { var now = Date.now(); return (readJSON(KEEP_RESTARTS) || []).filter(function (x) { return now - x < 86400000; }).length; }
+
   // Make what is playing match the settings and the page: nothing, or a track from the right playlist.
   function reconcile() {
     var want = !!(set().music && unlocked), sc = effScene();
     if (!want) { if (cur) pauseCur(); return; }
     if (cur && cur._scene === sc) { if (cur.paused || cur._pausing) resumeCur(); return; }
+    var r = resumeFrom, rm = r && /^([a-z]+)(\d+)$/.exec(r.id);
+    resumeFrom = null;   // only the first track after a reload resumes
+    if (!cur && rm && rm[1] === sc && MUSIC[sc] && +rm[2] >= 1 && +rm[2] <= MUSIC[sc] && !isMuted(sc, +rm[2])) { startTrack(sc, +rm[2], false, r.t); return; }
     var n = pick(sc, null, loopMode() === 'order' ? 'order' : 'shuffle');
     if (n == null) { if (cur) pauseCur(); return; }
     startTrack(sc, n, false);
@@ -268,7 +297,7 @@
   // Pause the music while the app is in the background, and pick it up again when it comes back.
   document.addEventListener('visibilitychange', function () {
     if (!cur) return;
-    if (document.hidden) { if (!cur.paused) { cur._hiddenPause = true; cur.pause(); } }
+    if (document.hidden) { remember(); if (!cur.paused) { cur._hiddenPause = true; cur.pause(); } }
     else if (cur._hiddenPause) { cur._hiddenPause = false; if (set().music) resumeCur(); }
   });
 
@@ -302,7 +331,7 @@
     },
     now: function () { var s = SD.audio.state(); return s.track; },
     titleOf: function (id) { var m = /^([a-z]+)(\d+)$/.exec(id); return m && TITLES[m[1]] ? TITLES[m[1]][m[2] - 1] : id; },
-    playing: playing,
+    playing: playing, restarts: restarts,
     SFX: SFX, LINES: LINES, FILES: FILES
   };
 })(window.SD);
