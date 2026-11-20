@@ -167,15 +167,15 @@
   }
 
   L.recall = function (el, spec, ctx) {
-    var queue = spec.ids.slice(), again = {}, done = 0, total = queue.length, good = 0;
+    var queue = spec.ids.slice(), again = {}, done = 0, total = queue.length, good = 0, skipped = 0, deferred = {};
     var mic = null;
     SD.onLeave(function () { if (mic) mic.stop(); if (window.speechSynthesis) speechSynthesis.cancel(); });
     function show(graded) {
       var refocus = graded && SD.ownsFocus(el);
       clear(el);
       if (!queue.length) {
-        el.appendChild(h('div', { class: 'result' }, h('div', { class: 'big' }, '🧠 ' + total + ' card' + (total === 1 ? '' : 's') + ' reviewed'), h('p', {}, 'Each one is now scheduled to return just before you would forget it.')));
-        return ctx.onDone(total ? good / total : 1);
+        el.appendChild(h('div', { class: 'result' }, h('div', { class: 'big' }, '🧠 ' + done + ' card' + (done === 1 ? '' : 's') + ' reviewed'), h('p', {}, (done ? 'Each one is now scheduled to return just before you would forget it.' : '') + (skipped ? ' ' + skipped + ' skipped card' + (skipped === 1 ? ' keeps its schedule and stays' : 's keep their schedule and stay') + ' due.' : ''))));
+        return ctx.onDone(done ? good / done : 1);
       }
       var id = queue[0], c = SD.cards[id], st = SD.state.cards[id];
       var answerBox = h('div', {});
@@ -221,9 +221,17 @@
         })));
         answerBox.querySelector('.grade').focus();   // the reveal button that had focus is gone
       }
+      // Skip (daily review only), never graded: the first skip moves the card to the back of the session; skipping it
+      // again, or skipping the last card, drops it from the session and it stays due.
+      var drop = deferred[id] || queue.length === 1;
+      var skip = ctx.skip ? h('button', { class: 'btn', title: drop ? 'Leaves this session ungraded; the card stays due' : 'Moves to the end of this session, ungraded', onclick: function () {
+        queue.shift();
+        if (drop) { skipped++; total--; } else { deferred[id] = 1; queue.push(id); }
+        show(true);
+      } }, drop ? 'Skip, keep due ⏭' : 'Skip for now ⏭') : null;
       el.appendChild(h('div', { class: 'qcount' }, 'Card ' + (done + 1) + ' of ' + total + (st ? '' : ' · new')));
       el.appendChild(h('h3', { class: 'question' }, c.q, ' ', L.speakButton(function () { return c.q; })));
-      el.appendChild(ta); el.appendChild(h('div', { class: 'row wrap' }, mic ? mic.button : null, reveal)); el.appendChild(answerBox);
+      el.appendChild(ta); el.appendChild(h('div', { class: 'row wrap' }, mic ? mic.button : null, reveal, skip)); el.appendChild(answerBox);
       if (refocus) reveal.focus();
     }
     show();

@@ -250,7 +250,7 @@
     main.appendChild(h('p', { class: 'muted' }, 'Spaced repetition: each card returns just before you are likely to forget it. A few minutes daily beats an hour weekly.'));
     var body = h('section', { class: 'station' });
     var intro = h('div', { class: 'row wrap' });
-    function start(ids) { clear(body); L.recall(body, { ids: ids }, { onDone: function () { body.appendChild(h('a', { class: 'btn primary big', href: '#/map' }, 'Back to the map')); } }); }
+    function start(ids) { clear(body); L.recall(body, { ids: ids }, { skip: true, onDone: function () { body.appendChild(h('a', { class: 'btn primary big', href: '#/map' }, 'Back to the map')); } }); }
     if (due.length) intro.appendChild(h('button', { class: 'btn primary big', onclick: function () { start(due.slice(0, 20)); } }, 'Review ' + Math.min(20, due.length) + ' due card' + (due.length > 1 ? 's' : '')));
     else intro.appendChild(h('div', { class: 'fb good' }, h('b', {}, '✓ Nothing due. '), 'Come back tomorrow, or learn new cards.'));
     var pool = built.length ? built : fresh.filter(function (id) { return !SD.cards[id].section; });
