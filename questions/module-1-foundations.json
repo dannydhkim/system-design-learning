@@ -19,7 +19,7 @@
       "id": "1.1b",
       "topic": "1.1",
       "type": "reasoning",
-      "question": "Same scenario: after the spike, traffic returns to exactly 100 req/s (the server's max capacity). How long to drain the queue?",
+      "question": "A server handles 100 req/s; a 60-second spike to 150 req/s left 3,000 requests queued. Traffic then returns to exactly 100 req/s (the server's max capacity). How long to drain the queue?",
       "answer": "Never. At 100% utilization there is zero spare capacity. The queue only drains if arrival rate drops BELOW max throughput. At 80 req/s → 20 req/s spare → 3000/20 = 150 seconds.",
       "key_concept": "A system at 100% utilization has zero recovery capacity",
       "answered_correctly": true,
