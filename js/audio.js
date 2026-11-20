@@ -66,7 +66,7 @@
     'audio/voice/arcade/time_over.mp3',
     'audio/sfx/ok.mp3', 'audio/sfx/ok2.mp3', 'audio/sfx/bad.mp3', 'audio/sfx/coin.mp3', 'audio/sfx/tick.mp3',
     'audio/sfx/hit.mp3', 'audio/sfx/boom.mp3', 'audio/sfx/laser.mp3', 'audio/sfx/levelup.mp3', 'audio/sfx/win.mp3',
-    'audio/sfx/lose.mp3', 'audio/sfx/rankup.mp3', 'audio/sfx/quest.mp3', 'audio/voice/female/go.mp3',
+    'audio/sfx/lose.mp3', 'audio/sfx/rankup.mp3', 'audio/sfx/quest.mp3', 'audio/sfx/quack.mp3', 'audio/voice/female/go.mp3',
     'audio/voice/female/ready.mp3', 'audio/voice/female/final_round.mp3', 'audio/voice/female/mission_completed.mp3',
     'audio/voice/female/mission_failed.mp3', 'audio/voice/female/congratulations.mp3',
     'audio/voice/female/new_highscore.mp3', 'audio/voice/female/game_over.mp3', 'audio/voice/female/time_over.mp3',
@@ -114,24 +114,12 @@
     playFile(path('sfx', name), JINGLE[name] ? 0.5 : 0.4);
   }
 
-  // The rubber duck's quack, synthesised (no file) in a video-game style: two square-wave chirps whose pitch jumps up
-  // then drops, softened by a low-pass filter. The second chirp is higher, so it reads as a cartoon "wak-wak".
+  // The rubber duck's quack (audio/sfx/quack.mp3), when sound effects are on. Not repeated within 400 ms.
   var lastQuack = 0;
   function quack() {
-    var c = context();
-    if (!c || !unlocked || set().sound === false || Date.now() - lastQuack < 400) return;
+    if (set().sound === false || Date.now() - lastQuack < 400) return;
     lastQuack = Date.now();
-    QUACK.forEach(function (q) { chirp(c, c.currentTime + 0.02 + q[0], q[1], q[2], q[3]); });
-  }
-  var QUACK = [[0, 620, 1040, 430], [0.15, 760, 1280, 520]];   // [start s, from Hz, peak Hz, end Hz]
-  function chirp(c, t, from, peak, to) {
-    var o = c.createOscillator(), f = c.createBiquadFilter(), g = c.createGain();
-    o.type = 'square';
-    o.frequency.setValueAtTime(from, t); o.frequency.exponentialRampToValueAtTime(peak, t + 0.03); o.frequency.exponentialRampToValueAtTime(to, t + 0.11);
-    f.type = 'lowpass'; f.frequency.value = 2600;
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.18, t + 0.01); g.gain.setValueAtTime(0.18, t + 0.07); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
-    o.connect(f); f.connect(g); g.connect(c.destination);
-    o.start(t); o.stop(t + 0.13);
+    playFile(path('sfx', 'quack'), 0.6);
   }
 
   // Announcer lines play one at a time, after any jingle that is sounding. Only the latest waiting line is kept, and

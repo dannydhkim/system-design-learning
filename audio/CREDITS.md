@@ -52,3 +52,10 @@ From OpenGameArt.org, each page listing the CC0 licence, downloaded 2026-11-14. 
 | music/boss4.mp3 | Android Assault | umplix | https://opengameart.org/content/android-assault |
 | music/boss5.mp3 | Cyborg | umplix | https://opengameart.org/content/cyborg |
 | music/boss6.mp3 | Finale | sudocolon | https://opengameart.org/content/finale |
+
+## Duck quack (`sfx/quack.mp3`)
+"Duck Quack - Sound Effect (HD).mp3" by Tabby+Gus., https://freesound.org/people/Tabby+Gus./sounds/515408/, listed there
+as Creative Commons 0; downloaded 2026-11-20 (Freesound's 128 kb/s preview). Trimmed to the single quack (0.24–0.62 s),
+faded out, converted to mono 64 kb/s MP3. The same sound appears on YouTube as "Duck Quack - Sound Effect (HD)"
+(Gaming Sound FX); whether the uploader is its original author is not stated, so the CC0 listing could not be
+verified beyond the Freesound page.
